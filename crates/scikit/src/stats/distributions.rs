@@ -239,6 +239,9 @@ impl Beta {
 
 impl ContinuousDistribution for Beta {
     fn pdf(&self, x: f64) -> f64 {
+        if x.is_nan() {
+            return f64::NAN;
+        }
         if !(0.0..=1.0).contains(&x) {
             return 0.0;
         }
@@ -726,6 +729,16 @@ pub fn binomial_coef(n: u64, k: u64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn beta_pdf_nan_is_nan() {
+        assert!(Beta::new(2.0, 3.0).pdf(f64::NAN).is_nan());
+    }
+
+    #[test]
+    fn beta_pdf_reference() {
+        assert!((Beta::new(2.0, 3.0).pdf(0.5) - 1.5).abs() < 1e-12);
+    }
 
     #[test]
     fn test_normal_pdf() {

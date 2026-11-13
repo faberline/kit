@@ -319,6 +319,11 @@ mod tests {
     use super::*;
 
     #[test]
+    fn percentile_nan_p_is_none() {
+        assert_eq!(percentile(&[1.0, 2.0, 3.0], f64::NAN), None);
+    }
+
+    #[test]
     fn test_skew_symmetric() {
         // Symmetric distribution should have skewness near 0
         let data = vec![1.0, 2.0, 3.0, 4.0, 5.0];

@@ -561,6 +561,11 @@ mod tests {
     use super::*;
 
     #[test]
+    fn kstest_normal_empty_pvalue_is_nan() {
+        assert!(kstest_normal(&[]).pvalue.is_nan());
+    }
+
+    #[test]
     fn test_ttest_1samp() {
         let sample = vec![1.0, 2.0, 3.0, 4.0, 5.0];
         let result = ttest_1samp(&sample, 3.0);
