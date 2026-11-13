@@ -3,7 +3,7 @@
 use super::{
     Issue, IssueComment, IssueFilter, IssueState, IssueSummary, PlatformIntegration, PostedComment,
 };
-use crate::error::{NovaError, NovaResult};
+use crate::error::{AgentError, AgentResult};
 use crate::tools::{Tool, ToolParameter};
 use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
@@ -33,9 +33,9 @@ impl JiraIntegration {
         email: impl Into<String>,
         api_token: impl Into<String>,
         project_key: Option<String>,
-    ) -> NovaResult<Self> {
+    ) -> AgentResult<Self> {
         let client = HttpClient::default_client()
-            .map_err(|e| NovaError::ConfigError(format!("Failed to create HTTP client: {}", e)))?;
+            .map_err(|e| AgentError::ConfigError(format!("Failed to create HTTP client: {}", e)))?;
 
         let base_url = base_url.into();
         let base_url = base_url.trim_end_matches('/').to_string();
@@ -59,7 +59,7 @@ impl JiraIntegration {
     }
 
     /// Make an authenticated GET request.
-    async fn get<T: for<'de> Deserialize<'de>>(&self, url: &str) -> NovaResult<T> {
+    async fn get<T: for<'de> Deserialize<'de>>(&self, url: &str) -> AgentResult<T> {
         let request = RequestBuilder::new(HttpMethod::Get, url)
             .header("Authorization", &self.auth_header)
             .header("Accept", "application/json");
@@ -68,11 +68,11 @@ impl JiraIntegration {
             .client
             .execute_builder(request)
             .await
-            .map_err(|e| NovaError::HttpError(format!("Jira API request failed: {}", e)))?;
+            .map_err(|e| AgentError::HttpError(format!("Jira API request failed: {}", e)))?;
 
         if !response.is_success() {
             let body = response.text().unwrap_or_default();
-            return Err(NovaError::ApiError(format!(
+            return Err(AgentError::ApiError(format!(
                 "Jira API error {}: {}",
                 response.status_code, body
             )));
@@ -80,7 +80,7 @@ impl JiraIntegration {
 
         response
             .json_as()
-            .map_err(|e| NovaError::ApiError(format!("Failed to parse Jira response: {}", e)))
+            .map_err(|e| AgentError::ApiError(format!("Failed to parse Jira response: {}", e)))
     }
 
     /// Make an authenticated POST request.
@@ -88,7 +88,7 @@ impl JiraIntegration {
         &self,
         url: &str,
         body: serde_json::Value,
-    ) -> NovaResult<T> {
+    ) -> AgentResult<T> {
         let request = RequestBuilder::new(HttpMethod::Post, url)
             .header("Authorization", &self.auth_header)
             .json_value(body);
@@ -97,11 +97,11 @@ impl JiraIntegration {
             .client
             .execute_builder(request)
             .await
-            .map_err(|e| NovaError::HttpError(format!("Jira API request failed: {}", e)))?;
+            .map_err(|e| AgentError::HttpError(format!("Jira API request failed: {}", e)))?;
 
         if !response.is_success() {
             let body = response.text().unwrap_or_default();
-            return Err(NovaError::ApiError(format!(
+            return Err(AgentError::ApiError(format!(
                 "Jira API error {}: {}",
                 response.status_code, body
             )));
@@ -109,7 +109,7 @@ impl JiraIntegration {
 
         response
             .json_as()
-            .map_err(|e| NovaError::ApiError(format!("Failed to parse Jira response: {}", e)))
+            .map_err(|e| AgentError::ApiError(format!("Failed to parse Jira response: {}", e)))
     }
 
     /// Convert markdown to Jira's Atlassian Document Format.
@@ -191,7 +191,7 @@ impl PlatformIntegration for JiraIntegration {
         "jira"
     }
 
-    async fn get_issue(&self, id: &str) -> NovaResult<Issue> {
+    async fn get_issue(&self, id: &str) -> AgentResult<Issue> {
         let url = self.api_url(&format!("issue/{}?expand=renderedFields", id));
         let jira_issue: JiraIssue = self.get(&url).await?;
 
@@ -236,7 +236,7 @@ impl PlatformIntegration for JiraIntegration {
         })
     }
 
-    async fn list_issues(&self, filter: &IssueFilter) -> NovaResult<Vec<IssueSummary>> {
+    async fn list_issues(&self, filter: &IssueFilter) -> AgentResult<Vec<IssueSummary>> {
         let mut jql_parts = vec![];
 
         if let Some(ref project_key) = self.project_key {
@@ -302,7 +302,7 @@ impl PlatformIntegration for JiraIntegration {
             .collect())
     }
 
-    async fn get_comments(&self, issue_id: &str) -> NovaResult<Vec<IssueComment>> {
+    async fn get_comments(&self, issue_id: &str) -> AgentResult<Vec<IssueComment>> {
         let url = self.api_url(&format!("issue/{}/comment", issue_id));
         let response: JiraCommentResponse = self.get(&url).await?;
 
@@ -321,7 +321,7 @@ impl PlatformIntegration for JiraIntegration {
             .collect())
     }
 
-    async fn post_comment(&self, issue_id: &str, body: &str) -> NovaResult<PostedComment> {
+    async fn post_comment(&self, issue_id: &str, body: &str) -> AgentResult<PostedComment> {
         let url = self.api_url(&format!("issue/{}/comment", issue_id));
         let adf_body = Self::markdown_to_adf(body);
         let request_body = serde_json::json!({
@@ -465,7 +465,7 @@ impl Tool for GetJiraIssueTool {
         }]
     }
 
-    async fn execute(&self, arguments: serde_json::Value) -> NovaResult<serde_json::Value> {
+    async fn execute(&self, arguments: serde_json::Value) -> AgentResult<serde_json::Value> {
         #[derive(Deserialize)]
         struct Args {
             issue_key: String,
@@ -521,7 +521,7 @@ impl Tool for ListJiraIssuesTool {
         ]
     }
 
-    async fn execute(&self, arguments: serde_json::Value) -> NovaResult<serde_json::Value> {
+    async fn execute(&self, arguments: serde_json::Value) -> AgentResult<serde_json::Value> {
         #[derive(Deserialize)]
         struct Args {
             status: Option<String>,
@@ -595,7 +595,7 @@ impl Tool for SearchJiraIssuesTool {
         ]
     }
 
-    async fn execute(&self, arguments: serde_json::Value) -> NovaResult<serde_json::Value> {
+    async fn execute(&self, arguments: serde_json::Value) -> AgentResult<serde_json::Value> {
         #[derive(Deserialize)]
         struct Args {
             query: String,

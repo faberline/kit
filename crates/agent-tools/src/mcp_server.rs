@@ -28,7 +28,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use agent::{NovaError, NovaResult};
+use agent::{AgentError, AgentResult};
 use serde_json::{json, Value};
 
 use crate::mcp_client::{McpTool, McpToolCallResult, JSONRPC_VERSION, MCP_PROTOCOL_VERSION};
@@ -41,11 +41,11 @@ pub const ERR_INTERNAL: i64 = -32603;
 
 /// Future returned by an [`McpToolHandler`].
 pub type McpHandlerFuture =
-    Pin<Box<dyn Future<Output = NovaResult<McpToolCallResult>> + Send + 'static>>;
+    Pin<Box<dyn Future<Output = AgentResult<McpToolCallResult>> + Send + 'static>>;
 
 /// Server-side counterpart to a single MCP tool. The handler receives
 /// the JSON arguments passed in `tools/call` and returns either a
-/// successful [`McpToolCallResult`] or a typed [`NovaError`].
+/// successful [`McpToolCallResult`] or a typed [`AgentError`].
 pub trait McpToolHandler: Send + Sync {
     fn invoke(&self, arguments: Value) -> McpHandlerFuture;
 }
@@ -57,7 +57,7 @@ pub struct FnHandler<F>(pub F);
 impl<F, Fut> McpToolHandler for FnHandler<F>
 where
     F: Fn(Value) -> Fut + Send + Sync + 'static,
-    Fut: Future<Output = NovaResult<McpToolCallResult>> + Send + 'static,
+    Fut: Future<Output = AgentResult<McpToolCallResult>> + Send + 'static,
 {
     fn invoke(&self, arguments: Value) -> McpHandlerFuture {
         Box::pin((self.0)(arguments))
@@ -110,7 +110,7 @@ impl McpServer {
     pub fn register_fn<F, Fut>(&mut self, spec: McpTool, f: F) -> Option<McpTool>
     where
         F: Fn(Value) -> Fut + Send + Sync + 'static,
-        Fut: Future<Output = NovaResult<McpToolCallResult>> + Send + 'static,
+        Fut: Future<Output = AgentResult<McpToolCallResult>> + Send + 'static,
     {
         self.register(spec, FnHandler(f))
     }
@@ -141,10 +141,10 @@ impl McpServer {
 
         match result {
             Ok(value) => json!({ "jsonrpc": JSONRPC_VERSION, "id": id, "result": value }),
-            Err(NovaError::InvalidArguments(msg))
-            | Err(NovaError::ValidationFailed(msg))
-            | Err(NovaError::InvalidRequest(msg)) => jsonrpc_error(id, ERR_INVALID_PARAMS, &msg),
-            Err(NovaError::ToolNotFound(msg)) => jsonrpc_error(id, ERR_METHOD_NOT_FOUND, &msg),
+            Err(AgentError::InvalidArguments(msg))
+            | Err(AgentError::ValidationFailed(msg))
+            | Err(AgentError::InvalidRequest(msg)) => jsonrpc_error(id, ERR_INVALID_PARAMS, &msg),
+            Err(AgentError::ToolNotFound(msg)) => jsonrpc_error(id, ERR_METHOD_NOT_FOUND, &msg),
             Err(err) => jsonrpc_error(id, ERR_INTERNAL, &err.to_string()),
         }
     }
@@ -162,21 +162,21 @@ impl McpServer {
         json!({ "tools": tools })
     }
 
-    async fn handle_tools_call(&self, params: Value) -> NovaResult<Value> {
+    async fn handle_tools_call(&self, params: Value) -> AgentResult<Value> {
         let name = params
             .get("name")
             .and_then(Value::as_str)
-            .ok_or_else(|| NovaError::InvalidArguments("tools/call: missing name".into()))?;
+            .ok_or_else(|| AgentError::InvalidArguments("tools/call: missing name".into()))?;
         let arguments = params.get("arguments").cloned().unwrap_or(json!({}));
 
         let registered = self
             .tools
             .get(name)
-            .ok_or_else(|| NovaError::ToolNotFound(format!("tools/call: {name}")))?;
+            .ok_or_else(|| AgentError::ToolNotFound(format!("tools/call: {name}")))?;
 
         let result = registered.handler.invoke(arguments).await?;
         serde_json::to_value(&result)
-            .map_err(|e| NovaError::ConfigError(format!("failed to serialize tool result: {e}")))
+            .map_err(|e| AgentError::ConfigError(format!("failed to serialize tool result: {e}")))
     }
 }
 
@@ -275,7 +275,7 @@ mod tests {
     async fn handler_error_is_mapped_to_jsonrpc_internal() {
         let mut server = McpServer::new("agentkit", "0.1.0");
         server.register_fn(echo_tool(), |_args| async move {
-            Err(NovaError::ToolError("the tool exploded".into()))
+            Err(AgentError::ToolError("the tool exploded".into()))
         });
         let resp = server
             .handle_request(req(
@@ -348,17 +348,17 @@ mod tests {
 
         #[async_trait]
         impl McpTransport for LoopbackTransport {
-            async fn send(&self, message: Value) -> NovaResult<()> {
+            async fn send(&self, message: Value) -> AgentResult<()> {
                 let response = self.server.handle_request(message).await;
                 *self.pending.lock().unwrap() = Some(response);
                 Ok(())
             }
-            async fn recv(&self) -> NovaResult<Value> {
+            async fn recv(&self) -> AgentResult<Value> {
                 self.pending
                     .lock()
                     .unwrap()
                     .take()
-                    .ok_or_else(|| NovaError::ConfigError("no pending response".into()))
+                    .ok_or_else(|| AgentError::ConfigError("no pending response".into()))
             }
         }
 

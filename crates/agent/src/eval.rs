@@ -24,7 +24,7 @@ use std::marker::PhantomData;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
-use crate::error::{NovaError, NovaResult};
+use crate::error::{AgentError, AgentResult};
 
 /// System under evaluation. Implementors are typed to a single
 /// `Input`/`Output` shape so the runner can drive them deterministically.
@@ -37,7 +37,7 @@ where
     /// Drive the system once with `input`. The runner captures the
     /// result (Ok or Err) and records it on the report — a single case
     /// failing does not abort the whole run.
-    async fn run(&self, input: Input) -> NovaResult<Output>;
+    async fn run(&self, input: Input) -> AgentResult<Output>;
 }
 
 /// A single labelled input/expected pair.
@@ -252,7 +252,7 @@ impl<S> DatasetRunner<S> {
         &self,
         eval: &E,
         dataset: &Dataset<Input, Output>,
-    ) -> NovaResult<EvalReport>
+    ) -> AgentResult<EvalReport>
     where
         E: Eval<Input, Output> + ?Sized,
         S: Scorer<Output>,
@@ -280,7 +280,7 @@ impl<S> DatasetRunner<S> {
             }
         }
         if cases.is_empty() {
-            return Err(NovaError::ConfigError(
+            return Err(AgentError::ConfigError(
                 "dataset has no cases — nothing to evaluate".into(),
             ));
         }
@@ -302,7 +302,7 @@ mod tests {
 
     #[async_trait]
     impl Eval<String, String> for Echo {
-        async fn run(&self, input: String) -> NovaResult<String> {
+        async fn run(&self, input: String) -> AgentResult<String> {
             Ok(input)
         }
     }
@@ -344,8 +344,8 @@ mod tests {
         struct Boom;
         #[async_trait]
         impl Eval<u32, u32> for Boom {
-            async fn run(&self, _: u32) -> NovaResult<u32> {
-                Err(NovaError::LLMError("upstream is down".into()))
+            async fn run(&self, _: u32) -> AgentResult<u32> {
+                Err(AgentError::LLMError("upstream is down".into()))
             }
         }
         let ds: Dataset<u32, u32> = Dataset::new("boom").with_case(EvalCase::new("only", 1, 1));
@@ -365,7 +365,7 @@ mod tests {
         let ds: Dataset<String, String> = Dataset::new("empty");
         let runner = DatasetRunner::new(ExactMatchScorer::<String>::new());
         let err = runner.run(&Echo, &ds).await.unwrap_err();
-        assert!(matches!(err, NovaError::ConfigError(m) if m.contains("no cases")));
+        assert!(matches!(err, AgentError::ConfigError(m) if m.contains("no cases")));
     }
 
     #[tokio::test]
@@ -379,7 +379,7 @@ mod tests {
         struct Mk;
         #[async_trait]
         impl Eval<(), Out> for Mk {
-            async fn run(&self, _: ()) -> NovaResult<Out> {
+            async fn run(&self, _: ()) -> AgentResult<Out> {
                 Ok(Out { a: 1, b: 2 })
             }
         }

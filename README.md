@@ -44,8 +44,8 @@ is not imported. Renamed: `mambalibs-http` to `kit-http`, `mamba-core` to `kit-c
 
 Not renamed (not mechanical, or still in use as names inside the code):
 
-- The `agent` crate still names its error type `NovaError` and uses the User-Agent
-  `cclab-nova`. Several doc comments and test fixtures still say `cclab`.
+- The `agent` crate still uses the User-Agent `cclab-nova`. Several doc comments and
+  test fixtures still say `cclab`.
 - `kit-core` still names its error type `DataBridgeError`.
 - `kit-http` still emits the OpenAPI extension key `x-mamba-dependencies` and the
   default title `Mamba API`.

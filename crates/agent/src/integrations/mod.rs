@@ -11,7 +11,7 @@ pub use github::GitHubIntegration;
 pub use gitlab::GitLabIntegration;
 pub use jira::JiraIntegration;
 
-use crate::error::{NovaError, NovaResult};
+use crate::error::{AgentError, AgentResult};
 use crate::tools::Tool;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -331,29 +331,29 @@ pub trait PlatformIntegration: Send + Sync {
     fn name(&self) -> &str;
 
     /// Get a single issue by ID.
-    async fn get_issue(&self, id: &str) -> NovaResult<Issue>;
+    async fn get_issue(&self, id: &str) -> AgentResult<Issue>;
 
     /// List issues matching a filter.
-    async fn list_issues(&self, filter: &IssueFilter) -> NovaResult<Vec<IssueSummary>>;
+    async fn list_issues(&self, filter: &IssueFilter) -> AgentResult<Vec<IssueSummary>>;
 
     /// Get comments for an issue.
-    async fn get_comments(&self, issue_id: &str) -> NovaResult<Vec<IssueComment>>;
+    async fn get_comments(&self, issue_id: &str) -> AgentResult<Vec<IssueComment>>;
 
     /// Post a comment to an issue.
-    async fn post_comment(&self, issue_id: &str, body: &str) -> NovaResult<PostedComment>;
+    async fn post_comment(&self, issue_id: &str, body: &str) -> AgentResult<PostedComment>;
 
     // ---- Source control ----
 
     /// Create a new branch from `from_ref` (branch name or commit SHA).
     ///
-    /// Default implementation returns [`NovaError::PlatformError`].
+    /// Default implementation returns [`AgentError::PlatformError`].
     /// Override in platforms that support source control.
     async fn create_branch(
         &self,
         _branch_name: &str,
         _from_ref: &str,
-    ) -> NovaResult<CreatedBranch> {
-        Err(NovaError::PlatformError(format!(
+    ) -> AgentResult<CreatedBranch> {
+        Err(AgentError::PlatformError(format!(
             "{} does not support source control",
             self.name()
         )))
@@ -361,14 +361,14 @@ pub trait PlatformIntegration: Send + Sync {
 
     /// Create a single commit on `branch` containing all `files`.
     ///
-    /// Default implementation returns [`NovaError::PlatformError`].
+    /// Default implementation returns [`AgentError::PlatformError`].
     async fn create_commit(
         &self,
         _branch: &str,
         _message: &str,
         _files: &[CommitFile],
-    ) -> NovaResult<CreatedCommit> {
-        Err(NovaError::PlatformError(format!(
+    ) -> AgentResult<CreatedCommit> {
+        Err(AgentError::PlatformError(format!(
             "{} does not support source control",
             self.name()
         )))
@@ -376,12 +376,12 @@ pub trait PlatformIntegration: Send + Sync {
 
     /// Open a pull request (GitHub) or merge request (GitLab).
     ///
-    /// Default implementation returns [`NovaError::PlatformError`].
+    /// Default implementation returns [`AgentError::PlatformError`].
     async fn create_pull_request(
         &self,
         _params: &PullRequestParams,
-    ) -> NovaResult<CreatedPullRequest> {
-        Err(NovaError::PlatformError(format!(
+    ) -> AgentResult<CreatedPullRequest> {
+        Err(AgentError::PlatformError(format!(
             "{} does not support pull requests",
             self.name()
         )))

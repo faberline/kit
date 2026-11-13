@@ -4,8 +4,8 @@
 use std::sync::{Arc, Mutex};
 
 use agent::{
-    Agent, AgentEvent, CompletionRequest, CompletionResponse, EventBus, LLMProvider, NovaError,
-    NovaResult, Schema, StreamResponse, ToolCall, ToolSpec,
+    Agent, AgentError, AgentEvent, AgentResult, CompletionRequest, CompletionResponse, EventBus,
+    LLMProvider, Schema, StreamResponse, ToolCall, ToolSpec,
 };
 use async_trait::async_trait;
 use serde::Deserialize;
@@ -23,17 +23,17 @@ impl LLMProvider for ScriptedProvider {
     fn supported_models(&self) -> Vec<String> {
         vec!["test-model".into()]
     }
-    async fn complete(&self, _req: CompletionRequest) -> NovaResult<CompletionResponse> {
+    async fn complete(&self, _req: CompletionRequest) -> AgentResult<CompletionResponse> {
         let mut q = self.replies.lock().unwrap();
         if q.is_empty() {
-            return Err(NovaError::LLMError("no scripted reply left".into()));
+            return Err(AgentError::LLMError("no scripted reply left".into()));
         }
         Ok(q.remove(0))
     }
-    async fn complete_stream(&self, _req: CompletionRequest) -> NovaResult<StreamResponse> {
-        Err(NovaError::NotSupported("stream".into()))
+    async fn complete_stream(&self, _req: CompletionRequest) -> AgentResult<StreamResponse> {
+        Err(AgentError::NotSupported("stream".into()))
     }
-    fn validate_model(&self, _model: &str) -> NovaResult<()> {
+    fn validate_model(&self, _model: &str) -> AgentResult<()> {
         Ok(())
     }
 }
@@ -182,7 +182,7 @@ async fn validation_failure_emits_run_failed_event() {
         .unwrap();
 
     let err = agent.run("?").await.unwrap_err();
-    assert!(matches!(err, NovaError::ValidationFailed(_)));
+    assert!(matches!(err, AgentError::ValidationFailed(_)));
 
     let events = sub.try_drain();
     assert!(events

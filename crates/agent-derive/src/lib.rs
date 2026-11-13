@@ -440,7 +440,7 @@ fn expand_agent_tool(input: DeriveInput) -> syn::Result<TokenStream2> {
                     + ::std::marker::Send
                     + ::std::marker::Sync
                     + 'static,
-                Fut: ::std::future::Future<Output = ::agent::NovaResult<R>>
+                Fut: ::std::future::Future<Output = ::agent::AgentResult<R>>
                     + ::std::marker::Send
                     + 'static,
                 R: ::serde::Serialize + ::std::marker::Send + 'static,
@@ -455,12 +455,12 @@ fn expand_agent_tool(input: DeriveInput) -> syn::Result<TokenStream2> {
                         let handler = handler.clone();
                         async move {
                             let parsed: Self = ::serde_json::from_value(args)
-                                .map_err(|e| ::agent::NovaError::InvalidArguments(
+                                .map_err(|e| ::agent::AgentError::InvalidArguments(
                                     ::std::format!("{}: {}", Self::TOOL_NAME, e)
                                 ))?;
                             let result = handler(deps, parsed).await?;
                             ::serde_json::to_value(result)
-                                .map_err(::agent::NovaError::SerializationError)
+                                .map_err(::agent::AgentError::SerializationError)
                         }
                     },
                 )
@@ -520,29 +520,29 @@ fn expand_agent_output(input: DeriveInput) -> syn::Result<TokenStream2> {
             }
 
             /// Parse + validate a raw JSON string against this type's
-            /// schema. Returns `NovaError::MalformedLLMResponse` for
-            /// non-JSON input, `NovaError::ValidationFailed` for shape
+            /// schema. Returns `AgentError::MalformedLLMResponse` for
+            /// non-JSON input, `AgentError::ValidationFailed` for shape
             /// mismatches or deserialization failures.
-            pub fn parse_response(raw: &str) -> ::agent::NovaResult<Self>
+            pub fn parse_response(raw: &str) -> ::agent::AgentResult<Self>
             where
                 Self: ::serde::de::DeserializeOwned,
             {
                 if raw.trim().is_empty() {
                     return ::std::result::Result::Err(
-                        ::agent::NovaError::MalformedLLMResponse(
+                        ::agent::AgentError::MalformedLLMResponse(
                             "empty final reply".to_string(),
                         ),
                     );
                 }
                 let value: ::serde_json::Value = ::serde_json::from_str(raw)
-                    .map_err(|e| ::agent::NovaError::MalformedLLMResponse(
+                    .map_err(|e| ::agent::AgentError::MalformedLLMResponse(
                         ::std::format!("final reply is not valid JSON: {}", e),
                     ))?;
                 <Self>::schema()
                     .validate(&value)
-                    .map_err(|e| ::agent::NovaError::ValidationFailed(e.to_string()))?;
+                    .map_err(|e| ::agent::AgentError::ValidationFailed(e.to_string()))?;
                 ::serde_json::from_value(value)
-                    .map_err(|e| ::agent::NovaError::ValidationFailed(
+                    .map_err(|e| ::agent::AgentError::ValidationFailed(
                         ::std::format!("structured output deserialization failed: {}", e),
                     ))
             }

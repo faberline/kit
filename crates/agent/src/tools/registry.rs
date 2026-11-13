@@ -1,4 +1,4 @@
-use crate::error::{NovaError, NovaResult};
+use crate::error::{AgentError, AgentResult};
 use crate::tools::tool::Tool;
 use dashmap::DashMap;
 use std::sync::Arc;
@@ -15,11 +15,11 @@ impl ToolRegistry {
         }
     }
 
-    pub fn register(&self, tool: Arc<dyn Tool>) -> NovaResult<()> {
+    pub fn register(&self, tool: Arc<dyn Tool>) -> AgentResult<()> {
         let name = tool.name().to_string();
 
         if self.tools.contains_key(&name) {
-            return Err(NovaError::ValidationFailed(format!(
+            return Err(AgentError::ValidationFailed(format!(
                 "Tool '{}' is already registered",
                 name
             )));
@@ -29,10 +29,10 @@ impl ToolRegistry {
         Ok(())
     }
 
-    pub fn unregister(&self, name: &str) -> NovaResult<()> {
+    pub fn unregister(&self, name: &str) -> AgentResult<()> {
         self.tools
             .remove(name)
-            .ok_or_else(|| NovaError::ToolNotFound(format!("Tool '{}' not found", name)))?;
+            .ok_or_else(|| AgentError::ToolNotFound(format!("Tool '{}' not found", name)))?;
         Ok(())
     }
 
@@ -88,7 +88,7 @@ mod tests {
         async fn execute(
             &self,
             _arguments: serde_json::Value,
-        ) -> crate::error::NovaResult<serde_json::Value> {
+        ) -> crate::error::AgentResult<serde_json::Value> {
             Ok(serde_json::json!({}))
         }
     }

@@ -1,4 +1,4 @@
-use crate::error::{NovaError, NovaResult};
+use crate::error::{AgentError, AgentResult};
 use crate::tools::tool::{Tool, ToolParameter};
 use async_trait::async_trait;
 use regex::Regex;
@@ -25,16 +25,16 @@ impl ReadFileTool {
         self
     }
 
-    async fn read_file_impl(&self, args: ReadFileArgs) -> NovaResult<serde_json::Value> {
+    async fn read_file_impl(&self, args: ReadFileArgs) -> AgentResult<serde_json::Value> {
         let path = PathBuf::from(&args.file_path);
 
         if !path.exists() {
-            return Err(NovaError::FileNotFound(args.file_path));
+            return Err(AgentError::FileNotFound(args.file_path));
         }
 
         let metadata = tokio::fs::metadata(&path).await?;
         if metadata.len() > self.max_file_size as u64 {
-            return Err(NovaError::InvalidArguments(format!(
+            return Err(AgentError::InvalidArguments(format!(
                 "File too large: {} bytes (max: {} bytes)",
                 metadata.len(),
                 self.max_file_size
@@ -117,7 +117,7 @@ impl Tool for ReadFileTool {
         ]
     }
 
-    async fn execute(&self, arguments: serde_json::Value) -> NovaResult<serde_json::Value> {
+    async fn execute(&self, arguments: serde_json::Value) -> AgentResult<serde_json::Value> {
         let args: ReadFileArgs = serde_json::from_value(arguments)?;
         self.read_file_impl(args).await
     }
@@ -131,7 +131,7 @@ impl WriteFileTool {
         Self
     }
 
-    async fn write_file_impl(&self, args: WriteFileArgs) -> NovaResult<serde_json::Value> {
+    async fn write_file_impl(&self, args: WriteFileArgs) -> AgentResult<serde_json::Value> {
         let path = PathBuf::from(&args.file_path);
 
         if let Some(parent) = path.parent() {
@@ -191,7 +191,7 @@ impl Tool for WriteFileTool {
         ]
     }
 
-    async fn execute(&self, arguments: serde_json::Value) -> NovaResult<serde_json::Value> {
+    async fn execute(&self, arguments: serde_json::Value) -> AgentResult<serde_json::Value> {
         let args: WriteFileArgs = serde_json::from_value(arguments)?;
         self.write_file_impl(args).await
     }
@@ -205,18 +205,18 @@ impl EditFileTool {
         Self
     }
 
-    async fn edit_file_impl(&self, args: EditFileArgs) -> NovaResult<serde_json::Value> {
+    async fn edit_file_impl(&self, args: EditFileArgs) -> AgentResult<serde_json::Value> {
         let path = PathBuf::from(&args.file_path);
 
         if !path.exists() {
-            return Err(NovaError::FileNotFound(args.file_path));
+            return Err(AgentError::FileNotFound(args.file_path));
         }
 
         let content = tokio::fs::read_to_string(&path).await?;
         let occurrences = content.matches(&args.old_string).count();
 
         if occurrences == 0 {
-            return Err(NovaError::EditFailed(format!(
+            return Err(AgentError::EditFailed(format!(
                 "old_string not found in file: '{}'",
                 if args.old_string.len() > 50 {
                     format!("{}...", &args.old_string[..50])
@@ -227,7 +227,7 @@ impl EditFileTool {
         }
 
         if !args.replace_all.unwrap_or(false) && occurrences > 1 {
-            return Err(NovaError::EditFailed(format!(
+            return Err(AgentError::EditFailed(format!(
                 "old_string found {} times. Use replace_all=true or provide more context.",
                 occurrences
             )));
@@ -302,7 +302,7 @@ impl Tool for EditFileTool {
         ]
     }
 
-    async fn execute(&self, arguments: serde_json::Value) -> NovaResult<serde_json::Value> {
+    async fn execute(&self, arguments: serde_json::Value) -> AgentResult<serde_json::Value> {
         let args: EditFileArgs = serde_json::from_value(arguments)?;
         self.edit_file_impl(args).await
     }
@@ -323,12 +323,12 @@ impl GlobTool {
         self
     }
 
-    async fn glob_impl(&self, args: GlobArgs) -> NovaResult<serde_json::Value> {
+    async fn glob_impl(&self, args: GlobArgs) -> AgentResult<serde_json::Value> {
         let base_path = args.path.as_deref().unwrap_or(".");
         let pattern = &args.pattern;
 
         let glob_pattern =
-            glob::Pattern::new(pattern).map_err(|e| NovaError::PatternError(e.to_string()))?;
+            glob::Pattern::new(pattern).map_err(|e| AgentError::PatternError(e.to_string()))?;
 
         let mut matches = Vec::new();
         let walker = WalkDir::new(base_path).follow_links(false);
@@ -396,7 +396,7 @@ impl Tool for GlobTool {
         ]
     }
 
-    async fn execute(&self, arguments: serde_json::Value) -> NovaResult<serde_json::Value> {
+    async fn execute(&self, arguments: serde_json::Value) -> AgentResult<serde_json::Value> {
         let args: GlobArgs = serde_json::from_value(arguments)?;
         self.glob_impl(args).await
     }
@@ -421,10 +421,10 @@ impl GrepTool {
         self
     }
 
-    async fn grep_impl(&self, args: GrepArgs) -> NovaResult<serde_json::Value> {
+    async fn grep_impl(&self, args: GrepArgs) -> AgentResult<serde_json::Value> {
         let base_path = args.path.as_deref().unwrap_or(".");
         let regex =
-            Regex::new(&args.pattern).map_err(|e| NovaError::PatternError(e.to_string()))?;
+            Regex::new(&args.pattern).map_err(|e| AgentError::PatternError(e.to_string()))?;
 
         let context = args.context.unwrap_or(self.default_context);
         let mut matches = Vec::new();
@@ -562,7 +562,7 @@ impl Tool for GrepTool {
         ]
     }
 
-    async fn execute(&self, arguments: serde_json::Value) -> NovaResult<serde_json::Value> {
+    async fn execute(&self, arguments: serde_json::Value) -> AgentResult<serde_json::Value> {
         let args: GrepArgs = serde_json::from_value(arguments)?;
         self.grep_impl(args).await
     }

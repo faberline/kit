@@ -1,4 +1,4 @@
-use crate::error::{NovaError, NovaResult};
+use crate::error::{AgentError, AgentResult};
 use crate::types::{Message, TokenUsage, ToolCall};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -79,21 +79,21 @@ pub struct StreamChunk {
 
 /// Unified streaming response wrapper
 pub type StreamResponse =
-    std::pin::Pin<Box<dyn futures::Stream<Item = NovaResult<StreamChunk>> + Send>>;
+    std::pin::Pin<Box<dyn futures::Stream<Item = AgentResult<StreamChunk>> + Send>>;
 
 /// Unified LLM provider trait
 #[async_trait]
 pub trait LLMProvider: Send + Sync {
     fn provider_name(&self) -> &str;
     fn supported_models(&self) -> Vec<String>;
-    async fn complete(&self, request: CompletionRequest) -> NovaResult<CompletionResponse>;
-    async fn complete_stream(&self, request: CompletionRequest) -> NovaResult<StreamResponse>;
+    async fn complete(&self, request: CompletionRequest) -> AgentResult<CompletionResponse>;
+    async fn complete_stream(&self, request: CompletionRequest) -> AgentResult<StreamResponse>;
 
-    fn validate_model(&self, model: &str) -> NovaResult<()> {
+    fn validate_model(&self, model: &str) -> AgentResult<()> {
         if self.supported_models().contains(&model.to_string()) {
             Ok(())
         } else {
-            Err(NovaError::ModelNotFound(format!(
+            Err(AgentError::ModelNotFound(format!(
                 "Model '{}' is not supported by provider '{}'",
                 model,
                 self.provider_name()

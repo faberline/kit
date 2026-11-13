@@ -1,7 +1,7 @@
 use super::provider::{
     CompletionRequest, CompletionResponse, LLMProvider, StreamChunk, StreamResponse, ToolDefinition,
 };
-use crate::error::{NovaError, NovaResult};
+use crate::error::{AgentError, AgentResult};
 use crate::types::{Message, Role, TokenUsage, ToolCall};
 use async_trait::async_trait;
 use futures::StreamExt;
@@ -19,7 +19,7 @@ pub struct ClaudeProvider {
 }
 
 impl ClaudeProvider {
-    pub fn new(api_key: impl Into<String>) -> NovaResult<Self> {
+    pub fn new(api_key: impl Into<String>) -> AgentResult<Self> {
         Self::with_base_url(api_key, "https://api.anthropic.com")
     }
 
@@ -27,7 +27,7 @@ impl ClaudeProvider {
     pub fn with_base_url(
         api_key: impl Into<String>,
         base_url: impl Into<String>,
-    ) -> NovaResult<Self> {
+    ) -> AgentResult<Self> {
         let base_url: String = base_url.into();
         let config = HttpClientConfig::new()
             .base_url(base_url)
@@ -47,9 +47,9 @@ impl ClaudeProvider {
         self
     }
 
-    fn convert_message(&self, msg: &Message) -> NovaResult<ClaudeMessage> {
+    fn convert_message(&self, msg: &Message) -> AgentResult<ClaudeMessage> {
         match msg.role {
-            Role::System => Err(NovaError::InvalidRequest(
+            Role::System => Err(AgentError::InvalidRequest(
                 "System messages should be passed as system parameter".to_string(),
             )),
             Role::User => Ok(ClaudeMessage {
@@ -130,7 +130,7 @@ impl LLMProvider for ClaudeProvider {
         ]
     }
 
-    async fn complete(&self, request: CompletionRequest) -> NovaResult<CompletionResponse> {
+    async fn complete(&self, request: CompletionRequest) -> AgentResult<CompletionResponse> {
         let model = if request.model.is_empty() {
             self.default_model.clone()
         } else {
@@ -210,7 +210,7 @@ impl LLMProvider for ClaudeProvider {
             let error_text = response
                 .text()
                 .unwrap_or_else(|_| "Unknown error".to_string());
-            return Err(NovaError::ApiError(format!(
+            return Err(AgentError::ApiError(format!(
                 "Claude API error ({}): {}",
                 response.status_code, error_text
             )));
@@ -274,7 +274,7 @@ impl LLMProvider for ClaudeProvider {
         })
     }
 
-    async fn complete_stream(&self, request: CompletionRequest) -> NovaResult<StreamResponse> {
+    async fn complete_stream(&self, request: CompletionRequest) -> AgentResult<StreamResponse> {
         let model = if request.model.is_empty() {
             self.default_model.clone()
         } else {
@@ -334,11 +334,11 @@ fn parse_claude_sse_stream(
     byte_stream: std::pin::Pin<
         Box<dyn futures::Stream<Item = Result<bytes::Bytes, kit_http::client::HttpError>> + Send>,
     >,
-) -> impl futures::Stream<Item = NovaResult<StreamChunk>> + Send {
+) -> impl futures::Stream<Item = AgentResult<StreamChunk>> + Send {
     let mut buffer = String::new();
 
     byte_stream.flat_map(move |result| {
-        let chunks: Vec<NovaResult<StreamChunk>> = match result {
+        let chunks: Vec<AgentResult<StreamChunk>> = match result {
             Ok(bytes_data) => {
                 buffer.push_str(&String::from_utf8_lossy(&bytes_data));
 
@@ -355,7 +355,7 @@ fn parse_claude_sse_stream(
 
                 parsed_chunks
             }
-            Err(e) => vec![Err(NovaError::StreamingError(e.to_string()))],
+            Err(e) => vec![Err(AgentError::StreamingError(e.to_string()))],
         };
 
         futures::stream::iter(chunks)

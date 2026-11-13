@@ -26,7 +26,7 @@
 
 use std::sync::Mutex;
 
-use agent::{NovaError, NovaResult};
+use agent::{AgentError, AgentResult};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -49,10 +49,10 @@ pub const MCP_PROTOCOL_VERSION: &str = "2024-11-05";
 #[async_trait]
 pub trait McpTransport: Send + Sync {
     /// Send one JSON-RPC envelope to the server.
-    async fn send(&self, message: Value) -> NovaResult<()>;
+    async fn send(&self, message: Value) -> AgentResult<()>;
 
     /// Block until the server emits the next JSON-RPC envelope.
-    async fn recv(&self) -> NovaResult<Value>;
+    async fn recv(&self) -> AgentResult<Value>;
 }
 
 /// Tool advertised by an MCP server (subset of the MCP `Tool` schema
@@ -86,7 +86,7 @@ pub struct McpToolCallResult {
     pub content: Vec<Value>,
     /// Server-set flag indicating the tool itself returned an error
     /// (as opposed to a transport / protocol error, which is mapped
-    /// to `NovaError`).
+    /// to `AgentError`).
     #[serde(rename = "isError", default)]
     pub is_error: bool,
 }
@@ -115,7 +115,7 @@ impl McpClient {
         id
     }
 
-    async fn request(&self, method: &str, params: Value) -> NovaResult<Value> {
+    async fn request(&self, method: &str, params: Value) -> AgentResult<Value> {
         let id = self.next_request_id();
         let envelope = json!({
             "jsonrpc": JSONRPC_VERSION,
@@ -128,12 +128,12 @@ impl McpClient {
         let response = self.transport.recv().await?;
 
         if response.get("jsonrpc").and_then(Value::as_str) != Some(JSONRPC_VERSION) {
-            return Err(NovaError::InvalidRequest(format!(
+            return Err(AgentError::InvalidRequest(format!(
                 "MCP response missing jsonrpc=\"{JSONRPC_VERSION}\""
             )));
         }
         if response.get("id").and_then(Value::as_u64) != Some(id) {
-            return Err(NovaError::InvalidRequest(format!(
+            return Err(AgentError::InvalidRequest(format!(
                 "MCP response id mismatch for method {method}"
             )));
         }
@@ -143,7 +143,7 @@ impl McpClient {
                 .and_then(Value::as_str)
                 .unwrap_or("<no message>");
             let code = err.get("code").and_then(Value::as_i64).unwrap_or(0);
-            return Err(NovaError::ToolError(format!(
+            return Err(AgentError::ToolError(format!(
                 "MCP error {code} on {method}: {message}"
             )));
         }
@@ -151,14 +151,14 @@ impl McpClient {
         response
             .get("result")
             .cloned()
-            .ok_or_else(|| NovaError::MalformedLLMResponse(format!("{method} missing result")))
+            .ok_or_else(|| AgentError::MalformedLLMResponse(format!("{method} missing result")))
     }
 
     /// Negotiate protocol version + capabilities with the server.
     ///
     /// Returns the protocol version the server selected (typically
     /// `MCP_PROTOCOL_VERSION`, but a polite server may downgrade).
-    pub async fn initialize(&self) -> NovaResult<String> {
+    pub async fn initialize(&self) -> AgentResult<String> {
         let params = json!({
             "protocolVersion": MCP_PROTOCOL_VERSION,
             "capabilities": { "tools": {} },
@@ -170,28 +170,28 @@ impl McpClient {
             .and_then(Value::as_str)
             .map(str::to_owned)
             .ok_or_else(|| {
-                NovaError::MalformedLLMResponse(
+                AgentError::MalformedLLMResponse(
                     "initialize result missing protocolVersion".to_string(),
                 )
             })
     }
 
     /// Fetch the server's tool catalog.
-    pub async fn list_tools(&self) -> NovaResult<Vec<McpTool>> {
+    pub async fn list_tools(&self) -> AgentResult<Vec<McpTool>> {
         let result = self.request("tools/list", json!({})).await?;
         let tools = result
             .get("tools")
             .ok_or_else(|| {
-                NovaError::MalformedLLMResponse("tools/list missing tools array".to_string())
+                AgentError::MalformedLLMResponse("tools/list missing tools array".to_string())
             })?
             .clone();
         serde_json::from_value(tools).map_err(|e| {
-            NovaError::MalformedLLMResponse(format!("tools/list: bad tool entry: {e}"))
+            AgentError::MalformedLLMResponse(format!("tools/list: bad tool entry: {e}"))
         })
     }
 
     /// Invoke a tool by name with `arguments` as the input payload.
-    pub async fn call_tool(&self, name: &str, arguments: Value) -> NovaResult<McpToolCallResult> {
+    pub async fn call_tool(&self, name: &str, arguments: Value) -> AgentResult<McpToolCallResult> {
         let result = self
             .request(
                 "tools/call",
@@ -199,7 +199,7 @@ impl McpClient {
             )
             .await?;
         serde_json::from_value(result)
-            .map_err(|e| NovaError::MalformedLLMResponse(format!("tools/call: bad result: {e}")))
+            .map_err(|e| AgentError::MalformedLLMResponse(format!("tools/call: bad result: {e}")))
     }
 }
 
@@ -231,17 +231,17 @@ mod tests {
 
     #[async_trait]
     impl McpTransport for ScriptedTransport {
-        async fn send(&self, message: Value) -> NovaResult<()> {
+        async fn send(&self, message: Value) -> AgentResult<()> {
             self.sent.lock().unwrap().push(message);
             Ok(())
         }
 
-        async fn recv(&self) -> NovaResult<Value> {
+        async fn recv(&self) -> AgentResult<Value> {
             self.responses
                 .lock()
                 .unwrap()
                 .pop_front()
-                .ok_or_else(|| NovaError::ConfigError("script exhausted".into()))
+                .ok_or_else(|| AgentError::ConfigError("script exhausted".into()))
         }
     }
 
@@ -294,7 +294,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "current_thread")]
-    async fn jsonrpc_error_response_is_mapped_to_nova_tool_error() {
+    async fn jsonrpc_error_response_is_mapped_to_agent_tool_error() {
         let transport = ScriptedTransport::new(vec![json!({
             "jsonrpc": JSONRPC_VERSION,
             "id": 1,
@@ -303,7 +303,7 @@ mod tests {
         let client = McpClient::new(transport);
         let err = client.initialize().await.unwrap_err();
         match err {
-            NovaError::ToolError(msg) => {
+            AgentError::ToolError(msg) => {
                 assert!(msg.contains("-32601"), "got: {msg}");
                 assert!(msg.contains("method not found"), "got: {msg}");
             }
@@ -319,7 +319,7 @@ mod tests {
         )]);
         let client = McpClient::new(transport);
         let err = client.initialize().await.unwrap_err();
-        assert!(matches!(err, NovaError::InvalidRequest(_)));
+        assert!(matches!(err, AgentError::InvalidRequest(_)));
     }
 
     #[tokio::test(flavor = "current_thread")]

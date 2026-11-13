@@ -1,4 +1,4 @@
-use crate::error::NovaResult;
+use crate::error::AgentResult;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
@@ -49,7 +49,7 @@ pub enum StreamEvent {
 /// Handler for stream events
 #[async_trait]
 pub trait StreamHandler: Send + Sync {
-    async fn on_event(&self, event: StreamEvent) -> NovaResult<()>;
+    async fn on_event(&self, event: StreamEvent) -> AgentResult<()>;
 
     fn should_cancel(&self) -> bool {
         false
@@ -61,7 +61,7 @@ pub struct NoOpHandler;
 
 #[async_trait]
 impl StreamHandler for NoOpHandler {
-    async fn on_event(&self, _event: StreamEvent) -> NovaResult<()> {
+    async fn on_event(&self, _event: StreamEvent) -> AgentResult<()> {
         Ok(())
     }
 }
@@ -91,7 +91,7 @@ impl Default for CollectingHandler {
 
 #[async_trait]
 impl StreamHandler for CollectingHandler {
-    async fn on_event(&self, event: StreamEvent) -> NovaResult<()> {
+    async fn on_event(&self, event: StreamEvent) -> AgentResult<()> {
         self.events.lock().unwrap().push(event);
         Ok(())
     }
@@ -116,7 +116,7 @@ impl Default for PrintHandler {
 
 #[async_trait]
 impl StreamHandler for PrintHandler {
-    async fn on_event(&self, event: StreamEvent) -> NovaResult<()> {
+    async fn on_event(&self, event: StreamEvent) -> AgentResult<()> {
         match event {
             StreamEvent::TextChunk { content } => {
                 print!("{}", content);
@@ -175,7 +175,7 @@ impl<F> StreamHandler for CallbackHandler<F>
 where
     F: Fn(StreamEvent) + Send + Sync,
 {
-    async fn on_event(&self, event: StreamEvent) -> NovaResult<()> {
+    async fn on_event(&self, event: StreamEvent) -> AgentResult<()> {
         (self.callback)(event);
         Ok(())
     }

@@ -1,15 +1,15 @@
-use crate::error::{NovaError, NovaResult};
+use crate::error::{AgentError, AgentResult};
 use crate::llm::{CompletionRequest, CompletionResponse, LLMProvider, ToolDefinition};
 use crate::types::Message;
 use serde_json::Value;
 
 /// Validate a JSON value against a JSON Schema
-pub fn validate_json(value: &Value, schema: &Value) -> NovaResult<()> {
+pub fn validate_json(value: &Value, schema: &Value) -> AgentResult<()> {
     let validator = jsonschema::validator_for(schema)
-        .map_err(|e| NovaError::SchemaValidationError(format!("Invalid schema: {}", e)))?;
+        .map_err(|e| AgentError::SchemaValidationError(format!("Invalid schema: {}", e)))?;
 
     if let Err(err) = validator.validate(value) {
-        return Err(NovaError::SchemaValidationError(err.to_string()));
+        return Err(AgentError::SchemaValidationError(err.to_string()));
     }
     Ok(())
 }
@@ -70,7 +70,7 @@ pub fn inject_schema_for_provider(
 pub fn extract_structured_content(
     response: &CompletionResponse,
     use_tool_extraction: bool,
-) -> NovaResult<Value> {
+) -> AgentResult<Value> {
     if use_tool_extraction {
         // Claude: extract from tool_use block
         if let Some(tool_calls) = &response.tool_calls {
@@ -82,12 +82,12 @@ pub fn extract_structured_content(
         }
         // Fallback: try parsing content as JSON
         serde_json::from_str(&response.content).map_err(|e| {
-            NovaError::SchemaValidationError(format!("No structured output found: {}", e))
+            AgentError::SchemaValidationError(format!("No structured output found: {}", e))
         })
     } else {
         // OpenAI/Gemini: parse content directly
         serde_json::from_str(&response.content).map_err(|e| {
-            NovaError::SchemaValidationError(format!("Invalid JSON in response: {}", e))
+            AgentError::SchemaValidationError(format!("Invalid JSON in response: {}", e))
         })
     }
 }
@@ -98,7 +98,7 @@ pub async fn complete_structured(
     request: CompletionRequest,
     schema: &Value,
     max_retries: u32,
-) -> NovaResult<(CompletionResponse, Value)> {
+) -> AgentResult<(CompletionResponse, Value)> {
     let (injected_request, use_tool_extraction) =
         inject_schema_for_provider(request.clone(), schema, provider.provider_name());
 
@@ -118,13 +118,13 @@ pub async fn complete_structured(
                         final_response.content = serde_json::to_string(&value).unwrap_or_default();
                         return Ok((final_response, value));
                     }
-                    Err(NovaError::SchemaValidationError(msg)) => {
+                    Err(AgentError::SchemaValidationError(msg)) => {
                         last_error = msg;
                     }
                     Err(e) => return Err(e),
                 }
             }
-            Err(NovaError::SchemaValidationError(msg)) => {
+            Err(AgentError::SchemaValidationError(msg)) => {
                 last_error = msg;
             }
             Err(e) => return Err(e),
@@ -140,7 +140,7 @@ pub async fn complete_structured(
         }
     }
 
-    Err(NovaError::SchemaValidationError(format!(
+    Err(AgentError::SchemaValidationError(format!(
         "Failed after {} retries. Last error: {}",
         max_retries, last_error
     )))

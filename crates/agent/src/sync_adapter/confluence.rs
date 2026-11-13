@@ -4,7 +4,7 @@
 //! Not supported: push_issue, pull_issue, push_change, pull_code_index.
 
 use super::{SyncAdapter, SyncResult};
-use crate::error::{NovaError, NovaResult};
+use crate::error::{AgentError, AgentResult};
 use crate::protocols::{ChangeProtocol, CodeIndexProtocol, IssueProtocol, SpecProtocol};
 use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
@@ -37,9 +37,9 @@ impl ConfluenceSyncAdapter {
         email: impl AsRef<str>,
         api_token: impl AsRef<str>,
         space_key: impl Into<String>,
-    ) -> NovaResult<Self> {
+    ) -> AgentResult<Self> {
         let client = HttpClient::default_client()
-            .map_err(|e| NovaError::ConfigError(format!("Failed to create HTTP client: {}", e)))?;
+            .map_err(|e| AgentError::ConfigError(format!("Failed to create HTTP client: {}", e)))?;
 
         let credentials = format!("{}:{}", email.as_ref(), api_token.as_ref());
         let auth_header = format!("Basic {}", BASE64.encode(credentials));
@@ -60,7 +60,7 @@ impl ConfluenceSyncAdapter {
         &self,
         url: &str,
         body: serde_json::Value,
-    ) -> NovaResult<T> {
+    ) -> AgentResult<T> {
         let req = RequestBuilder::new(HttpMethod::Post, url)
             .header("Authorization", &self.auth_header)
             .json_value(body);
@@ -69,36 +69,36 @@ impl ConfluenceSyncAdapter {
             .client
             .execute_builder(req)
             .await
-            .map_err(|e| NovaError::HttpError(e.to_string()))?;
+            .map_err(|e| AgentError::HttpError(e.to_string()))?;
 
         if !resp.is_success() {
             let body_text = resp.text().unwrap_or_default();
-            return Err(NovaError::ApiError(format!(
+            return Err(AgentError::ApiError(format!(
                 "Confluence {} {}: {}",
                 resp.status_code, url, body_text
             )));
         }
 
         resp.json_as()
-            .map_err(|e| NovaError::ApiError(format!("Confluence parse error: {}", e)))
+            .map_err(|e| AgentError::ApiError(format!("Confluence parse error: {}", e)))
     }
 }
 
 #[async_trait]
 impl SyncAdapter for ConfluenceSyncAdapter {
-    async fn push_issue(&self, _issue: &IssueProtocol) -> NovaResult<SyncResult> {
-        Err(NovaError::NotSupported(
+    async fn push_issue(&self, _issue: &IssueProtocol) -> AgentResult<SyncResult> {
+        Err(AgentError::NotSupported(
             "ConfluenceSyncAdapter does not support issue sync; use JiraSyncAdapter".into(),
         ))
     }
 
-    async fn pull_issue(&self, _external_id: &str) -> NovaResult<IssueProtocol> {
-        Err(NovaError::NotSupported(
+    async fn pull_issue(&self, _external_id: &str) -> AgentResult<IssueProtocol> {
+        Err(AgentError::NotSupported(
             "ConfluenceSyncAdapter does not support issue pull".into(),
         ))
     }
 
-    async fn push_spec(&self, spec: &SpecProtocol) -> NovaResult<SyncResult> {
+    async fn push_spec(&self, spec: &SpecProtocol) -> AgentResult<SyncResult> {
         let url = self.api_url("content");
 
         let title = spec
@@ -129,14 +129,14 @@ impl SyncAdapter for ConfluenceSyncAdapter {
         Ok(SyncResult::created(created.id, page_url))
     }
 
-    async fn push_change(&self, _change: &ChangeProtocol) -> NovaResult<SyncResult> {
-        Err(NovaError::NotSupported(
+    async fn push_change(&self, _change: &ChangeProtocol) -> AgentResult<SyncResult> {
+        Err(AgentError::NotSupported(
             "ConfluenceSyncAdapter does not support change sync".into(),
         ))
     }
 
-    async fn pull_code_index(&self, _path: &str) -> NovaResult<CodeIndexProtocol> {
-        Err(NovaError::NotSupported(
+    async fn pull_code_index(&self, _path: &str) -> AgentResult<CodeIndexProtocol> {
+        Err(AgentError::NotSupported(
             "ConfluenceSyncAdapter does not support code index pull".into(),
         ))
     }
@@ -185,25 +185,25 @@ mod tests {
     async fn test_push_issue_returns_not_supported() {
         let issue = IssueProtocol::new("1", "Test issue");
         let result = make_adapter().push_issue(&issue).await;
-        assert!(matches!(result, Err(NovaError::NotSupported(_))));
+        assert!(matches!(result, Err(AgentError::NotSupported(_))));
     }
 
     #[tokio::test]
     async fn test_pull_issue_returns_not_supported() {
         let result = make_adapter().pull_issue("123").await;
-        assert!(matches!(result, Err(NovaError::NotSupported(_))));
+        assert!(matches!(result, Err(AgentError::NotSupported(_))));
     }
 
     #[tokio::test]
     async fn test_push_change_returns_not_supported() {
         let change = ChangeProtocol::new("my-change", "proj", vec![]);
         let result = make_adapter().push_change(&change).await;
-        assert!(matches!(result, Err(NovaError::NotSupported(_))));
+        assert!(matches!(result, Err(AgentError::NotSupported(_))));
     }
 
     #[tokio::test]
     async fn test_pull_code_index_returns_not_supported() {
         let result = make_adapter().pull_code_index("src/lib.rs").await;
-        assert!(matches!(result, Err(NovaError::NotSupported(_))));
+        assert!(matches!(result, Err(AgentError::NotSupported(_))));
     }
 }

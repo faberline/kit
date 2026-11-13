@@ -34,7 +34,7 @@ pub use agent::{
 pub use context::{ContextManager, ContextStats};
 
 // Re-export error types
-pub use error::{NovaError, NovaResult};
+pub use error::{AgentError, AgentResult};
 
 // Re-export observability bootstrap and trace export surface (#2057)
 pub use observability::{

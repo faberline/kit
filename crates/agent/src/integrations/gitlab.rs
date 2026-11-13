@@ -4,7 +4,7 @@ use super::{
     CommitFile, CreatedBranch, CreatedCommit, CreatedPullRequest, Issue, IssueComment, IssueFilter,
     IssueState, IssueSummary, PlatformIntegration, PostedComment, PullRequestParams,
 };
-use crate::error::{NovaError, NovaResult};
+use crate::error::{AgentError, AgentResult};
 use crate::tools::{Tool, ToolParameter};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -31,9 +31,9 @@ impl GitLabIntegration {
         token: impl Into<String>,
         base_url: impl Into<String>,
         project_id: impl Into<String>,
-    ) -> NovaResult<Self> {
+    ) -> AgentResult<Self> {
         let client = HttpClient::default_client()
-            .map_err(|e| NovaError::ConfigError(format!("Failed to create HTTP client: {}", e)))?;
+            .map_err(|e| AgentError::ConfigError(format!("Failed to create HTTP client: {}", e)))?;
 
         let base_url = base_url.into();
         let base_url = base_url.trim_end_matches('/').to_string();
@@ -56,7 +56,7 @@ impl GitLabIntegration {
     }
 
     /// Make an authenticated GET request.
-    async fn get<T: for<'de> Deserialize<'de>>(&self, url: &str) -> NovaResult<T> {
+    async fn get<T: for<'de> Deserialize<'de>>(&self, url: &str) -> AgentResult<T> {
         let request = RequestBuilder::new(HttpMethod::Get, url)
             .header("PRIVATE-TOKEN", &self.token)
             .header("Accept", "application/json");
@@ -65,11 +65,11 @@ impl GitLabIntegration {
             .client
             .execute_builder(request)
             .await
-            .map_err(|e| NovaError::HttpError(format!("GitLab API request failed: {}", e)))?;
+            .map_err(|e| AgentError::HttpError(format!("GitLab API request failed: {}", e)))?;
 
         if !response.is_success() {
             let body = response.text().unwrap_or_default();
-            return Err(NovaError::ApiError(format!(
+            return Err(AgentError::ApiError(format!(
                 "GitLab API error {}: {}",
                 response.status_code, body
             )));
@@ -77,7 +77,7 @@ impl GitLabIntegration {
 
         response
             .json_as()
-            .map_err(|e| NovaError::ApiError(format!("Failed to parse GitLab response: {}", e)))
+            .map_err(|e| AgentError::ApiError(format!("Failed to parse GitLab response: {}", e)))
     }
 
     /// Make an authenticated POST request.
@@ -85,7 +85,7 @@ impl GitLabIntegration {
         &self,
         url: &str,
         body: serde_json::Value,
-    ) -> NovaResult<T> {
+    ) -> AgentResult<T> {
         let request = RequestBuilder::new(HttpMethod::Post, url)
             .header("PRIVATE-TOKEN", &self.token)
             .json_value(body);
@@ -94,11 +94,11 @@ impl GitLabIntegration {
             .client
             .execute_builder(request)
             .await
-            .map_err(|e| NovaError::HttpError(format!("GitLab API request failed: {}", e)))?;
+            .map_err(|e| AgentError::HttpError(format!("GitLab API request failed: {}", e)))?;
 
         if !response.is_success() {
             let body = response.text().unwrap_or_default();
-            return Err(NovaError::ApiError(format!(
+            return Err(AgentError::ApiError(format!(
                 "GitLab API error {}: {}",
                 response.status_code, body
             )));
@@ -106,7 +106,7 @@ impl GitLabIntegration {
 
         response
             .json_as()
-            .map_err(|e| NovaError::ApiError(format!("Failed to parse GitLab response: {}", e)))
+            .map_err(|e| AgentError::ApiError(format!("Failed to parse GitLab response: {}", e)))
     }
 
     fn parse_state(state: &str) -> IssueState {
@@ -124,7 +124,7 @@ impl PlatformIntegration for GitLabIntegration {
         "gitlab"
     }
 
-    async fn get_issue(&self, id: &str) -> NovaResult<Issue> {
+    async fn get_issue(&self, id: &str) -> AgentResult<Issue> {
         let url = self.api_url(&format!("issues/{}", id));
         let gl_issue: GitLabIssue = self.get(&url).await?;
 
@@ -158,7 +158,7 @@ impl PlatformIntegration for GitLabIntegration {
         })
     }
 
-    async fn list_issues(&self, filter: &IssueFilter) -> NovaResult<Vec<IssueSummary>> {
+    async fn list_issues(&self, filter: &IssueFilter) -> AgentResult<Vec<IssueSummary>> {
         let mut url = self.api_url("issues");
         let mut params = vec![];
 
@@ -208,7 +208,7 @@ impl PlatformIntegration for GitLabIntegration {
             .collect())
     }
 
-    async fn get_comments(&self, issue_id: &str) -> NovaResult<Vec<IssueComment>> {
+    async fn get_comments(&self, issue_id: &str) -> AgentResult<Vec<IssueComment>> {
         let url = self.api_url(&format!("issues/{}/notes", issue_id));
         let notes: Vec<GitLabNote> = self.get(&url).await?;
 
@@ -224,7 +224,7 @@ impl PlatformIntegration for GitLabIntegration {
             .collect())
     }
 
-    async fn post_comment(&self, issue_id: &str, body: &str) -> NovaResult<PostedComment> {
+    async fn post_comment(&self, issue_id: &str, body: &str) -> AgentResult<PostedComment> {
         let url = self.api_url(&format!("issues/{}/notes", issue_id));
         let request_body = serde_json::json!({
             "body": body
@@ -244,7 +244,7 @@ impl PlatformIntegration for GitLabIntegration {
         })
     }
 
-    async fn create_branch(&self, branch_name: &str, from_ref: &str) -> NovaResult<CreatedBranch> {
+    async fn create_branch(&self, branch_name: &str, from_ref: &str) -> AgentResult<CreatedBranch> {
         let url = self.api_url("repository/branches");
         let body = serde_json::json!({
             "branch": branch_name,
@@ -264,7 +264,7 @@ impl PlatformIntegration for GitLabIntegration {
         branch: &str,
         message: &str,
         files: &[CommitFile],
-    ) -> NovaResult<CreatedCommit> {
+    ) -> AgentResult<CreatedCommit> {
         let url = self.api_url("repository/commits");
 
         let actions: Vec<serde_json::Value> = files
@@ -300,7 +300,7 @@ impl PlatformIntegration for GitLabIntegration {
     async fn create_pull_request(
         &self,
         params: &PullRequestParams,
-    ) -> NovaResult<CreatedPullRequest> {
+    ) -> AgentResult<CreatedPullRequest> {
         let url = self.api_url("merge_requests");
         let body = serde_json::json!({
             "title":         params.title,
@@ -424,7 +424,7 @@ impl Tool for GetGitLabIssueTool {
         }]
     }
 
-    async fn execute(&self, arguments: serde_json::Value) -> NovaResult<serde_json::Value> {
+    async fn execute(&self, arguments: serde_json::Value) -> AgentResult<serde_json::Value> {
         #[derive(Deserialize)]
         struct Args {
             issue_iid: String,
@@ -486,7 +486,7 @@ impl Tool for ListGitLabIssuesTool {
         ]
     }
 
-    async fn execute(&self, arguments: serde_json::Value) -> NovaResult<serde_json::Value> {
+    async fn execute(&self, arguments: serde_json::Value) -> AgentResult<serde_json::Value> {
         #[derive(Deserialize)]
         struct Args {
             state: Option<String>,

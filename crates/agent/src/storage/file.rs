@@ -1,7 +1,7 @@
 //! File-based storage backend using JSON files.
 
 use super::{SessionInfo, SessionState, Storage};
-use crate::error::{NovaError, NovaResult};
+use crate::error::{AgentError, AgentResult};
 use async_trait::async_trait;
 use std::path::{Path, PathBuf};
 use tokio::fs;
@@ -37,7 +37,7 @@ impl FileStorage {
     }
 
     /// Ensure the storage directory exists.
-    async fn ensure_directory(&self) -> NovaResult<()> {
+    async fn ensure_directory(&self) -> AgentResult<()> {
         if !self.directory.exists() {
             fs::create_dir_all(&self.directory).await?;
             debug!("Created storage directory: {:?}", self.directory);
@@ -48,7 +48,7 @@ impl FileStorage {
 
 #[async_trait]
 impl Storage for FileStorage {
-    async fn save_session(&self, state: &SessionState) -> NovaResult<()> {
+    async fn save_session(&self, state: &SessionState) -> AgentResult<()> {
         self.ensure_directory().await?;
 
         let path = self.session_path(&state.id);
@@ -60,7 +60,7 @@ impl Storage for FileStorage {
         Ok(())
     }
 
-    async fn load_session(&self, id: &str) -> NovaResult<Option<SessionState>> {
+    async fn load_session(&self, id: &str) -> AgentResult<Option<SessionState>> {
         let path = self.session_path(id);
 
         if !path.exists() {
@@ -69,14 +69,14 @@ impl Storage for FileStorage {
 
         let content = fs::read_to_string(&path).await?;
         let state: SessionState = serde_json::from_str(&content).map_err(|e| {
-            NovaError::ConfigError(format!("Failed to parse session file {}: {}", id, e))
+            AgentError::ConfigError(format!("Failed to parse session file {}: {}", id, e))
         })?;
 
         debug!("Loaded session {} from {:?}", id, path);
         Ok(Some(state))
     }
 
-    async fn list_sessions(&self) -> NovaResult<Vec<SessionInfo>> {
+    async fn list_sessions(&self) -> AgentResult<Vec<SessionInfo>> {
         if !self.directory.exists() {
             return Ok(Vec::new());
         }
@@ -112,7 +112,7 @@ impl Storage for FileStorage {
         Ok(sessions)
     }
 
-    async fn delete_session(&self, id: &str) -> NovaResult<()> {
+    async fn delete_session(&self, id: &str) -> AgentResult<()> {
         let path = self.session_path(id);
 
         if path.exists() {
@@ -123,7 +123,7 @@ impl Storage for FileStorage {
         Ok(())
     }
 
-    async fn session_exists(&self, id: &str) -> NovaResult<bool> {
+    async fn session_exists(&self, id: &str) -> AgentResult<bool> {
         Ok(self.session_path(id).exists())
     }
 }

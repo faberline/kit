@@ -34,7 +34,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
-use crate::error::{NovaError, NovaResult};
+use crate::error::{AgentError, AgentResult};
 use crate::events::AgentEvent;
 
 /// Shared identifiers and labels attached to exported trace records.
@@ -274,15 +274,15 @@ fn event_metadata<const N: usize>(entries: [(&str, Value); N]) -> Map<String, Va
 /// Filters by the `RUST_LOG` environment variable when set, otherwise
 /// defaults to `info`. Returns `Ok(())` if this call installed the
 /// global subscriber, or wraps the subscriber-already-set error as
-/// [`NovaError::ConfigError`] so the caller can decide whether a
+/// [`AgentError::ConfigError`] so the caller can decide whether a
 /// pre-existing subscriber is fatal.
-pub fn init_stdout_subscriber() -> NovaResult<()> {
+pub fn init_stdout_subscriber() -> AgentResult<()> {
     use tracing_subscriber::EnvFilter;
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
     tracing_subscriber::fmt()
         .with_env_filter(filter)
         .try_init()
-        .map_err(|e| NovaError::ConfigError(format!("tracing subscriber already set: {e}")))
+        .map_err(|e| AgentError::ConfigError(format!("tracing subscriber already set: {e}")))
 }
 
 // HANDWRITE-END
@@ -299,7 +299,7 @@ mod tests {
         // ConfigError rather than panicking.
         let _ = init_stdout_subscriber();
         let result = init_stdout_subscriber();
-        assert!(matches!(result, Err(NovaError::ConfigError(_))));
+        assert!(matches!(result, Err(AgentError::ConfigError(_))));
     }
 
     #[test]

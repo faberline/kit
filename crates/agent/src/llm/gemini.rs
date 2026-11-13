@@ -1,7 +1,7 @@
 use super::provider::{
     CompletionRequest, CompletionResponse, LLMProvider, StreamResponse, ToolDefinition,
 };
-use crate::error::{NovaError, NovaResult};
+use crate::error::{AgentError, AgentResult};
 use crate::types::{Message, Role, TokenUsage, ToolCall};
 use async_trait::async_trait;
 use kit_http::client::{HttpClient, HttpClientConfig, HttpMethod, RequestBuilder};
@@ -19,7 +19,7 @@ pub struct GeminiProvider {
 }
 
 impl GeminiProvider {
-    pub fn new(api_key: impl Into<String>) -> NovaResult<Self> {
+    pub fn new(api_key: impl Into<String>) -> AgentResult<Self> {
         Self::with_base_url(api_key, "https://generativelanguage.googleapis.com")
     }
 
@@ -40,7 +40,7 @@ impl GeminiProvider {
     pub fn with_base_url(
         api_key: impl Into<String>,
         base_url: impl Into<String>,
-    ) -> NovaResult<Self> {
+    ) -> AgentResult<Self> {
         let base = base_url.into();
         let config = HttpClientConfig::new().base_url(&base).timeout_secs(60.0);
 
@@ -154,7 +154,7 @@ impl LLMProvider for GeminiProvider {
         ]
     }
 
-    async fn complete(&self, request: CompletionRequest) -> NovaResult<CompletionResponse> {
+    async fn complete(&self, request: CompletionRequest) -> AgentResult<CompletionResponse> {
         let model = if request.model.is_empty() {
             self.default_model.clone()
         } else {
@@ -223,7 +223,7 @@ impl LLMProvider for GeminiProvider {
             let error_text = response
                 .text()
                 .unwrap_or_else(|_| "Unknown error".to_string());
-            return Err(NovaError::ApiError(format!(
+            return Err(AgentError::ApiError(format!(
                 "Gemini API error ({}): {}",
                 response.status_code, error_text
             )));
@@ -236,7 +236,7 @@ impl LLMProvider for GeminiProvider {
             .candidates
             .into_iter()
             .next()
-            .ok_or_else(|| NovaError::ApiError("No candidates in response".to_string()))?;
+            .ok_or_else(|| AgentError::ApiError("No candidates in response".to_string()))?;
 
         let mut content = String::new();
         let mut tool_calls = Vec::new();
@@ -288,8 +288,8 @@ impl LLMProvider for GeminiProvider {
         })
     }
 
-    async fn complete_stream(&self, _request: CompletionRequest) -> NovaResult<StreamResponse> {
-        Err(NovaError::InvalidRequest(
+    async fn complete_stream(&self, _request: CompletionRequest) -> AgentResult<StreamResponse> {
+        Err(AgentError::InvalidRequest(
             "Streaming not yet implemented for Gemini".to_string(),
         ))
     }
