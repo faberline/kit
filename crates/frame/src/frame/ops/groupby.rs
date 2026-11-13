@@ -151,7 +151,7 @@ impl<'a> GroupBy<'a> {
 
         // Materialize groups as a sorted vector to ensure stable, deterministic iteration order
         let mut sorted_groups: Vec<(&Vec<Value>, &Vec<usize>)> = self.groups.iter().collect();
-        sorted_groups.sort_by(|(k1, _), (k2, _)| k1.cmp(k2));
+        sorted_groups.sort_by_key(|(k, _)| *k);
 
         // Build result columns
         let mut result_columns: Vec<(&str, Vec<Value>)> = Vec::new();
@@ -192,7 +192,12 @@ impl<'a> GroupBy<'a> {
     /// Unlike aggregate, transform returns a value for each row in the original DataFrame.
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// use frame::frame::{DataFrame, Series, Value};
+    ///
+    /// let category = Series::new(vec!["a", "a", "b", "b"]);
+    /// let value = Series::new(vec![1.0, 3.0, 10.0, 14.0]);
+    /// let df = DataFrame::from_columns(vec![("category", category), ("value", value)]).unwrap();
     /// // Z-score within each group
     /// let result = df.groupby(&["category"]).unwrap().transform(|series, indices| {
     ///     let vals: Vec<f64> = indices.iter()
@@ -205,6 +210,7 @@ impl<'a> GroupBy<'a> {
     ///         Some(Value::Float((v - mean) / std))
     ///     }).collect()
     /// });
+    /// assert_eq!(result.unwrap().nrows(), 4);
     /// ```
     pub fn transform<F>(&self, transform_fn: F) -> Result<DataFrame>
     where
@@ -261,14 +267,20 @@ impl<'a> GroupBy<'a> {
     /// Filter: keep only groups that satisfy the predicate.
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// use frame::frame::{DataFrame, Series};
+    ///
+    /// let category = Series::new(vec!["a", "a", "b", "b"]);
+    /// let value = Series::new(vec![10.0, 20.0, 40.0, 50.0]);
+    /// let df = DataFrame::from_columns(vec![("category", category), ("value", value)]).unwrap();
     /// // Keep groups with mean > 30
-    /// let result = df.groupby(&["category"]).unwrap().filter(|_df, indices| {
+    /// let result = df.groupby(&["category"]).unwrap().filter_groups(|df, indices| {
     ///     let vals: Vec<f64> = indices.iter()
     ///         .filter_map(|&i| df.get("value").ok()?.iloc(i).ok()?.as_float())
     ///         .collect();
     ///     vals.iter().sum::<f64>() / vals.len() as f64 > 30.0
     /// });
+    /// assert_eq!(result.unwrap().nrows(), 2);
     /// ```
     pub fn filter_groups<F>(&self, predicate: F) -> Result<DataFrame>
     where
@@ -334,7 +346,7 @@ impl<'a> GroupBy<'a> {
             }
             vals.sort_by(|a, b| a.total_cmp(b));
             let mid = vals.len() / 2;
-            if vals.len() % 2 == 0 {
+            if vals.len().is_multiple_of(2) {
                 Value::Float((vals[mid - 1] + vals[mid]) / 2.0)
             } else {
                 Value::Float(vals[mid])
@@ -348,7 +360,7 @@ impl<'a> GroupBy<'a> {
 
         // Materialize groups as a sorted vector to ensure stable, deterministic iteration order
         let mut sorted_groups: Vec<(&Vec<Value>, &Vec<usize>)> = self.groups.iter().collect();
-        sorted_groups.sort_by(|(k1, _), (k2, _)| k1.cmp(k2));
+        sorted_groups.sort_by_key(|(k, _)| *k);
 
         // Add groupby columns
         for by_col in &self.by {

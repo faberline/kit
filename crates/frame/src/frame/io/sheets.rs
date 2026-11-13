@@ -196,7 +196,7 @@ fn parse_csv_lines(lines: &[String]) -> Result<DataFrame> {
 
     let series_cols: Vec<(&str, Series)> = header
         .iter()
-        .zip(columns.into_iter())
+        .zip(columns)
         .map(|(name, data)| (name.as_str(), Series::new(data)))
         .collect();
 

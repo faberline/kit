@@ -351,7 +351,7 @@ mod tests {
         assert!(result.iloc(0).unwrap().is_null());
         // std of [1, 2] = sqrt(0.5) ~ 0.707
         let v = result.iloc(1).unwrap().as_float().unwrap();
-        assert!((v - 0.7071067811865476).abs() < 1e-10);
+        assert!((v - 0.5f64.sqrt()).abs() < 1e-10);
     }
 
     #[test]

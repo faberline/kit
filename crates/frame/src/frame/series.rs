@@ -239,8 +239,10 @@ impl Series {
     /// Return a boolean mask indicating which values are null.
     ///
     /// # Example
-    /// ```ignore
-    /// let s = Series::new(vec![Some(1), None, Some(3)]);
+    /// ```
+    /// use frame::frame::{Series, Value};
+    ///
+    /// let s = Series::new(vec![Value::Int(1), Value::Null, Value::Int(3)]);
     /// assert_eq!(s.isna(), vec![false, true, false]);
     /// ```
     pub fn isna(&self) -> Vec<bool> {
@@ -255,9 +257,12 @@ impl Series {
     /// Fill null values with the given value.
     ///
     /// # Example
-    /// ```ignore
-    /// let s = Series::new(vec![Some(1), None, Some(3)]);
+    /// ```
+    /// use frame::frame::{Series, Value};
+    ///
+    /// let s = Series::new(vec![Value::Int(1), Value::Null, Value::Int(3)]);
     /// let filled = s.fillna(Value::Int(0));
+    /// assert_eq!(filled.iloc(1).unwrap(), &Value::Int(0));
     /// ```
     pub fn fillna(&self, value: Value) -> Series {
         let data: Vec<Value> = self
@@ -324,8 +329,10 @@ impl Series {
     /// Drop null values, returning a new Series.
     ///
     /// # Example
-    /// ```ignore
-    /// let s = Series::new(vec![Some(1), None, Some(3)]);
+    /// ```
+    /// use frame::frame::{Series, Value};
+    ///
+    /// let s = Series::new(vec![Value::Int(1), Value::Null, Value::Int(3)]);
     /// let clean = s.dropna();
     /// assert_eq!(clean.len(), 2);
     /// ```
@@ -338,10 +345,12 @@ impl Series {
     /// Interpolate missing values using linear interpolation.
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// use frame::frame::{Series, Value};
+    ///
     /// let s = Series::new(vec![Value::Float(1.0), Value::Null, Value::Float(3.0)]);
     /// let filled = s.interpolate();
-    /// // filled[1] = 2.0
+    /// assert_eq!(filled.iloc(1).unwrap(), &Value::Float(2.0));
     /// ```
     pub fn interpolate(&self) -> Series {
         self.interpolate_method("linear")
@@ -394,8 +403,8 @@ impl Series {
         }
 
         // Only interpolate Null values, preserve non-null non-numeric values
-        for i in 0..n {
-            if result[i].is_null() {
+        for (i, slot) in result.iter_mut().enumerate().take(n) {
+            if slot.is_null() {
                 // Find surrounding valid numeric points
                 let prev = valid.iter().rev().find(|(idx, _)| *idx < i);
                 let next = valid.iter().find(|(idx, _)| *idx > i);
@@ -404,15 +413,15 @@ impl Series {
                     (Some(&(i0, v0)), Some(&(i1, v1))) => {
                         // Linear interpolation
                         let t = (i - i0) as f64 / (i1 - i0) as f64;
-                        result[i] = Value::Float(v0 + t * (v1 - v0));
+                        *slot = Value::Float(v0 + t * (v1 - v0));
                     }
                     (Some(&(_, v)), None) => {
                         // Extrapolate forward (use last value)
-                        result[i] = Value::Float(v);
+                        *slot = Value::Float(v);
                     }
                     (None, Some(&(_, v))) => {
                         // Extrapolate backward (use first value)
-                        result[i] = Value::Float(v);
+                        *slot = Value::Float(v);
                     }
                     (None, None) => {
                         // No valid values
@@ -459,8 +468,8 @@ impl Series {
         }
 
         // Only interpolate Null values
-        for i in 0..n {
-            if result[i].is_null() {
+        for (i, slot) in result.iter_mut().enumerate().take(n) {
+            if slot.is_null() {
                 // Find nearest valid numeric point
                 let nearest = valid
                     .iter()
@@ -468,7 +477,7 @@ impl Series {
                     .map(|(_, v)| *v);
 
                 if let Some(v) = nearest {
-                    result[i] = Value::Float(v);
+                    *slot = Value::Float(v);
                 }
             }
             // Non-null values are preserved as-is
@@ -494,9 +503,12 @@ impl Series {
     /// Apply a function to each value.
     ///
     /// # Example
-    /// ```ignore
-    /// let s = Series::new(vec![1, 2, 3]);
+    /// ```
+    /// use frame::frame::{Series, Value};
+    ///
+    /// let s = Series::new(vec![Value::Int(1), Value::Int(2), Value::Int(3)]);
     /// let doubled = s.apply(|v| Value::Float(v.as_float().unwrap_or(0.0) * 2.0));
+    /// assert_eq!(doubled.iloc(2).unwrap(), &Value::Float(6.0));
     /// ```
     pub fn apply<F>(&self, f: F) -> Series
     where
@@ -631,13 +643,15 @@ impl Series {
 
         if n >= 0 {
             let n = n as usize;
-            for i in n..len {
-                data[i] = self.data[i - n].clone();
+            // A shift past the end leaves every value null.
+            if n < len {
+                data[n..].clone_from_slice(&self.data[..len - n]);
             }
         } else {
             let n = (-n) as usize;
-            for i in 0..len.saturating_sub(n) {
-                data[i] = self.data[i + n].clone();
+            let m = len.saturating_sub(n);
+            if m > 0 {
+                data[..m].clone_from_slice(&self.data[n..n + m]);
             }
         }
 
@@ -655,13 +669,13 @@ impl Series {
         let len = self.data.len();
         let mut data = vec![Value::Null; len];
 
-        for i in periods..len {
+        for (i, slot) in data.iter_mut().enumerate().take(len).skip(periods) {
             match (self.data[i].as_float(), self.data[i - periods].as_float()) {
                 (Some(curr), Some(prev)) => {
-                    data[i] = Value::Float(curr - prev);
+                    *slot = Value::Float(curr - prev);
                 }
                 _ => {
-                    data[i] = Value::Null;
+                    *slot = Value::Null;
                 }
             }
         }
@@ -678,13 +692,13 @@ impl Series {
         let len = self.data.len();
         let mut data = vec![Value::Null; len];
 
-        for i in periods..len {
+        for (i, slot) in data.iter_mut().enumerate().take(len).skip(periods) {
             match (self.data[i].as_float(), self.data[i - periods].as_float()) {
                 (Some(curr), Some(prev)) if prev != 0.0 => {
-                    data[i] = Value::Float((curr - prev) / prev);
+                    *slot = Value::Float((curr - prev) / prev);
                 }
                 _ => {
-                    data[i] = Value::Null;
+                    *slot = Value::Null;
                 }
             }
         }
@@ -921,7 +935,7 @@ impl Series {
 
     /// Quantile (q between 0 and 1).
     pub fn quantile(&self, q: f64) -> Result<f64> {
-        if q < 0.0 || q > 1.0 {
+        if !(0.0..=1.0).contains(&q) {
             return Err(FrameError::InvalidOperation(
                 "q must be between 0 and 1".into(),
             ));
@@ -1807,5 +1821,18 @@ mod tests {
         s.reset_index();
         assert_eq!(s.index().len(), 3);
         // Index should now be Range type
+    }
+
+    #[test]
+    fn shift_by_more_than_len_gives_all_null() {
+        let s = Series::new(vec![Value::Int(1), Value::Int(2), Value::Int(3)]);
+        let forward = s.shift(5);
+        let backward = s.shift(-5);
+        assert_eq!(forward.len(), 3);
+        assert_eq!(backward.len(), 3);
+        for i in 0..3 {
+            assert!(forward.iloc(i).unwrap().is_null());
+            assert!(backward.iloc(i).unwrap().is_null());
+        }
     }
 }

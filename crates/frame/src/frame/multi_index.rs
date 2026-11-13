@@ -8,7 +8,7 @@ use super::value::Value;
 use std::collections::HashMap;
 
 /// A hierarchical index with multiple levels.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct MultiIndex {
     /// Level names.
     names: Vec<String>,
@@ -261,16 +261,6 @@ impl MultiIndex {
             std::cmp::Ordering::Equal
         });
         indices
-    }
-}
-
-impl Default for MultiIndex {
-    fn default() -> Self {
-        Self {
-            names: Vec::new(),
-            levels: Vec::new(),
-            length: 0,
-        }
     }
 }
 

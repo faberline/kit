@@ -4,9 +4,10 @@ use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
 
 /// A value that can be stored in a DataFrame cell.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub enum Value {
     /// Null/missing value.
+    #[default]
     Null,
     /// Boolean value.
     Bool(bool),
@@ -122,12 +123,6 @@ impl Ord for Value {
     }
 }
 
-impl Default for Value {
-    fn default() -> Self {
-        Value::Null
-    }
-}
-
 impl From<bool> for Value {
     fn from(v: bool) -> Self {
         Value::Bool(v)
@@ -198,7 +193,7 @@ mod tests {
     #[test]
     fn test_value_conversions() {
         assert_eq!(Value::from(42i32).as_int(), Some(42));
-        assert_eq!(Value::from(3.14f64).as_float(), Some(3.14));
+        assert_eq!(Value::from(2.5f64).as_float(), Some(2.5));
         assert_eq!(Value::from("hello").as_str(), Some("hello"));
         assert_eq!(Value::from(true).as_bool(), Some(true));
     }
