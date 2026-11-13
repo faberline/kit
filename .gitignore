@@ -1,0 +1,20 @@
+# Tool run caches and state written under the cwd.
+.aw/
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+.claude/worktrees/
+.mcp.json
+
+# Environment files.
+.env
+.env.*
+!.env.example
+
+# Editors and OS.
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Cargo build output.
+/target/

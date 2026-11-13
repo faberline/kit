@@ -1,0 +1,5 @@
+# Maximum number of function arguments (default is 7)
+too-many-arguments-threshold = 10
+
+# Maximum cognitive complexity (default is 25)
+cognitive-complexity-threshold = 30

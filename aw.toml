@@ -1,0 +1,10 @@
+[project]
+name = "kit"
+cap_path = "README.md"
+label = "app:kit"
+
+[[workspaces]]
+name = "kit"
+paths = ["**"]
+target = "rust"
+test_cmd = "cargo test --workspace"

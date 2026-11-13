@@ -1,0 +1,45 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/kit-core",
+    "crates/kit-http",
+    "crates/arraykit",
+    "crates/frame",
+    "crates/scikit",
+    "crates/plotkit",
+    "crates/agent",
+    "crates/agent-derive",
+    "crates/agent-graph",
+    "crates/agent-tools",
+]
+
+[workspace.package]
+version = "0.1.0"
+authors = ["faberline"]
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/faberline/kit"
+
+[workspace.dependencies]
+tokio = { version = "1.40", features = ["full"] }
+futures = "0.3"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["preserve_order"] }
+anyhow = "1.0"
+thiserror = "2.0"
+reqwest = { version = "0.12", default-features = false, features = ["charset", "http2", "system-proxy", "rustls-tls-native-roots", "json", "cookies", "gzip", "brotli", "multipart", "stream"] }
+http = "1.2"
+url = "2.5"
+bytes = "1.9"
+chrono = { version = "0.4", features = ["serde"] }
+async-trait = "0.1"
+tracing = "0.1"
+regex = "1.11"
+rayon = "1.10"
+base64 = "0.22"
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.test]
+opt-level = 1
