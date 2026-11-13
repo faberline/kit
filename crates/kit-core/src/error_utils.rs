@@ -1,4 +1,4 @@
-//! Error sanitization utilities shared across cclab crates
+//! Error sanitization utilities shared across kit crates
 //!
 //! This module provides common utilities for error handling and sanitization
 //! that are used by multiple crates.

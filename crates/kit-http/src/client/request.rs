@@ -15,7 +15,7 @@ use std::time::Duration;
 /// `kit_http::http::Request`, which IS the builder — chainable `.header`,
 /// `.json`, `.bearer_auth`, ... methods live directly on it. The alias keeps
 /// existing `kit_http::client::RequestBuilder` imports compiling without
-/// touching agentkit / cclab-qc.
+/// touching agentkit / kit-qc.
 pub type RequestBuilder = Request;
 
 /// Convert the typed `HttpMethod` into reqwest's stringly method type.

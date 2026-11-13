@@ -1,13 +1,13 @@
-//! Error types for cclab
+//! Error types for kit
 
 use thiserror::Error;
 
-/// Result type alias for cclab operations
-pub type Result<T> = std::result::Result<T, DataBridgeError>;
+/// Result type alias for kit operations
+pub type Result<T> = std::result::Result<T, KitError>;
 
-/// Unified error type for all cclab operations
+/// Unified error type for all kit operations
 #[derive(Error, Debug, Clone)]
-pub enum DataBridgeError {
+pub enum KitError {
     #[error("MongoDB error: {0}")]
     MongoDB(String),
 
@@ -54,29 +54,24 @@ pub enum DataBridgeError {
     Transient(String),
 }
 
-impl DataBridgeError {
+impl KitError {
     /// Returns true if this error is potentially retryable
     pub fn is_retryable(&self) -> bool {
         matches!(
             self,
-            DataBridgeError::Deadlock(_)
-                | DataBridgeError::Timeout(_)
-                | DataBridgeError::Transient(_)
+            KitError::Deadlock(_) | KitError::Timeout(_) | KitError::Transient(_)
         )
     }
 
     /// Returns true if this is a constraint violation error
     pub fn is_constraint_violation(&self) -> bool {
-        matches!(
-            self,
-            DataBridgeError::Conflict(_) | DataBridgeError::ForeignKey(_)
-        )
+        matches!(self, KitError::Conflict(_) | KitError::ForeignKey(_))
     }
 }
 
-impl From<serde_json::Error> for DataBridgeError {
+impl From<serde_json::Error> for KitError {
     fn from(err: serde_json::Error) -> Self {
-        DataBridgeError::Serialization(err.to_string())
+        KitError::Serialization(err.to_string())
     }
 }
 
@@ -86,57 +81,57 @@ mod tests {
 
     #[test]
     fn test_error_display_mongodb() {
-        let err = DataBridgeError::MongoDB("connection refused".to_string());
+        let err = KitError::MongoDB("connection refused".to_string());
         assert_eq!(err.to_string(), "MongoDB error: connection refused");
     }
 
     #[test]
     fn test_error_display_database() {
-        let err = DataBridgeError::Database("invalid query".to_string());
+        let err = KitError::Database("invalid query".to_string());
         assert_eq!(err.to_string(), "Database error: invalid query");
     }
 
     #[test]
     fn test_error_display_serialization() {
-        let err = DataBridgeError::Serialization("invalid JSON".to_string());
+        let err = KitError::Serialization("invalid JSON".to_string());
         assert_eq!(err.to_string(), "Serialization error: invalid JSON");
     }
 
     #[test]
     fn test_error_display_deserialization() {
-        let err = DataBridgeError::Deserialization("missing field".to_string());
+        let err = KitError::Deserialization("missing field".to_string());
         assert_eq!(err.to_string(), "Deserialization error: missing field");
     }
 
     #[test]
     fn test_error_display_connection() {
-        let err = DataBridgeError::Connection("timeout".to_string());
+        let err = KitError::Connection("timeout".to_string());
         assert_eq!(err.to_string(), "Connection error: timeout");
     }
 
     #[test]
     fn test_error_display_query() {
-        let err = DataBridgeError::Query("invalid operator".to_string());
+        let err = KitError::Query("invalid operator".to_string());
         assert_eq!(err.to_string(), "Query error: invalid operator");
     }
 
     #[test]
     fn test_error_display_validation() {
-        let err = DataBridgeError::Validation("field required".to_string());
+        let err = KitError::Validation("field required".to_string());
         assert_eq!(err.to_string(), "Validation error: field required");
     }
 
     #[test]
     fn test_error_display_internal() {
-        let err = DataBridgeError::Internal("unexpected state".to_string());
+        let err = KitError::Internal("unexpected state".to_string());
         assert_eq!(err.to_string(), "Internal error: unexpected state");
     }
 
     #[test]
     fn test_from_serde_json_error() {
         let json_err = serde_json::from_str::<String>("invalid").unwrap_err();
-        let err: DataBridgeError = json_err.into();
-        assert!(matches!(err, DataBridgeError::Serialization(_)));
+        let err: KitError = json_err.into();
+        assert!(matches!(err, KitError::Serialization(_)));
     }
 
     #[test]
@@ -148,19 +143,19 @@ mod tests {
 
     #[test]
     fn test_result_type_err() {
-        let result: Result<i32> = Err(DataBridgeError::Query("failed".to_string()));
+        let result: Result<i32> = Err(KitError::Query("failed".to_string()));
         assert!(result.is_err());
     }
 
     #[test]
     fn test_error_display_conflict() {
-        let err = DataBridgeError::Conflict("duplicate key value".to_string());
+        let err = KitError::Conflict("duplicate key value".to_string());
         assert_eq!(err.to_string(), "Conflict: duplicate key value");
     }
 
     #[test]
     fn test_error_display_foreign_key() {
-        let err = DataBridgeError::ForeignKey("violates foreign key constraint".to_string());
+        let err = KitError::ForeignKey("violates foreign key constraint".to_string());
         assert_eq!(
             err.to_string(),
             "Foreign key constraint violation: violates foreign key constraint"
@@ -169,37 +164,37 @@ mod tests {
 
     #[test]
     fn test_error_display_deadlock() {
-        let err = DataBridgeError::Deadlock("deadlock detected".to_string());
+        let err = KitError::Deadlock("deadlock detected".to_string());
         assert_eq!(err.to_string(), "Deadlock detected: deadlock detected");
     }
 
     #[test]
     fn test_error_display_timeout() {
-        let err = DataBridgeError::Timeout("connection timed out".to_string());
+        let err = KitError::Timeout("connection timed out".to_string());
         assert_eq!(err.to_string(), "Timeout: connection timed out");
     }
 
     #[test]
     fn test_error_display_transient() {
-        let err = DataBridgeError::Transient("serialization failure".to_string());
+        let err = KitError::Transient("serialization failure".to_string());
         assert_eq!(err.to_string(), "Transient error: serialization failure");
     }
 
     #[test]
     fn test_is_retryable() {
-        assert!(DataBridgeError::Deadlock("test".to_string()).is_retryable());
-        assert!(DataBridgeError::Timeout("test".to_string()).is_retryable());
-        assert!(DataBridgeError::Transient("test".to_string()).is_retryable());
-        assert!(!DataBridgeError::Conflict("test".to_string()).is_retryable());
-        assert!(!DataBridgeError::ForeignKey("test".to_string()).is_retryable());
-        assert!(!DataBridgeError::Query("test".to_string()).is_retryable());
+        assert!(KitError::Deadlock("test".to_string()).is_retryable());
+        assert!(KitError::Timeout("test".to_string()).is_retryable());
+        assert!(KitError::Transient("test".to_string()).is_retryable());
+        assert!(!KitError::Conflict("test".to_string()).is_retryable());
+        assert!(!KitError::ForeignKey("test".to_string()).is_retryable());
+        assert!(!KitError::Query("test".to_string()).is_retryable());
     }
 
     #[test]
     fn test_is_constraint_violation() {
-        assert!(DataBridgeError::Conflict("test".to_string()).is_constraint_violation());
-        assert!(DataBridgeError::ForeignKey("test".to_string()).is_constraint_violation());
-        assert!(!DataBridgeError::Deadlock("test".to_string()).is_constraint_violation());
-        assert!(!DataBridgeError::Query("test".to_string()).is_constraint_violation());
+        assert!(KitError::Conflict("test".to_string()).is_constraint_violation());
+        assert!(KitError::ForeignKey("test".to_string()).is_constraint_violation());
+        assert!(!KitError::Deadlock("test".to_string()).is_constraint_violation());
+        assert!(!KitError::Query("test".to_string()).is_constraint_violation());
     }
 }
