@@ -17,7 +17,7 @@ mod value_tests {
     #[test]
     fn test_value_conversions() {
         assert_eq!(Value::from(42i32).as_int(), Some(42));
-        assert_eq!(Value::from(3.14f64).as_float(), Some(3.14));
+        assert_eq!(Value::from(2.5f64).as_float(), Some(2.5));
         assert_eq!(Value::from("hello").as_str(), Some("hello"));
         assert_eq!(Value::from(true).as_bool(), Some(true));
     }
@@ -1488,7 +1488,7 @@ mod csv_tests {
     #[test]
     fn test_parse_value() {
         assert_eq!(parse_value("42"), Value::Int(42));
-        assert_eq!(parse_value("3.14"), Value::Float(3.14));
+        assert_eq!(parse_value("2.5"), Value::Float(2.5));
         assert_eq!(parse_value("true"), Value::Bool(true));
         assert_eq!(parse_value("hello"), Value::String("hello".to_string()));
         assert_eq!(parse_value(""), Value::Null);

@@ -89,7 +89,7 @@ pub fn read_csv_with_options<P: AsRef<Path>>(path: P, options: CsvOptions) -> Re
     // Build DataFrame
     let series: Vec<_> = column_names
         .iter()
-        .zip(columns.into_iter())
+        .zip(columns)
         .map(|(name, values)| (name.as_str(), Series::new(values)))
         .collect();
 
@@ -256,7 +256,7 @@ mod tests {
     #[test]
     fn test_parse_value() {
         assert_eq!(parse_value("42"), Value::Int(42));
-        assert_eq!(parse_value("3.14"), Value::Float(3.14));
+        assert_eq!(parse_value("2.5"), Value::Float(2.5));
         assert_eq!(parse_value("true"), Value::Bool(true));
         assert_eq!(parse_value("hello"), Value::String("hello".to_string()));
         assert_eq!(parse_value(""), Value::Null);

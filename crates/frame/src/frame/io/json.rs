@@ -172,7 +172,7 @@ fn parse_columns_object(obj: &serde_json::Map<String, serde_json::Value>) -> Res
         let arr = val
             .as_array()
             .ok_or_else(|| FrameError::InvalidOperation("expected array for column".into()))?;
-        let data: Vec<Value> = arr.iter().map(|v| from_json_value(v)).collect();
+        let data: Vec<Value> = arr.iter().map(from_json_value).collect();
         columns.push((key.as_str(), Series::new(data)));
     }
 
