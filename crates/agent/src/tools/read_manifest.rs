@@ -6,7 +6,7 @@
 //!
 //! [`RestructureCodebaseAgent`]: crate::agents::restructure_codebase::RestructureCodebaseAgent
 
-use crate::error::NovaResult;
+use crate::error::AgentResult;
 use crate::tools::tool::{Tool, ToolParameter};
 use async_trait::async_trait;
 use serde::Deserialize;
@@ -53,7 +53,7 @@ impl Tool for ReadManifestTool {
         }]
     }
 
-    async fn execute(&self, arguments: serde_json::Value) -> NovaResult<serde_json::Value> {
+    async fn execute(&self, arguments: serde_json::Value) -> AgentResult<serde_json::Value> {
         let args: ReadManifestArgs = serde_json::from_value(arguments)?;
         let base = Path::new(&args.path);
 

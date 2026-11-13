@@ -9,9 +9,9 @@
 //! Two helpers wrap the token for the two most common patterns:
 //!
 //! * [`run_until_cancelled`] races an arbitrary future against the
-//!   token and maps cancellation to [`NovaError::Cancelled`].
+//!   token and maps cancellation to [`AgentError::Cancelled`].
 //! * [`with_timeout`] does the same against a deadline, mapping
-//!   expiry to [`NovaError::Timeout`].
+//!   expiry to [`AgentError::Timeout`].
 //!
 //! No threads, no global state — backed by [`tokio::sync::Notify`].
 //
@@ -27,7 +27,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Notify;
 
-use crate::error::{NovaError, NovaResult};
+use crate::error::{AgentError, AgentResult};
 
 #[derive(Debug)]
 struct Inner {
@@ -150,31 +150,31 @@ impl<'de> Deserialize<'de> for CancellationToken {
 }
 
 /// Race `future` against `token`. If the token fires first, returns
-/// [`NovaError::Cancelled`]; otherwise returns the future's output.
-pub async fn run_until_cancelled<F, T>(future: F, token: &CancellationToken) -> NovaResult<T>
+/// [`AgentError::Cancelled`]; otherwise returns the future's output.
+pub async fn run_until_cancelled<F, T>(future: F, token: &CancellationToken) -> AgentResult<T>
 where
     F: std::future::Future<Output = T>,
 {
     if token.is_cancelled() {
-        return Err(NovaError::Cancelled);
+        return Err(AgentError::Cancelled);
     }
     tokio::select! {
         biased;
-        _ = token.cancelled() => Err(NovaError::Cancelled),
+        _ = token.cancelled() => Err(AgentError::Cancelled),
         out = future => Ok(out),
     }
 }
 
 /// Race `future` against `duration`. On expiry returns
-/// [`NovaError::Timeout`] carrying the requested duration (seconds,
+/// [`AgentError::Timeout`] carrying the requested duration (seconds,
 /// rounded up); otherwise returns the future's output.
-pub async fn with_timeout<F, T>(future: F, duration: Duration) -> NovaResult<T>
+pub async fn with_timeout<F, T>(future: F, duration: Duration) -> AgentResult<T>
 where
     F: std::future::Future<Output = T>,
 {
     match tokio::time::timeout(duration, future).await {
         Ok(v) => Ok(v),
-        Err(_) => Err(NovaError::Timeout(duration.as_secs().max(1))),
+        Err(_) => Err(AgentError::Timeout(duration.as_secs().max(1))),
     }
 }
 
@@ -183,19 +183,19 @@ pub async fn run_with_deadline<F, T>(
     future: F,
     token: &CancellationToken,
     duration: Duration,
-) -> NovaResult<T>
+) -> AgentResult<T>
 where
     F: std::future::Future<Output = T>,
 {
     if token.is_cancelled() {
-        return Err(NovaError::Cancelled);
+        return Err(AgentError::Cancelled);
     }
     tokio::select! {
         biased;
-        _ = token.cancelled() => Err(NovaError::Cancelled),
+        _ = token.cancelled() => Err(AgentError::Cancelled),
         out = tokio::time::timeout(duration, future) => match out {
             Ok(v) => Ok(v),
-            Err(_) => Err(NovaError::Timeout(duration.as_secs().max(1))),
+            Err(_) => Err(AgentError::Timeout(duration.as_secs().max(1))),
         }
     }
 }
@@ -255,7 +255,7 @@ mod tests {
     async fn run_until_cancelled_returns_cancelled_when_pre_cancelled() {
         let token = CancellationToken::cancelled_now();
         let err = run_until_cancelled(async { 1 }, &token).await.unwrap_err();
-        assert!(matches!(err, NovaError::Cancelled));
+        assert!(matches!(err, AgentError::Cancelled));
     }
 
     #[tokio::test(flavor = "current_thread")]
@@ -275,7 +275,7 @@ mod tests {
         )
         .await
         .unwrap_err();
-        assert!(matches!(err, NovaError::Cancelled));
+        assert!(matches!(err, AgentError::Cancelled));
     }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
@@ -289,7 +289,7 @@ mod tests {
         )
         .await
         .unwrap_err();
-        assert!(matches!(err, NovaError::Timeout(s) if s == 2));
+        assert!(matches!(err, AgentError::Timeout(s) if s == 2));
     }
 
     #[tokio::test(flavor = "current_thread")]
@@ -318,7 +318,7 @@ mod tests {
         )
         .await
         .unwrap_err();
-        assert!(matches!(err, NovaError::Cancelled));
+        assert!(matches!(err, AgentError::Cancelled));
     }
 
     #[tokio::test(flavor = "current_thread")]

@@ -11,7 +11,7 @@
 use std::sync::{Arc, Mutex};
 
 use agent::{
-    Agent, CompletionRequest, CompletionResponse, LLMProvider, NovaError, NovaResult, Schema,
+    Agent, AgentError, AgentResult, CompletionRequest, CompletionResponse, LLMProvider, Schema,
     StreamResponse, ToolCall, ToolSpec,
 };
 use async_trait::async_trait;
@@ -52,17 +52,17 @@ impl LLMProvider for ScriptedProvider {
     fn supported_models(&self) -> Vec<String> {
         vec!["test-model".into()]
     }
-    async fn complete(&self, _req: CompletionRequest) -> NovaResult<CompletionResponse> {
+    async fn complete(&self, _req: CompletionRequest) -> AgentResult<CompletionResponse> {
         let mut q = self.replies.lock().unwrap();
         if q.is_empty() {
-            return Err(NovaError::LLMError("no scripted reply left".into()));
+            return Err(AgentError::LLMError("no scripted reply left".into()));
         }
         Ok(q.remove(0))
     }
-    async fn complete_stream(&self, _req: CompletionRequest) -> NovaResult<StreamResponse> {
-        Err(NovaError::NotSupported("stream".into()))
+    async fn complete_stream(&self, _req: CompletionRequest) -> AgentResult<StreamResponse> {
+        Err(AgentError::NotSupported("stream".into()))
     }
-    fn validate_model(&self, _model: &str) -> NovaResult<()> {
+    fn validate_model(&self, _model: &str) -> AgentResult<()> {
         Ok(())
     }
 }

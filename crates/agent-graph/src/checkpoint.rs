@@ -19,7 +19,7 @@ use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use agent::{NovaError, NovaResult};
+use agent::{AgentError, AgentResult};
 use async_trait::async_trait;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -34,16 +34,16 @@ where
     State: Send + Sync + 'static,
 {
     /// Store `state` under `key`. Overwrites silently.
-    async fn save(&self, key: &str, state: &State) -> NovaResult<()>;
+    async fn save(&self, key: &str, state: &State) -> AgentResult<()>;
 
     /// Read back the state saved at `key`, or `None` if no such key.
-    async fn load(&self, key: &str) -> NovaResult<Option<State>>;
+    async fn load(&self, key: &str) -> AgentResult<Option<State>>;
 
     /// All keys currently present, in unspecified order.
-    async fn list(&self) -> NovaResult<Vec<String>>;
+    async fn list(&self) -> AgentResult<Vec<String>>;
 
     /// Remove `key`. Idempotent — returns Ok if `key` was not present.
-    async fn delete(&self, key: &str) -> NovaResult<()>;
+    async fn delete(&self, key: &str) -> AgentResult<()>;
 }
 
 // ── MemoryCheckpoint ──────────────────────────────────────────────────────
@@ -82,7 +82,7 @@ impl<State> Checkpoint<State> for MemoryCheckpoint<State>
 where
     State: Clone + Send + Sync + 'static,
 {
-    async fn save(&self, key: &str, state: &State) -> NovaResult<()> {
+    async fn save(&self, key: &str, state: &State) -> AgentResult<()> {
         self.inner
             .write()
             .await
@@ -90,15 +90,15 @@ where
         Ok(())
     }
 
-    async fn load(&self, key: &str) -> NovaResult<Option<State>> {
+    async fn load(&self, key: &str) -> AgentResult<Option<State>> {
         Ok(self.inner.read().await.get(key).cloned())
     }
 
-    async fn list(&self) -> NovaResult<Vec<String>> {
+    async fn list(&self) -> AgentResult<Vec<String>> {
         Ok(self.inner.read().await.keys().cloned().collect())
     }
 
-    async fn delete(&self, key: &str) -> NovaResult<()> {
+    async fn delete(&self, key: &str) -> AgentResult<()> {
         self.inner.write().await.remove(key);
         Ok(())
     }
@@ -117,11 +117,11 @@ pub struct FileCheckpoint<State> {
 impl<State> FileCheckpoint<State> {
     /// Create a new file-backed checkpoint rooted at `root`. The directory
     /// is created if it does not yet exist.
-    pub async fn new(root: impl AsRef<Path>) -> NovaResult<Self> {
+    pub async fn new(root: impl AsRef<Path>) -> AgentResult<Self> {
         let root = root.as_ref().to_path_buf();
         tokio::fs::create_dir_all(&root)
             .await
-            .map_err(NovaError::IoError)?;
+            .map_err(AgentError::IoError)?;
         Ok(Self {
             root,
             _state: PhantomData,
@@ -147,34 +147,34 @@ impl<State> Checkpoint<State> for FileCheckpoint<State>
 where
     State: Serialize + DeserializeOwned + Send + Sync + 'static,
 {
-    async fn save(&self, key: &str, state: &State) -> NovaResult<()> {
-        let bytes = serde_json::to_vec_pretty(state).map_err(NovaError::SerializationError)?;
+    async fn save(&self, key: &str, state: &State) -> AgentResult<()> {
+        let bytes = serde_json::to_vec_pretty(state).map_err(AgentError::SerializationError)?;
         let path = self.path_for(key);
         tokio::fs::write(&path, &bytes)
             .await
-            .map_err(NovaError::IoError)?;
+            .map_err(AgentError::IoError)?;
         Ok(())
     }
 
-    async fn load(&self, key: &str) -> NovaResult<Option<State>> {
+    async fn load(&self, key: &str) -> AgentResult<Option<State>> {
         let path = self.path_for(key);
         match tokio::fs::read(&path).await {
             Ok(bytes) => {
                 let v: State =
-                    serde_json::from_slice(&bytes).map_err(NovaError::SerializationError)?;
+                    serde_json::from_slice(&bytes).map_err(AgentError::SerializationError)?;
                 Ok(Some(v))
             }
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
-            Err(e) => Err(NovaError::IoError(e)),
+            Err(e) => Err(AgentError::IoError(e)),
         }
     }
 
-    async fn list(&self) -> NovaResult<Vec<String>> {
+    async fn list(&self) -> AgentResult<Vec<String>> {
         let mut out = Vec::new();
         let mut entries = tokio::fs::read_dir(&self.root)
             .await
-            .map_err(NovaError::IoError)?;
-        while let Some(entry) = entries.next_entry().await.map_err(NovaError::IoError)? {
+            .map_err(AgentError::IoError)?;
+        while let Some(entry) = entries.next_entry().await.map_err(AgentError::IoError)? {
             if let Some(stem) = entry.path().file_stem().and_then(|s| s.to_str()) {
                 if entry
                     .path()
@@ -190,12 +190,12 @@ where
         Ok(out)
     }
 
-    async fn delete(&self, key: &str) -> NovaResult<()> {
+    async fn delete(&self, key: &str) -> AgentResult<()> {
         let path = self.path_for(key);
         match tokio::fs::remove_file(&path).await {
             Ok(()) => Ok(()),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-            Err(e) => Err(NovaError::IoError(e)),
+            Err(e) => Err(AgentError::IoError(e)),
         }
     }
 }

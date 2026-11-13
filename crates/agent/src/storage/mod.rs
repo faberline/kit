@@ -8,7 +8,7 @@ mod memory;
 pub use file::FileStorage;
 pub use memory::MemoryStorage;
 
-use crate::error::NovaResult;
+use crate::error::AgentResult;
 use crate::types::Message;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -282,19 +282,19 @@ impl From<&SessionState> for SessionInfo {
 #[async_trait]
 pub trait Storage: Send + Sync {
     /// Save a session state.
-    async fn save_session(&self, state: &SessionState) -> NovaResult<()>;
+    async fn save_session(&self, state: &SessionState) -> AgentResult<()>;
 
     /// Load a session by ID.
-    async fn load_session(&self, id: &str) -> NovaResult<Option<SessionState>>;
+    async fn load_session(&self, id: &str) -> AgentResult<Option<SessionState>>;
 
     /// List all sessions.
-    async fn list_sessions(&self) -> NovaResult<Vec<SessionInfo>>;
+    async fn list_sessions(&self) -> AgentResult<Vec<SessionInfo>>;
 
     /// Delete a session by ID.
-    async fn delete_session(&self, id: &str) -> NovaResult<()>;
+    async fn delete_session(&self, id: &str) -> AgentResult<()>;
 
     /// Check if a session exists.
-    async fn session_exists(&self, id: &str) -> NovaResult<bool> {
+    async fn session_exists(&self, id: &str) -> AgentResult<bool> {
         Ok(self.load_session(id).await?.is_some())
     }
 }

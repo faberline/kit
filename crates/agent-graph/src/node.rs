@@ -2,7 +2,7 @@
 //!
 //! Nodes are the atomic unit of computation in a `Graph<State>`. Each node
 //! takes ownership of the running state, applies its transformation, and
-//! returns the new state. Errors are typed via `agent::NovaError`.
+//! returns the new state. Errors are typed via `agent::AgentError`.
 
 // HANDWRITE-BEGIN reason: same gap as the parent lib — no async graph-engine
 // generator yet (see lib.rs).
@@ -11,7 +11,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use agent::NovaResult;
+use agent::AgentResult;
 use async_trait::async_trait;
 
 /// Reference-counted, type-erased node handle stored inside a [`Graph`].
@@ -29,11 +29,11 @@ where
     /// Transform the running state. Ownership is taken so the implementor
     /// can mutate freely without exposing locking concerns; whatever is
     /// returned becomes the new graph state.
-    async fn call(&self, state: State) -> NovaResult<State>;
+    async fn call(&self, state: State) -> AgentResult<State>;
 }
 
 /// Boxed future that a [`FnNode`] handler returns.
-type NodeFuture<State> = Pin<Box<dyn Future<Output = NovaResult<State>> + Send>>;
+type NodeFuture<State> = Pin<Box<dyn Future<Output = AgentResult<State>> + Send>>;
 
 /// Shared, type-erased handler stored by a [`FnNode`].
 type NodeHandler<State> = Arc<dyn Fn(State) -> NodeFuture<State> + Send + Sync + 'static>;
@@ -49,15 +49,15 @@ impl<State> FnNode<State>
 where
     State: Send + 'static,
 {
-    /// Build a node from an async closure `Fn(State) -> Future<NovaResult<State>>`.
+    /// Build a node from an async closure `Fn(State) -> Future<AgentResult<State>>`.
     pub fn new<F, Fut>(name: impl Into<String>, handler: F) -> Self
     where
         F: Fn(State) -> Fut + Send + Sync + 'static,
-        Fut: Future<Output = NovaResult<State>> + Send + 'static,
+        Fut: Future<Output = AgentResult<State>> + Send + 'static,
     {
         let handler = Arc::new(move |state: State| {
             let fut = handler(state);
-            Box::pin(fut) as Pin<Box<dyn Future<Output = NovaResult<State>> + Send>>
+            Box::pin(fut) as Pin<Box<dyn Future<Output = AgentResult<State>> + Send>>
         });
         Self {
             name: name.into(),
@@ -75,7 +75,7 @@ where
         &self.name
     }
 
-    async fn call(&self, state: State) -> NovaResult<State> {
+    async fn call(&self, state: State) -> AgentResult<State> {
         (self.handler)(state).await
     }
 }

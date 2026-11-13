@@ -4,7 +4,7 @@ use super::{
     CommitFile, CreatedBranch, CreatedCommit, CreatedPullRequest, Issue, IssueComment, IssueFilter,
     IssueState, IssueSummary, PlatformIntegration, PostedComment, PullRequestParams,
 };
-use crate::error::{NovaError, NovaResult};
+use crate::error::{AgentError, AgentResult};
 use crate::tools::{Tool, ToolParameter};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -26,9 +26,9 @@ impl GitHubIntegration {
         token: impl Into<String>,
         owner: impl Into<String>,
         repo: impl Into<String>,
-    ) -> NovaResult<Self> {
+    ) -> AgentResult<Self> {
         let client = HttpClient::default_client()
-            .map_err(|e| NovaError::ConfigError(format!("Failed to create HTTP client: {}", e)))?;
+            .map_err(|e| AgentError::ConfigError(format!("Failed to create HTTP client: {}", e)))?;
 
         Ok(Self {
             client,
@@ -47,7 +47,7 @@ impl GitHubIntegration {
     }
 
     /// Make an authenticated GET request.
-    async fn get<T: for<'de> Deserialize<'de>>(&self, url: &str) -> NovaResult<T> {
+    async fn get<T: for<'de> Deserialize<'de>>(&self, url: &str) -> AgentResult<T> {
         let request = RequestBuilder::new(HttpMethod::Get, url)
             .header("Authorization", format!("Bearer {}", self.token))
             .header("Accept", "application/vnd.github.v3+json")
@@ -57,11 +57,11 @@ impl GitHubIntegration {
             .client
             .execute_builder(request)
             .await
-            .map_err(|e| NovaError::HttpError(format!("GitHub API request failed: {}", e)))?;
+            .map_err(|e| AgentError::HttpError(format!("GitHub API request failed: {}", e)))?;
 
         if !response.is_success() {
             let body = response.text().unwrap_or_default();
-            return Err(NovaError::ApiError(format!(
+            return Err(AgentError::ApiError(format!(
                 "GitHub API error {}: {}",
                 response.status_code, body
             )));
@@ -69,11 +69,11 @@ impl GitHubIntegration {
 
         response
             .json_as()
-            .map_err(|e| NovaError::ApiError(format!("Failed to parse GitHub response: {}", e)))
+            .map_err(|e| AgentError::ApiError(format!("Failed to parse GitHub response: {}", e)))
     }
 
     /// Resolve a branch name or SHA to a commit SHA.
-    async fn resolve_ref_sha(&self, git_ref: &str) -> NovaResult<String> {
+    async fn resolve_ref_sha(&self, git_ref: &str) -> AgentResult<String> {
         // If it already looks like a SHA (40 hex chars), use it directly.
         if git_ref.len() == 40 && git_ref.chars().all(|c| c.is_ascii_hexdigit()) {
             return Ok(git_ref.to_string());
@@ -88,7 +88,7 @@ impl GitHubIntegration {
         &self,
         url: &str,
         body: serde_json::Value,
-    ) -> NovaResult<T> {
+    ) -> AgentResult<T> {
         let request = RequestBuilder::new(HttpMethod::Post, url)
             .header("Authorization", format!("Bearer {}", self.token))
             .header("Accept", "application/vnd.github.v3+json")
@@ -99,11 +99,11 @@ impl GitHubIntegration {
             .client
             .execute_builder(request)
             .await
-            .map_err(|e| NovaError::HttpError(format!("GitHub API request failed: {}", e)))?;
+            .map_err(|e| AgentError::HttpError(format!("GitHub API request failed: {}", e)))?;
 
         if !response.is_success() {
             let body = response.text().unwrap_or_default();
-            return Err(NovaError::ApiError(format!(
+            return Err(AgentError::ApiError(format!(
                 "GitHub API error {}: {}",
                 response.status_code, body
             )));
@@ -111,7 +111,7 @@ impl GitHubIntegration {
 
         response
             .json_as()
-            .map_err(|e| NovaError::ApiError(format!("Failed to parse GitHub response: {}", e)))
+            .map_err(|e| AgentError::ApiError(format!("Failed to parse GitHub response: {}", e)))
     }
 
     /// Make an authenticated PATCH request (used for updating refs).
@@ -119,7 +119,7 @@ impl GitHubIntegration {
         &self,
         url: &str,
         body: serde_json::Value,
-    ) -> NovaResult<T> {
+    ) -> AgentResult<T> {
         let request = RequestBuilder::new(HttpMethod::Patch, url)
             .header("Authorization", format!("Bearer {}", self.token))
             .header("Accept", "application/vnd.github.v3+json")
@@ -130,11 +130,11 @@ impl GitHubIntegration {
             .client
             .execute_builder(request)
             .await
-            .map_err(|e| NovaError::HttpError(format!("GitHub API request failed: {}", e)))?;
+            .map_err(|e| AgentError::HttpError(format!("GitHub API request failed: {}", e)))?;
 
         if !response.is_success() {
             let body = response.text().unwrap_or_default();
-            return Err(NovaError::ApiError(format!(
+            return Err(AgentError::ApiError(format!(
                 "GitHub API error {}: {}",
                 response.status_code, body
             )));
@@ -142,7 +142,7 @@ impl GitHubIntegration {
 
         response
             .json_as()
-            .map_err(|e| NovaError::ApiError(format!("Failed to parse GitHub response: {}", e)))
+            .map_err(|e| AgentError::ApiError(format!("Failed to parse GitHub response: {}", e)))
     }
 }
 
@@ -152,7 +152,7 @@ impl PlatformIntegration for GitHubIntegration {
         "github"
     }
 
-    async fn get_issue(&self, id: &str) -> NovaResult<Issue> {
+    async fn get_issue(&self, id: &str) -> AgentResult<Issue> {
         let url = self.api_url(&format!("issues/{}", id));
         let gh_issue: GitHubIssue = self.get(&url).await?;
 
@@ -185,7 +185,7 @@ impl PlatformIntegration for GitHubIntegration {
         })
     }
 
-    async fn list_issues(&self, filter: &IssueFilter) -> NovaResult<Vec<IssueSummary>> {
+    async fn list_issues(&self, filter: &IssueFilter) -> AgentResult<Vec<IssueSummary>> {
         let mut url = self.api_url("issues");
         let mut params = vec![];
 
@@ -235,7 +235,7 @@ impl PlatformIntegration for GitHubIntegration {
             .collect())
     }
 
-    async fn get_comments(&self, issue_id: &str) -> NovaResult<Vec<IssueComment>> {
+    async fn get_comments(&self, issue_id: &str) -> AgentResult<Vec<IssueComment>> {
         let url = self.api_url(&format!("issues/{}/comments", issue_id));
         let comments: Vec<GitHubComment> = self.get(&url).await?;
 
@@ -250,7 +250,7 @@ impl PlatformIntegration for GitHubIntegration {
             .collect())
     }
 
-    async fn post_comment(&self, issue_id: &str, body: &str) -> NovaResult<PostedComment> {
+    async fn post_comment(&self, issue_id: &str, body: &str) -> AgentResult<PostedComment> {
         let url = self.api_url(&format!("issues/{}/comments", issue_id));
         let request_body = serde_json::json!({
             "body": body
@@ -264,7 +264,7 @@ impl PlatformIntegration for GitHubIntegration {
         })
     }
 
-    async fn create_branch(&self, branch_name: &str, from_ref: &str) -> NovaResult<CreatedBranch> {
+    async fn create_branch(&self, branch_name: &str, from_ref: &str) -> AgentResult<CreatedBranch> {
         // Resolve from_ref to a SHA.
         let sha = self.resolve_ref_sha(from_ref).await?;
 
@@ -287,7 +287,7 @@ impl PlatformIntegration for GitHubIntegration {
         branch: &str,
         message: &str,
         files: &[CommitFile],
-    ) -> NovaResult<CreatedCommit> {
+    ) -> AgentResult<CreatedCommit> {
         // 1. Get the current commit SHA on the branch.
         let ref_url = self.api_url(&format!("git/refs/heads/{}", branch));
         let ref_data: GitHubRef = self.get(&ref_url).await?;
@@ -347,7 +347,7 @@ impl PlatformIntegration for GitHubIntegration {
     async fn create_pull_request(
         &self,
         params: &PullRequestParams,
-    ) -> NovaResult<CreatedPullRequest> {
+    ) -> AgentResult<CreatedPullRequest> {
         let url = self.api_url("pulls");
         let body = serde_json::json!({
             "title": params.title,
@@ -496,7 +496,7 @@ impl Tool for GetGitHubIssueTool {
         }]
     }
 
-    async fn execute(&self, arguments: serde_json::Value) -> NovaResult<serde_json::Value> {
+    async fn execute(&self, arguments: serde_json::Value) -> AgentResult<serde_json::Value> {
         #[derive(Deserialize)]
         struct Args {
             issue_number: String,
@@ -552,7 +552,7 @@ impl Tool for ListGitHubIssuesTool {
         ]
     }
 
-    async fn execute(&self, arguments: serde_json::Value) -> NovaResult<serde_json::Value> {
+    async fn execute(&self, arguments: serde_json::Value) -> AgentResult<serde_json::Value> {
         #[derive(Deserialize)]
         struct Args {
             state: Option<String>,

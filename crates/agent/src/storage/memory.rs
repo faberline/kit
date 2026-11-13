@@ -1,7 +1,7 @@
 //! In-memory storage backend using HashMap.
 
 use super::{SessionInfo, SessionState, Storage};
-use crate::error::NovaResult;
+use crate::error::AgentResult;
 use async_trait::async_trait;
 use dashmap::DashMap;
 
@@ -40,16 +40,16 @@ impl MemoryStorage {
 
 #[async_trait]
 impl Storage for MemoryStorage {
-    async fn save_session(&self, state: &SessionState) -> NovaResult<()> {
+    async fn save_session(&self, state: &SessionState) -> AgentResult<()> {
         self.sessions.insert(state.id.clone(), state.clone());
         Ok(())
     }
 
-    async fn load_session(&self, id: &str) -> NovaResult<Option<SessionState>> {
+    async fn load_session(&self, id: &str) -> AgentResult<Option<SessionState>> {
         Ok(self.sessions.get(id).map(|entry| entry.value().clone()))
     }
 
-    async fn list_sessions(&self) -> NovaResult<Vec<SessionInfo>> {
+    async fn list_sessions(&self) -> AgentResult<Vec<SessionInfo>> {
         let mut sessions: Vec<_> = self
             .sessions
             .iter()
@@ -62,12 +62,12 @@ impl Storage for MemoryStorage {
         Ok(sessions)
     }
 
-    async fn delete_session(&self, id: &str) -> NovaResult<()> {
+    async fn delete_session(&self, id: &str) -> AgentResult<()> {
         self.sessions.remove(id);
         Ok(())
     }
 
-    async fn session_exists(&self, id: &str) -> NovaResult<bool> {
+    async fn session_exists(&self, id: &str) -> AgentResult<bool> {
         Ok(self.sessions.contains_key(id))
     }
 }

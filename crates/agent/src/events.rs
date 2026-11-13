@@ -25,7 +25,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 
-use crate::error::{NovaError, NovaResult};
+use crate::error::{AgentError, AgentResult};
 
 /// Channel capacity for [`EventBus`]. Picked large enough to absorb a
 /// few thousand events between subscriber polls; subscribers that fall
@@ -121,7 +121,7 @@ where
     /// of subscribers that received the event; returns `Ok(0)` if no
     /// one is listening (no error — losing events without a subscriber
     /// is intentional).
-    pub fn emit(&self, event: E) -> NovaResult<usize> {
+    pub fn emit(&self, event: E) -> AgentResult<usize> {
         match self.sender.send(event) {
             Ok(n) => Ok(n),
             Err(broadcast::error::SendError(_)) => Ok(0),
@@ -164,18 +164,18 @@ impl<E> Subscriber<E>
 where
     E: Clone + Send + 'static,
 {
-    /// Await the next event. Returns `NovaError::ConfigError` if the
+    /// Await the next event. Returns `AgentError::ConfigError` if the
     /// bus has been dropped, or if the subscriber lagged behind by
     /// more than the bus capacity (the number of skipped events is
     /// embedded in the error message so callers can warn but keep
     /// reading).
-    pub async fn recv(&mut self) -> NovaResult<E> {
+    pub async fn recv(&mut self) -> AgentResult<E> {
         match self.inner.recv().await {
             Ok(event) => Ok(event),
             Err(broadcast::error::RecvError::Closed) => {
-                Err(NovaError::ConfigError("event bus closed".into()))
+                Err(AgentError::ConfigError("event bus closed".into()))
             }
-            Err(broadcast::error::RecvError::Lagged(n)) => Err(NovaError::ConfigError(format!(
+            Err(broadcast::error::RecvError::Lagged(n)) => Err(AgentError::ConfigError(format!(
                 "event subscriber lagged — {n} events skipped"
             ))),
         }
@@ -262,7 +262,7 @@ mod tests {
         // We pushed 5 with capacity 2 — recv should report lagged.
         let err = sub.recv().await.unwrap_err();
         assert!(
-            matches!(&err, NovaError::ConfigError(m) if m.contains("lagged")),
+            matches!(&err, AgentError::ConfigError(m) if m.contains("lagged")),
             "got: {err:?}"
         );
     }
@@ -274,7 +274,7 @@ mod tests {
         drop(bus);
         let err = sub.recv().await.unwrap_err();
         assert!(
-            matches!(&err, NovaError::ConfigError(m) if m.contains("closed")),
+            matches!(&err, AgentError::ConfigError(m) if m.contains("closed")),
             "got: {err:?}"
         );
     }

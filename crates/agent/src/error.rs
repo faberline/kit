@@ -1,8 +1,8 @@
 use thiserror::Error;
 
-/// Unified error type for cclab-nova
+/// Unified error type for the agent crate
 #[derive(Error, Debug)]
-pub enum NovaError {
+pub enum AgentError {
     // Agent errors
     #[error("LLM provider error: {0}")]
     LLMError(String),
@@ -116,18 +116,18 @@ pub enum NovaError {
     Other(#[from] anyhow::Error),
 }
 
-/// Result type for nova operations
-pub type NovaResult<T> = Result<T, NovaError>;
+/// Result type for agent operations
+pub type AgentResult<T> = Result<T, AgentError>;
 
-impl NovaError {
+impl AgentError {
     /// Check if the error is retriable
     pub fn is_retriable(&self) -> bool {
         matches!(
             self,
-            NovaError::LLMError(_)
-                | NovaError::Timeout(_)
-                | NovaError::StreamError(_)
-                | NovaError::HttpError(_)
+            AgentError::LLMError(_)
+                | AgentError::Timeout(_)
+                | AgentError::StreamError(_)
+                | AgentError::HttpError(_)
         )
     }
 
@@ -135,15 +135,15 @@ impl NovaError {
     pub fn requires_user_action(&self) -> bool {
         matches!(
             self,
-            NovaError::ApprovalRequired(_)
-                | NovaError::ApprovalDenied(_)
-                | NovaError::SecurityViolation(_)
+            AgentError::ApprovalRequired(_)
+                | AgentError::ApprovalDenied(_)
+                | AgentError::SecurityViolation(_)
         )
     }
 }
 
-impl From<kit_http::client::HttpError> for NovaError {
+impl From<kit_http::client::HttpError> for AgentError {
     fn from(e: kit_http::client::HttpError) -> Self {
-        NovaError::HttpError(e.to_string())
+        AgentError::HttpError(e.to_string())
     }
 }

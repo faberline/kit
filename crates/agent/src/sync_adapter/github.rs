@@ -5,7 +5,7 @@
 //! Not supported: push_spec — use [`GDocsSyncAdapter`] instead.
 
 use super::{SyncAdapter, SyncResult};
-use crate::error::{NovaError, NovaResult};
+use crate::error::{AgentError, AgentResult};
 use crate::protocols::{
     ChangeProtocol, CodeIndexProtocol, IssuePriority, IssueProtocol, IssueStatus, SpecProtocol,
 };
@@ -39,9 +39,9 @@ impl GitHubSyncAdapter {
         token: impl Into<String>,
         owner: impl Into<String>,
         repo: impl Into<String>,
-    ) -> NovaResult<Self> {
+    ) -> AgentResult<Self> {
         let client = HttpClient::default_client()
-            .map_err(|e| NovaError::ConfigError(format!("Failed to create HTTP client: {}", e)))?;
+            .map_err(|e| AgentError::ConfigError(format!("Failed to create HTTP client: {}", e)))?;
 
         Ok(Self {
             client,
@@ -58,7 +58,7 @@ impl GitHubSyncAdapter {
         )
     }
 
-    async fn get<T: for<'de> Deserialize<'de>>(&self, url: &str) -> NovaResult<T> {
+    async fn get<T: for<'de> Deserialize<'de>>(&self, url: &str) -> AgentResult<T> {
         let req = RequestBuilder::new(HttpMethod::Get, url)
             .header("Authorization", format!("Bearer {}", self.token))
             .header("Accept", "application/vnd.github.v3+json")
@@ -68,25 +68,25 @@ impl GitHubSyncAdapter {
             .client
             .execute_builder(req)
             .await
-            .map_err(|e| NovaError::HttpError(e.to_string()))?;
+            .map_err(|e| AgentError::HttpError(e.to_string()))?;
 
         if !resp.is_success() {
             let body = resp.text().unwrap_or_default();
-            return Err(NovaError::ApiError(format!(
+            return Err(AgentError::ApiError(format!(
                 "GitHub {} {}: {}",
                 resp.status_code, url, body
             )));
         }
 
         resp.json_as()
-            .map_err(|e| NovaError::ApiError(format!("GitHub parse error: {}", e)))
+            .map_err(|e| AgentError::ApiError(format!("GitHub parse error: {}", e)))
     }
 
     async fn post<T: for<'de> Deserialize<'de>>(
         &self,
         url: &str,
         body: serde_json::Value,
-    ) -> NovaResult<T> {
+    ) -> AgentResult<T> {
         let req = RequestBuilder::new(HttpMethod::Post, url)
             .header("Authorization", format!("Bearer {}", self.token))
             .header("Accept", "application/vnd.github.v3+json")
@@ -97,24 +97,24 @@ impl GitHubSyncAdapter {
             .client
             .execute_builder(req)
             .await
-            .map_err(|e| NovaError::HttpError(e.to_string()))?;
+            .map_err(|e| AgentError::HttpError(e.to_string()))?;
 
         if !resp.is_success() {
             let body_text = resp.text().unwrap_or_default();
-            return Err(NovaError::ApiError(format!(
+            return Err(AgentError::ApiError(format!(
                 "GitHub {} {}: {}",
                 resp.status_code, url, body_text
             )));
         }
 
         resp.json_as()
-            .map_err(|e| NovaError::ApiError(format!("GitHub parse error: {}", e)))
+            .map_err(|e| AgentError::ApiError(format!("GitHub parse error: {}", e)))
     }
 }
 
 #[async_trait]
 impl SyncAdapter for GitHubSyncAdapter {
-    async fn push_issue(&self, issue: &IssueProtocol) -> NovaResult<SyncResult> {
+    async fn push_issue(&self, issue: &IssueProtocol) -> AgentResult<SyncResult> {
         let url = self.api_url("issues");
         let body = serde_json::json!({
             "title": issue.title,
@@ -129,7 +129,7 @@ impl SyncAdapter for GitHubSyncAdapter {
         ))
     }
 
-    async fn pull_issue(&self, external_id: &str) -> NovaResult<IssueProtocol> {
+    async fn pull_issue(&self, external_id: &str) -> AgentResult<IssueProtocol> {
         let url = self.api_url(&format!("issues/{}", external_id));
         let gh: GitHubIssueResponse = self.get(&url).await?;
 
@@ -147,15 +147,15 @@ impl SyncAdapter for GitHubSyncAdapter {
         })
     }
 
-    async fn push_spec(&self, _spec: &SpecProtocol) -> NovaResult<SyncResult> {
-        Err(NovaError::NotSupported(
+    async fn push_spec(&self, _spec: &SpecProtocol) -> AgentResult<SyncResult> {
+        Err(AgentError::NotSupported(
             "GitHubSyncAdapter does not support spec sync; use GDocsSyncAdapter".into(),
         ))
     }
 
-    async fn push_change(&self, change: &ChangeProtocol) -> NovaResult<SyncResult> {
+    async fn push_change(&self, change: &ChangeProtocol) -> AgentResult<SyncResult> {
         let branch = change.branch.as_deref().ok_or_else(|| {
-            NovaError::InvalidArguments("ChangeProtocol.branch is required for push_change".into())
+            AgentError::InvalidArguments("ChangeProtocol.branch is required for push_change".into())
         })?;
 
         let url = self.api_url("pulls");
@@ -174,7 +174,7 @@ impl SyncAdapter for GitHubSyncAdapter {
         Ok(SyncResult::created(pr.number.to_string(), pr.html_url))
     }
 
-    async fn pull_code_index(&self, path: &str) -> NovaResult<CodeIndexProtocol> {
+    async fn pull_code_index(&self, path: &str) -> AgentResult<CodeIndexProtocol> {
         let url = self.api_url(&format!("contents/{}", path));
 
         let req = RequestBuilder::new(HttpMethod::Get, &url)
@@ -186,11 +186,11 @@ impl SyncAdapter for GitHubSyncAdapter {
             .client
             .execute_builder(req)
             .await
-            .map_err(|e| NovaError::HttpError(e.to_string()))?;
+            .map_err(|e| AgentError::HttpError(e.to_string()))?;
 
         if !resp.is_success() {
             let body = resp.text().unwrap_or_default();
-            return Err(NovaError::ApiError(format!(
+            return Err(AgentError::ApiError(format!(
                 "GitHub contents {} {}: {}",
                 resp.status_code, path, body
             )));
@@ -198,13 +198,13 @@ impl SyncAdapter for GitHubSyncAdapter {
 
         let file: GitHubContentsResponse = resp
             .json_as()
-            .map_err(|e| NovaError::ApiError(format!("GitHub parse error: {}", e)))?;
+            .map_err(|e| AgentError::ApiError(format!("GitHub parse error: {}", e)))?;
 
         let content_bytes = BASE64
             .decode(file.content.replace('\n', ""))
-            .map_err(|e| NovaError::ApiError(format!("Base64 decode error: {}", e)))?;
+            .map_err(|e| AgentError::ApiError(format!("Base64 decode error: {}", e)))?;
         let content = String::from_utf8(content_bytes)
-            .map_err(|e| NovaError::ApiError(format!("UTF-8 decode error: {}", e)))?;
+            .map_err(|e| AgentError::ApiError(format!("UTF-8 decode error: {}", e)))?;
 
         // Try to deserialise as CodeIndexProtocol JSON; fall back to a minimal entry.
         if let Ok(index) = serde_json::from_str::<CodeIndexProtocol>(&content) {
@@ -265,7 +265,7 @@ mod tests {
         let adapter = GitHubSyncAdapter::new("token", "owner", "repo").unwrap();
         let spec = SpecProtocol::new("spec-1", ".aw/tech-design/foo.md", "# Spec");
         let result = adapter.push_spec(&spec).await;
-        assert!(matches!(result, Err(NovaError::NotSupported(_))));
+        assert!(matches!(result, Err(AgentError::NotSupported(_))));
     }
 
     #[tokio::test]
@@ -273,6 +273,6 @@ mod tests {
         let adapter = GitHubSyncAdapter::new("token", "owner", "repo").unwrap();
         let change = ChangeProtocol::new("my-change", "proj", vec!["1".into()]);
         let result = adapter.push_change(&change).await;
-        assert!(matches!(result, Err(NovaError::InvalidArguments(_))));
+        assert!(matches!(result, Err(AgentError::InvalidArguments(_))));
     }
 }

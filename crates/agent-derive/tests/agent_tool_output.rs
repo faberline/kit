@@ -2,7 +2,7 @@
 //! `#[derive(AgentOutput)]` (#2032). Both layer on top of `AgentSchema`,
 //! so each test type derives all three.
 
-use agent::{Agent, AgentSchema, NovaError, ToolSpec};
+use agent::{Agent, AgentError, AgentSchema, ToolSpec};
 use agent_derive::{AgentOutput, AgentTool};
 use serde::{Deserialize, Serialize};
 
@@ -69,7 +69,7 @@ async fn agent_tool_invalid_args_returns_typed_error() {
     // `into_tool_spec` should surface it as `InvalidArguments`.
     let err = (spec.handler)((), serde_json::json!({})).await.unwrap_err();
     assert!(
-        matches!(err, NovaError::InvalidArguments(_)),
+        matches!(err, AgentError::InvalidArguments(_)),
         "expected InvalidArguments, got {err:?}"
     );
 }
@@ -99,7 +99,7 @@ fn agent_output_parse_response_happy_path() {
 fn agent_output_parse_response_rejects_non_json() {
     let err = WeatherReport::parse_response("not json").unwrap_err();
     assert!(
-        matches!(err, NovaError::MalformedLLMResponse(_)),
+        matches!(err, AgentError::MalformedLLMResponse(_)),
         "expected MalformedLLMResponse, got {err:?}"
     );
 }
@@ -108,7 +108,7 @@ fn agent_output_parse_response_rejects_non_json() {
 fn agent_output_parse_response_rejects_shape_mismatch() {
     let err = WeatherReport::parse_response(r#"{"city":"Taipei","temp_c":"twenty"}"#).unwrap_err();
     assert!(
-        matches!(err, NovaError::ValidationFailed(_)),
+        matches!(err, AgentError::ValidationFailed(_)),
         "expected ValidationFailed, got {err:?}"
     );
 }
@@ -116,7 +116,7 @@ fn agent_output_parse_response_rejects_shape_mismatch() {
 #[test]
 fn agent_output_parse_response_rejects_empty() {
     let err = WeatherReport::parse_response("").unwrap_err();
-    assert!(matches!(err, NovaError::MalformedLLMResponse(_)));
+    assert!(matches!(err, AgentError::MalformedLLMResponse(_)));
 }
 
 // ── Integration: derived tool + output drive the Agent runtime ─────────────
@@ -138,14 +138,14 @@ async fn derived_tool_drives_agent_run_loop_end_to_end() {
         fn supported_models(&self) -> Vec<String> {
             vec!["m".into()]
         }
-        async fn complete(&self, _r: CompletionRequest) -> agent::NovaResult<CompletionResponse> {
+        async fn complete(&self, _r: CompletionRequest) -> agent::AgentResult<CompletionResponse> {
             Ok(self.0.lock().unwrap().remove(0))
         }
         async fn complete_stream(
             &self,
             _r: CompletionRequest,
-        ) -> agent::NovaResult<StreamResponse> {
-            Err(NovaError::NotSupported("stream".into()))
+        ) -> agent::AgentResult<StreamResponse> {
+            Err(AgentError::NotSupported("stream".into()))
         }
     }
 

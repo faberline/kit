@@ -1,7 +1,7 @@
 use super::provider::{
     CompletionRequest, CompletionResponse, LLMProvider, StreamResponse, ToolDefinition,
 };
-use crate::error::{NovaError, NovaResult};
+use crate::error::{AgentError, AgentResult};
 use crate::types::{Message, Role, TokenUsage, ToolCall};
 use async_trait::async_trait;
 use kit_http::client::{HttpClient, HttpClientConfig, HttpMethod, RequestBuilder};
@@ -18,7 +18,7 @@ pub struct OpenAIProvider {
 }
 
 impl OpenAIProvider {
-    pub fn new(api_key: impl Into<String>) -> NovaResult<Self> {
+    pub fn new(api_key: impl Into<String>) -> AgentResult<Self> {
         Self::with_base_url(api_key, "https://api.openai.com")
     }
 
@@ -26,7 +26,7 @@ impl OpenAIProvider {
     pub fn with_base_url(
         api_key: impl Into<String>,
         base_url: impl Into<String>,
-    ) -> NovaResult<Self> {
+    ) -> AgentResult<Self> {
         let base_url: String = base_url.into();
         let config = HttpClientConfig::new()
             .base_url(base_url)
@@ -113,7 +113,7 @@ impl LLMProvider for OpenAIProvider {
         ]
     }
 
-    async fn complete(&self, request: CompletionRequest) -> NovaResult<CompletionResponse> {
+    async fn complete(&self, request: CompletionRequest) -> AgentResult<CompletionResponse> {
         let model = if request.model.is_empty() {
             self.default_model.clone()
         } else {
@@ -171,7 +171,7 @@ impl LLMProvider for OpenAIProvider {
             let error_text = response
                 .text()
                 .unwrap_or_else(|_| "Unknown error".to_string());
-            return Err(NovaError::ApiError(format!(
+            return Err(AgentError::ApiError(format!(
                 "OpenAI API error ({}): {}",
                 response.status_code, error_text
             )));
@@ -184,7 +184,7 @@ impl LLMProvider for OpenAIProvider {
             .choices
             .into_iter()
             .next()
-            .ok_or_else(|| NovaError::ApiError("No choices in response".to_string()))?;
+            .ok_or_else(|| AgentError::ApiError("No choices in response".to_string()))?;
 
         let tool_calls: Option<Vec<ToolCall>> = choice.message.tool_calls.map(|calls| {
             calls
@@ -212,9 +212,9 @@ impl LLMProvider for OpenAIProvider {
         })
     }
 
-    async fn complete_stream(&self, _request: CompletionRequest) -> NovaResult<StreamResponse> {
+    async fn complete_stream(&self, _request: CompletionRequest) -> AgentResult<StreamResponse> {
         // TODO: Implement streaming for OpenAI
-        Err(NovaError::InvalidRequest(
+        Err(AgentError::InvalidRequest(
             "Streaming not yet implemented for OpenAI".to_string(),
         ))
     }

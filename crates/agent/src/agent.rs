@@ -33,7 +33,7 @@ use std::sync::Arc;
 use serde::de::DeserializeOwned;
 use tracing::{info_span, Instrument};
 
-use crate::error::{NovaError, NovaResult};
+use crate::error::{AgentError, AgentResult};
 use crate::events::{AgentEvent, EventEmitter};
 use crate::llm::{CompletionRequest, CompletionResponse, LLMProvider, ToolDefinition};
 use crate::schema::Schema;
@@ -42,7 +42,7 @@ use crate::types::{Message, ToolCall};
 /// Boxed async handler returned by [`ToolSpec`] handlers. The handler is
 /// invoked once per LLM `tool_call`, with the shared [`Deps`](Agent) bag and
 /// the parsed JSON arguments.
-pub type ToolHandlerFuture = Pin<Box<dyn Future<Output = NovaResult<serde_json::Value>> + Send>>;
+pub type ToolHandlerFuture = Pin<Box<dyn Future<Output = AgentResult<serde_json::Value>> + Send>>;
 
 /// Function-pointer handler over `Deps`. Built via [`ToolSpec::new`] from a
 /// closure that receives the deps bag plus the JSON arguments.
@@ -72,7 +72,7 @@ where
     ) -> Self
     where
         F: Fn(Deps, serde_json::Value) -> Fut + Send + Sync + 'static,
-        Fut: Future<Output = NovaResult<serde_json::Value>> + Send + 'static,
+        Fut: Future<Output = AgentResult<serde_json::Value>> + Send + 'static,
     {
         let handler: ToolHandler<Deps> = Arc::new(move |deps, args| {
             let fut = handler(deps, args);
@@ -165,13 +165,13 @@ where
     }
 
     /// Drive the run loop for a single user turn. Returns the typed
-    /// `Output` on success, or a `NovaError` on the first hard failure
+    /// `Output` on success, or a `AgentError` on the first hard failure
     /// (max turns reached, max revisions reached, tool error, LLM error).
     ///
     /// On validation failure, the agent feeds the error back to the LLM and
     /// asks for a corrected reply, up to [`max_revisions`](AgentBuilder::max_revisions)
     /// attempts (#2033 — validator + retry-with-feedback).
-    pub async fn run(&self, input: impl Into<String>) -> NovaResult<Output> {
+    pub async fn run(&self, input: impl Into<String>) -> AgentResult<Output> {
         let span = info_span!(
             "agent.run",
             agent.model = %self.model,
@@ -191,7 +191,7 @@ where
         }
     }
 
-    async fn run_inner(&self, input: String) -> NovaResult<Output> {
+    async fn run_inner(&self, input: String) -> AgentResult<Output> {
         let span = tracing::Span::current();
         self.emit(AgentEvent::run_started(self.model.clone()));
         let mut messages: Vec<Message> = Vec::new();
@@ -206,13 +206,13 @@ where
 
         let mut revisions: u32 = 0;
         let mut turns_used: u32 = 0;
-        let result: NovaResult<Output> = 'outer: loop {
+        let result: AgentResult<Output> = 'outer: loop {
             // Tool-dispatch loop: keep calling the LLM until it returns a
             // reply with no tool_calls. `turns_used` is cumulative across
             // revision rounds — total LLM calls are bounded by max_turns.
             let content = loop {
                 if turns_used >= self.max_turns {
-                    break 'outer Err(NovaError::MaxTurnsReached(self.max_turns));
+                    break 'outer Err(AgentError::MaxTurnsReached(self.max_turns));
                 }
                 turns_used += 1;
 
@@ -261,7 +261,7 @@ where
                     };
                     let serialized = match serde_json::to_string(&output) {
                         Ok(s) => s,
-                        Err(e) => break 'outer Err(NovaError::SerializationError(e)),
+                        Err(e) => break 'outer Err(AgentError::SerializationError(e)),
                     };
                     messages.push(Message::tool(call.id.clone(), serialized));
                 }
@@ -280,7 +280,7 @@ where
                         break Err(err);
                     }
                     if revisions >= self.max_revisions {
-                        break Err(NovaError::MaxRevisionsExceeded(self.max_revisions));
+                        break Err(AgentError::MaxRevisionsExceeded(self.max_revisions));
                     }
                     self.emit(AgentEvent::ValidationFailed {
                         revision: revisions,
@@ -319,7 +319,7 @@ where
         result
     }
 
-    async fn call_llm(&self, messages: &[Message]) -> NovaResult<CompletionResponse> {
+    async fn call_llm(&self, messages: &[Message]) -> AgentResult<CompletionResponse> {
         let span = info_span!(
             "llm.call",
             llm.model = %self.model,
@@ -352,7 +352,7 @@ where
         .await
     }
 
-    async fn dispatch_tool(&self, call: &ToolCall) -> NovaResult<serde_json::Value> {
+    async fn dispatch_tool(&self, call: &ToolCall) -> AgentResult<serde_json::Value> {
         let span = info_span!(
             "tool.call",
             tool.name = %call.name,
@@ -362,32 +362,32 @@ where
             let tool = self
                 .tools
                 .get(&call.name)
-                .ok_or_else(|| NovaError::ToolNotFound(call.name.clone()))?;
+                .ok_or_else(|| AgentError::ToolNotFound(call.name.clone()))?;
             (tool.handler)(self.deps.clone(), call.arguments.clone()).await
         }
         .instrument(span)
         .await
     }
 
-    fn finalize(&self, raw: &str) -> NovaResult<Output> {
+    fn finalize(&self, raw: &str) -> AgentResult<Output> {
         let value: serde_json::Value = if raw.trim().is_empty() {
-            return Err(NovaError::MalformedLLMResponse(
+            return Err(AgentError::MalformedLLMResponse(
                 "empty final reply".to_string(),
             ));
         } else {
             serde_json::from_str(raw).map_err(|e| {
-                NovaError::MalformedLLMResponse(format!("final reply is not valid JSON: {e}"))
+                AgentError::MalformedLLMResponse(format!("final reply is not valid JSON: {e}"))
             })?
         };
 
         if let Some(schema) = &self.output_schema {
             schema
                 .validate(&value)
-                .map_err(|e| NovaError::ValidationFailed(e.to_string()))?;
+                .map_err(|e| AgentError::ValidationFailed(e.to_string()))?;
         }
 
         serde_json::from_value(value).map_err(|e| {
-            NovaError::ValidationFailed(format!(
+            AgentError::ValidationFailed(format!(
                 "structured output failed to deserialize into target type: {e}"
             ))
         })
@@ -449,7 +449,7 @@ where
     /// Cap on validator-feedback rounds (#2033). When the LLM's final reply
     /// fails schema validation, the agent feeds the error back and asks for a
     /// corrected reply up to this many times before failing with
-    /// `NovaError::MaxRevisionsExceeded`. Default: 2.
+    /// `AgentError::MaxRevisionsExceeded`. Default: 2.
     pub fn max_revisions(mut self, max_revisions: u32) -> Self {
         self.max_revisions = max_revisions;
         self
@@ -465,18 +465,18 @@ where
         self
     }
 
-    pub fn build(self) -> NovaResult<Agent<Deps, Output>> {
+    pub fn build(self) -> AgentResult<Agent<Deps, Output>> {
         Ok(Agent {
             provider: self
                 .provider
-                .ok_or_else(|| NovaError::ConfigError("Agent: provider missing".into()))?,
+                .ok_or_else(|| AgentError::ConfigError("Agent: provider missing".into()))?,
             model: self
                 .model
-                .ok_or_else(|| NovaError::ConfigError("Agent: model missing".into()))?,
+                .ok_or_else(|| AgentError::ConfigError("Agent: model missing".into()))?,
             system_prompt: self.system_prompt,
             deps: self
                 .deps
-                .ok_or_else(|| NovaError::ConfigError("Agent: deps missing".into()))?,
+                .ok_or_else(|| AgentError::ConfigError("Agent: deps missing".into()))?,
             tools: self.tools,
             output_schema: self.output_schema,
             max_turns: self.max_turns,
@@ -490,10 +490,10 @@ where
 /// Errors that the validator-retry loop (#2033) should bounce back to the
 /// LLM rather than surface immediately. Everything else — tool error,
 /// LLM-provider error, etc. — fails fast.
-fn is_validation_error(err: &NovaError) -> bool {
+fn is_validation_error(err: &AgentError) -> bool {
     matches!(
         err,
-        NovaError::ValidationFailed(_) | NovaError::MalformedLLMResponse(_)
+        AgentError::ValidationFailed(_) | AgentError::MalformedLLMResponse(_)
     )
 }
 
@@ -529,17 +529,17 @@ mod tests {
         fn supported_models(&self) -> Vec<String> {
             vec!["test-model".into()]
         }
-        async fn complete(&self, _req: CompletionRequest) -> NovaResult<CompletionResponse> {
+        async fn complete(&self, _req: CompletionRequest) -> AgentResult<CompletionResponse> {
             let mut q = self.replies.lock().unwrap();
             if q.is_empty() {
-                return Err(NovaError::LLMError("no scripted reply left".into()));
+                return Err(AgentError::LLMError("no scripted reply left".into()));
             }
             Ok(q.remove(0))
         }
-        async fn complete_stream(&self, _req: CompletionRequest) -> NovaResult<StreamResponse> {
-            Err(NovaError::NotSupported("stream".into()))
+        async fn complete_stream(&self, _req: CompletionRequest) -> AgentResult<StreamResponse> {
+            Err(AgentError::NotSupported("stream".into()))
         }
-        fn validate_model(&self, _model: &str) -> NovaResult<()> {
+        fn validate_model(&self, _model: &str) -> AgentResult<()> {
             Ok(())
         }
     }
@@ -677,7 +677,7 @@ mod tests {
 
         let err = agent.run("?").await.unwrap_err();
         assert!(
-            matches!(err, NovaError::ValidationFailed(_)),
+            matches!(err, AgentError::ValidationFailed(_)),
             "expected ValidationFailed, got {err:?}"
         );
     }
@@ -696,12 +696,12 @@ mod tests {
             fn supported_models(&self) -> Vec<String> {
                 vec!["m".into()]
             }
-            async fn complete(&self, req: CompletionRequest) -> NovaResult<CompletionResponse> {
+            async fn complete(&self, req: CompletionRequest) -> AgentResult<CompletionResponse> {
                 *self.0.lock().unwrap() = req.messages.clone();
                 Ok(reply(r#"{"city":"X","temp_c":0}"#))
             }
-            async fn complete_stream(&self, _r: CompletionRequest) -> NovaResult<StreamResponse> {
-                Err(NovaError::NotSupported("stream".into()))
+            async fn complete_stream(&self, _r: CompletionRequest) -> AgentResult<StreamResponse> {
+                Err(AgentError::NotSupported("stream".into()))
             }
         }
 
@@ -774,7 +774,7 @@ mod tests {
 
         let err = agent.run("?").await.unwrap_err();
         assert!(
-            matches!(err, NovaError::MaxRevisionsExceeded(2)),
+            matches!(err, AgentError::MaxRevisionsExceeded(2)),
             "expected MaxRevisionsExceeded(2), got {err:?}"
         );
     }
@@ -804,7 +804,7 @@ mod tests {
             .unwrap();
 
         let err = agent.run("loop").await.unwrap_err();
-        assert!(matches!(err, NovaError::MaxTurnsReached(2)));
+        assert!(matches!(err, AgentError::MaxTurnsReached(2)));
     }
 
     // Tracing-span emission is verified in `tests/tracing_spans.rs`

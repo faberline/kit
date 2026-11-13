@@ -1,4 +1,4 @@
-use crate::error::{NovaError, NovaResult};
+use crate::error::{AgentError, AgentResult};
 use crate::tools::registry::ToolRegistry;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -30,7 +30,7 @@ pub trait Tool: Send + Sync {
     fn name(&self) -> &str;
     fn description(&self) -> &str;
     fn parameters(&self) -> Vec<ToolParameter>;
-    async fn execute(&self, arguments: serde_json::Value) -> NovaResult<serde_json::Value>;
+    async fn execute(&self, arguments: serde_json::Value) -> AgentResult<serde_json::Value>;
 
     fn definition(&self) -> ToolDefinition {
         ToolDefinition {
@@ -40,14 +40,14 @@ pub trait Tool: Send + Sync {
         }
     }
 
-    fn validate_arguments(&self, arguments: &serde_json::Value) -> NovaResult<()> {
+    fn validate_arguments(&self, arguments: &serde_json::Value) -> AgentResult<()> {
         let args = arguments
             .as_object()
-            .ok_or_else(|| NovaError::InvalidArguments("Arguments must be an object".into()))?;
+            .ok_or_else(|| AgentError::InvalidArguments("Arguments must be an object".into()))?;
 
         for param in self.parameters() {
             if param.required && !args.contains_key(&param.name) {
-                return Err(NovaError::InvalidArguments(format!(
+                return Err(AgentError::InvalidArguments(format!(
                     "Missing required parameter: {}",
                     param.name
                 )));
@@ -88,13 +88,13 @@ impl ToolExecutor {
         &self,
         tool_name: &str,
         arguments: serde_json::Value,
-    ) -> NovaResult<serde_json::Value> {
+    ) -> AgentResult<serde_json::Value> {
         debug!("Executing tool: {} with args: {:?}", tool_name, arguments);
 
         let tool = self
             .registry
             .get(tool_name)
-            .ok_or_else(|| NovaError::ToolNotFound(tool_name.to_string()))?;
+            .ok_or_else(|| AgentError::ToolNotFound(tool_name.to_string()))?;
 
         let mut attempt = 0;
         loop {
@@ -128,10 +128,10 @@ impl ToolExecutor {
         &self,
         tool: Arc<dyn Tool>,
         arguments: serde_json::Value,
-    ) -> NovaResult<serde_json::Value> {
+    ) -> AgentResult<serde_json::Value> {
         timeout(self.timeout_duration, tool.execute(arguments))
             .await
-            .map_err(|_| NovaError::Timeout(self.timeout_duration.as_secs()))?
+            .map_err(|_| AgentError::Timeout(self.timeout_duration.as_secs()))?
     }
 }
 
@@ -170,7 +170,7 @@ mod tests {
             }]
         }
 
-        async fn execute(&self, arguments: serde_json::Value) -> NovaResult<serde_json::Value> {
+        async fn execute(&self, arguments: serde_json::Value) -> AgentResult<serde_json::Value> {
             Ok(arguments)
         }
     }

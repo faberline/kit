@@ -1,4 +1,4 @@
-use crate::error::{NovaError, NovaResult};
+use crate::error::{AgentError, AgentResult};
 use crate::types::Message;
 use tiktoken_rs::CoreBPE;
 
@@ -14,9 +14,9 @@ pub struct TiktokenTokenizer {
 }
 
 impl TiktokenTokenizer {
-    pub fn for_model(model: &str) -> NovaResult<Self> {
+    pub fn for_model(model: &str) -> AgentResult<Self> {
         let bpe = tiktoken_rs::get_bpe_from_model(model).map_err(|e| {
-            NovaError::ConfigError(format!(
+            AgentError::ConfigError(format!(
                 "Failed to load tokenizer for model '{}': {}",
                 model, e
             ))
@@ -24,16 +24,16 @@ impl TiktokenTokenizer {
         Ok(Self { bpe })
     }
 
-    pub fn cl100k_base() -> NovaResult<Self> {
+    pub fn cl100k_base() -> AgentResult<Self> {
         let bpe = tiktoken_rs::cl100k_base().map_err(|e| {
-            NovaError::ConfigError(format!("Failed to load cl100k_base tokenizer: {}", e))
+            AgentError::ConfigError(format!("Failed to load cl100k_base tokenizer: {}", e))
         })?;
         Ok(Self { bpe })
     }
 
-    pub fn o200k_base() -> NovaResult<Self> {
+    pub fn o200k_base() -> AgentResult<Self> {
         let bpe = tiktoken_rs::o200k_base().map_err(|e| {
-            NovaError::ConfigError(format!("Failed to load o200k_base tokenizer: {}", e))
+            AgentError::ConfigError(format!("Failed to load o200k_base tokenizer: {}", e))
         })?;
         Ok(Self { bpe })
     }

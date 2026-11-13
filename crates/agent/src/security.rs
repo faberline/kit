@@ -1,4 +1,4 @@
-use crate::error::{NovaError, NovaResult};
+use crate::error::{AgentError, AgentResult};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -72,12 +72,12 @@ impl SecurityPolicy {
     }
 
     /// Check if a path is allowed for file operations
-    pub fn check_path(&self, path: &Path) -> NovaResult<()> {
+    pub fn check_path(&self, path: &Path) -> AgentResult<()> {
         let normalized = self.normalize_path(path)?;
 
         for blocked in &self.blocked_paths {
             if normalized.starts_with(blocked) {
-                return Err(NovaError::PathNotAllowed(format!(
+                return Err(AgentError::PathNotAllowed(format!(
                     "Path '{}' is in blocked directory '{}'",
                     normalized.display(),
                     blocked.display()
@@ -95,19 +95,19 @@ impl SecurityPolicy {
             }
         }
 
-        Err(NovaError::PathNotAllowed(format!(
+        Err(AgentError::PathNotAllowed(format!(
             "Path '{}' is not in any allowed directory",
             normalized.display()
         )))
     }
 
     /// Check if a shell command is allowed
-    pub fn check_command(&self, command: &str) -> NovaResult<()> {
+    pub fn check_command(&self, command: &str) -> AgentResult<()> {
         let cmd_lower = command.to_lowercase();
 
         for blocked in &self.blocked_commands {
             if cmd_lower.contains(&blocked.to_lowercase()) {
-                return Err(NovaError::CommandNotAllowed(format!(
+                return Err(AgentError::CommandNotAllowed(format!(
                     "Command contains blocked pattern: {}",
                     blocked
                 )));
@@ -122,10 +122,10 @@ impl SecurityPolicy {
         self.approval_required.contains(tool_name)
     }
 
-    fn normalize_path(&self, path: &Path) -> NovaResult<PathBuf> {
+    fn normalize_path(&self, path: &Path) -> AgentResult<PathBuf> {
         let normalized = if path.is_absolute() {
             if !self.allow_absolute_paths && !path.starts_with(&self.working_directory) {
-                return Err(NovaError::PathNotAllowed(format!(
+                return Err(AgentError::PathNotAllowed(format!(
                     "Absolute path '{}' outside working directory not allowed",
                     path.display()
                 )));

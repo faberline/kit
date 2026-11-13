@@ -23,7 +23,7 @@ pub use github::GitHubSyncAdapter;
 pub use gitlab::GitLabSyncAdapter;
 pub use jira::JiraSyncAdapter;
 
-use crate::error::NovaResult;
+use crate::error::AgentResult;
 use crate::protocols::{ChangeProtocol, CodeIndexProtocol, IssueProtocol, SpecProtocol};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -83,26 +83,26 @@ impl SyncResult {
 /// Generic async abstraction for syncing protocol types to and from third-party platforms.
 ///
 /// Each platform adapter implements only the methods relevant to its domain;
-/// unsupported methods return [`NovaError::NotSupported`].
+/// unsupported methods return [`AgentError::NotSupported`].
 ///
 /// Auth credentials are injected at construction time — adapters hold no
 /// global or mutable state.
 #[async_trait]
 pub trait SyncAdapter: Send + Sync {
     /// Push an issue to the platform (create or update).
-    async fn push_issue(&self, issue: &IssueProtocol) -> NovaResult<SyncResult>;
+    async fn push_issue(&self, issue: &IssueProtocol) -> AgentResult<SyncResult>;
 
     /// Pull an issue from the platform by its external ID.
-    async fn pull_issue(&self, external_id: &str) -> NovaResult<IssueProtocol>;
+    async fn pull_issue(&self, external_id: &str) -> AgentResult<IssueProtocol>;
 
     /// Push a spec to the platform (create or update).
-    async fn push_spec(&self, spec: &SpecProtocol) -> NovaResult<SyncResult>;
+    async fn push_spec(&self, spec: &SpecProtocol) -> AgentResult<SyncResult>;
 
     /// Push a change (PR / MR) to the platform.
-    async fn push_change(&self, change: &ChangeProtocol) -> NovaResult<SyncResult>;
+    async fn push_change(&self, change: &ChangeProtocol) -> AgentResult<SyncResult>;
 
     /// Pull a code index entry from the platform for the given module path.
-    async fn pull_code_index(&self, path: &str) -> NovaResult<CodeIndexProtocol>;
+    async fn pull_code_index(&self, path: &str) -> AgentResult<CodeIndexProtocol>;
 }
 
 #[cfg(test)]

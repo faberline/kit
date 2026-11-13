@@ -6,7 +6,7 @@
 //! - WebSearchTool: Search the web for information
 //! - WebFetchTool: Fetch and parse web content
 
-use crate::error::{NovaError, NovaResult};
+use crate::error::{AgentError, AgentResult};
 use crate::storage::{Finding, FindingSeverity, SessionState};
 use crate::tools::tool::{Tool, ToolParameter};
 use async_trait::async_trait;
@@ -73,7 +73,7 @@ impl Tool for AskUserTool {
         ]
     }
 
-    async fn execute(&self, arguments: serde_json::Value) -> NovaResult<serde_json::Value> {
+    async fn execute(&self, arguments: serde_json::Value) -> AgentResult<serde_json::Value> {
         let args: AskUserArgs = serde_json::from_value(arguments)?;
 
         // Return a structured response that the agent loop can interpret
@@ -136,7 +136,7 @@ impl Tool for TakeNoteTool {
         ]
     }
 
-    async fn execute(&self, arguments: serde_json::Value) -> NovaResult<serde_json::Value> {
+    async fn execute(&self, arguments: serde_json::Value) -> AgentResult<serde_json::Value> {
         let args: TakeNoteArgs = serde_json::from_value(arguments)?;
 
         let mut session = self.session.write().await;
@@ -211,7 +211,7 @@ impl Tool for RecordFindingTool {
         ]
     }
 
-    async fn execute(&self, arguments: serde_json::Value) -> NovaResult<serde_json::Value> {
+    async fn execute(&self, arguments: serde_json::Value) -> AgentResult<serde_json::Value> {
         let args: RecordFindingArgs = serde_json::from_value(arguments)?;
 
         let severity = match args.severity.to_lowercase().as_str() {
@@ -221,7 +221,7 @@ impl Tool for RecordFindingTool {
             "high" => FindingSeverity::High,
             "critical" => FindingSeverity::Critical,
             _ => {
-                return Err(NovaError::InvalidArguments(format!(
+                return Err(AgentError::InvalidArguments(format!(
                     "Invalid severity: {}. Must be one of: info, low, medium, high, critical",
                     args.severity
                 )));
@@ -256,9 +256,9 @@ pub struct WebSearchTool {
 
 impl WebSearchTool {
     /// Create a new WebSearchTool.
-    pub fn new() -> NovaResult<Self> {
+    pub fn new() -> AgentResult<Self> {
         let http_client = kit_http::client::HttpClient::default_client()
-            .map_err(|e| NovaError::ConfigError(format!("Failed to create HTTP client: {}", e)))?;
+            .map_err(|e| AgentError::ConfigError(format!("Failed to create HTTP client: {}", e)))?;
 
         Ok(Self {
             http_client,
@@ -312,7 +312,7 @@ impl Tool for WebSearchTool {
         ]
     }
 
-    async fn execute(&self, arguments: serde_json::Value) -> NovaResult<serde_json::Value> {
+    async fn execute(&self, arguments: serde_json::Value) -> AgentResult<serde_json::Value> {
         let args: WebSearchArgs = serde_json::from_value(arguments)?;
         let max_results = args.max_results.unwrap_or(self.max_results);
 
@@ -326,11 +326,11 @@ impl Tool for WebSearchTool {
             .http_client
             .get(&url)
             .await
-            .map_err(|e| NovaError::HttpError(format!("Search request failed: {}", e)))?;
+            .map_err(|e| AgentError::HttpError(format!("Search request failed: {}", e)))?;
 
         let body = response
             .text()
-            .map_err(|e| NovaError::HttpError(format!("Failed to read response: {}", e)))?;
+            .map_err(|e| AgentError::HttpError(format!("Failed to read response: {}", e)))?;
 
         // Parse search results from HTML
         let results = parse_duckduckgo_results(&body, max_results);
@@ -390,9 +390,9 @@ pub struct WebFetchTool {
 
 impl WebFetchTool {
     /// Create a new WebFetchTool.
-    pub fn new() -> NovaResult<Self> {
+    pub fn new() -> AgentResult<Self> {
         let http_client = kit_http::client::HttpClient::default_client()
-            .map_err(|e| NovaError::ConfigError(format!("Failed to create HTTP client: {}", e)))?;
+            .map_err(|e| AgentError::ConfigError(format!("Failed to create HTTP client: {}", e)))?;
 
         Ok(Self {
             http_client,
@@ -446,7 +446,7 @@ impl Tool for WebFetchTool {
         ]
     }
 
-    async fn execute(&self, arguments: serde_json::Value) -> NovaResult<serde_json::Value> {
+    async fn execute(&self, arguments: serde_json::Value) -> AgentResult<serde_json::Value> {
         let args: WebFetchArgs = serde_json::from_value(arguments)?;
         let extract_text = args.extract_text.unwrap_or(true);
 
@@ -454,14 +454,14 @@ impl Tool for WebFetchTool {
             .http_client
             .get(&args.url)
             .await
-            .map_err(|e| NovaError::HttpError(format!("Fetch request failed: {}", e)))?;
+            .map_err(|e| AgentError::HttpError(format!("Fetch request failed: {}", e)))?;
 
         let status = response.status_code;
         let content_type = response.header("content-type").map(|s| s.to_string());
 
         let body = response
             .text()
-            .map_err(|e| NovaError::HttpError(format!("Failed to read response: {}", e)))?;
+            .map_err(|e| AgentError::HttpError(format!("Failed to read response: {}", e)))?;
 
         // Truncate if too long
         let body = if body.len() > self.max_content_length {
@@ -569,7 +569,7 @@ impl<I: crate::integrations::PlatformIntegration + 'static> Tool for PostComment
         ]
     }
 
-    async fn execute(&self, arguments: serde_json::Value) -> NovaResult<serde_json::Value> {
+    async fn execute(&self, arguments: serde_json::Value) -> AgentResult<serde_json::Value> {
         use crate::integrations::{format_clarification_comment, ClarificationQuestionOption};
         use crate::storage::{ClarificationOption, PendingClarification};
         use chrono::Utc;

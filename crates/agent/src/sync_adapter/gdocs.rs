@@ -4,7 +4,7 @@
 //! Not supported: push_issue, pull_issue, push_change, pull_code_index.
 
 use super::{SyncAdapter, SyncResult};
-use crate::error::{NovaError, NovaResult};
+use crate::error::{AgentError, AgentResult};
 use crate::protocols::{ChangeProtocol, CodeIndexProtocol, IssueProtocol, SpecProtocol};
 use async_trait::async_trait;
 use kit_http::client::{HttpClient, HttpMethod, RequestBuilder};
@@ -30,9 +30,9 @@ impl GDocsSyncAdapter {
     /// # Arguments
     /// * `token` — OAuth 2.0 bearer token with Google Docs / Drive write scope
     /// * `folder_id` — Optional Google Drive folder ID to place created docs in
-    pub fn new(token: impl Into<String>, folder_id: Option<String>) -> NovaResult<Self> {
+    pub fn new(token: impl Into<String>, folder_id: Option<String>) -> AgentResult<Self> {
         let client = HttpClient::default_client()
-            .map_err(|e| NovaError::ConfigError(format!("Failed to create HTTP client: {}", e)))?;
+            .map_err(|e| AgentError::ConfigError(format!("Failed to create HTTP client: {}", e)))?;
 
         Ok(Self {
             client,
@@ -45,7 +45,7 @@ impl GDocsSyncAdapter {
         &self,
         url: &str,
         body: serde_json::Value,
-    ) -> NovaResult<T> {
+    ) -> AgentResult<T> {
         let req = RequestBuilder::new(HttpMethod::Post, url)
             .header("Authorization", format!("Bearer {}", self.token))
             .json_value(body);
@@ -54,36 +54,36 @@ impl GDocsSyncAdapter {
             .client
             .execute_builder(req)
             .await
-            .map_err(|e| NovaError::HttpError(e.to_string()))?;
+            .map_err(|e| AgentError::HttpError(e.to_string()))?;
 
         if !resp.is_success() {
             let body_text = resp.text().unwrap_or_default();
-            return Err(NovaError::ApiError(format!(
+            return Err(AgentError::ApiError(format!(
                 "Google Docs API {} {}: {}",
                 resp.status_code, url, body_text
             )));
         }
 
         resp.json_as()
-            .map_err(|e| NovaError::ApiError(format!("Google Docs parse error: {}", e)))
+            .map_err(|e| AgentError::ApiError(format!("Google Docs parse error: {}", e)))
     }
 }
 
 #[async_trait]
 impl SyncAdapter for GDocsSyncAdapter {
-    async fn push_issue(&self, _issue: &IssueProtocol) -> NovaResult<SyncResult> {
-        Err(NovaError::NotSupported(
+    async fn push_issue(&self, _issue: &IssueProtocol) -> AgentResult<SyncResult> {
+        Err(AgentError::NotSupported(
             "GDocsSyncAdapter does not support issue sync; use JiraSyncAdapter".into(),
         ))
     }
 
-    async fn pull_issue(&self, _external_id: &str) -> NovaResult<IssueProtocol> {
-        Err(NovaError::NotSupported(
+    async fn pull_issue(&self, _external_id: &str) -> AgentResult<IssueProtocol> {
+        Err(AgentError::NotSupported(
             "GDocsSyncAdapter does not support issue pull".into(),
         ))
     }
 
-    async fn push_spec(&self, spec: &SpecProtocol) -> NovaResult<SyncResult> {
+    async fn push_spec(&self, spec: &SpecProtocol) -> AgentResult<SyncResult> {
         let title = spec
             .id
             .split('/')
@@ -121,14 +121,14 @@ impl SyncAdapter for GDocsSyncAdapter {
         Ok(SyncResult::created(doc.document_id, doc_url))
     }
 
-    async fn push_change(&self, _change: &ChangeProtocol) -> NovaResult<SyncResult> {
-        Err(NovaError::NotSupported(
+    async fn push_change(&self, _change: &ChangeProtocol) -> AgentResult<SyncResult> {
+        Err(AgentError::NotSupported(
             "GDocsSyncAdapter does not support change sync".into(),
         ))
     }
 
-    async fn pull_code_index(&self, _path: &str) -> NovaResult<CodeIndexProtocol> {
-        Err(NovaError::NotSupported(
+    async fn pull_code_index(&self, _path: &str) -> AgentResult<CodeIndexProtocol> {
+        Err(AgentError::NotSupported(
             "GDocsSyncAdapter does not support code index pull".into(),
         ))
     }
@@ -163,14 +163,14 @@ mod tests {
         let adapter = GDocsSyncAdapter::new("oauth-token", None).unwrap();
         let issue = IssueProtocol::new("1", "Test");
         let result = adapter.push_issue(&issue).await;
-        assert!(matches!(result, Err(NovaError::NotSupported(_))));
+        assert!(matches!(result, Err(AgentError::NotSupported(_))));
     }
 
     #[tokio::test]
     async fn test_pull_issue_returns_not_supported() {
         let adapter = GDocsSyncAdapter::new("oauth-token", None).unwrap();
         let result = adapter.pull_issue("DOC123").await;
-        assert!(matches!(result, Err(NovaError::NotSupported(_))));
+        assert!(matches!(result, Err(AgentError::NotSupported(_))));
     }
 
     #[tokio::test]
@@ -178,13 +178,13 @@ mod tests {
         let adapter = GDocsSyncAdapter::new("oauth-token", None).unwrap();
         let change = ChangeProtocol::new("my-change", "proj", vec![]);
         let result = adapter.push_change(&change).await;
-        assert!(matches!(result, Err(NovaError::NotSupported(_))));
+        assert!(matches!(result, Err(AgentError::NotSupported(_))));
     }
 
     #[tokio::test]
     async fn test_pull_code_index_returns_not_supported() {
         let adapter = GDocsSyncAdapter::new("oauth-token", None).unwrap();
         let result = adapter.pull_code_index("src/lib.rs").await;
-        assert!(matches!(result, Err(NovaError::NotSupported(_))));
+        assert!(matches!(result, Err(AgentError::NotSupported(_))));
     }
 }

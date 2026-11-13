@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::sync::Arc;
 
-use agent::{NovaError, NovaResult};
+use agent::{AgentError, AgentResult};
 use thiserror::Error;
 use tracing::{info_span, Instrument};
 
@@ -31,7 +31,7 @@ pub struct Edge {
     pub to: String,
 }
 
-/// Graph wiring + execution errors. Surfaced via `NovaError::ConfigError`
+/// Graph wiring + execution errors. Surfaced via `AgentError::ConfigError`
 /// when leaving the graph crate.
 #[derive(Debug, Error)]
 pub enum GraphError {
@@ -49,9 +49,9 @@ pub enum GraphError {
     NoEntry,
 }
 
-impl From<GraphError> for NovaError {
+impl From<GraphError> for AgentError {
     fn from(e: GraphError) -> Self {
-        NovaError::ConfigError(e.to_string())
+        AgentError::ConfigError(e.to_string())
     }
 }
 
@@ -168,7 +168,7 @@ where
     pub fn add_fn<F, Fut>(&mut self, name: impl Into<String>, handler: F) -> Result<(), GraphError>
     where
         F: Fn(State) -> Fut + Send + Sync + 'static,
-        Fut: std::future::Future<Output = NovaResult<State>> + Send + 'static,
+        Fut: std::future::Future<Output = AgentResult<State>> + Send + 'static,
     {
         self.add_node(FnNode::new(name, handler))
     }
@@ -235,7 +235,7 @@ where
     /// state threaded through. Returns the final state when the walk reaches
     /// a node with no outgoing edge OR a conditional edge whose picker
     /// returns `None`. Cycles are permitted but bounded by [`Self::max_steps`].
-    pub async fn run(&self, mut state: State) -> NovaResult<State> {
+    pub async fn run(&self, mut state: State) -> AgentResult<State> {
         let walk_span = info_span!(
             "graph.run",
             graph.entry = tracing::field::Empty,
@@ -251,7 +251,7 @@ where
 
         let mut current = entry;
         let mut steps: u32 = 0;
-        let result: NovaResult<State> = async {
+        let result: AgentResult<State> = async {
             for _ in 0..self.max_steps {
                 steps += 1;
                 let node = self
@@ -322,7 +322,7 @@ where
     /// current-thread Tokio runtime. That keeps sync callers ergonomic while
     /// avoiding Tokio's nested-runtime panic when the caller already happens
     /// to be inside an async runtime.
-    pub fn run_blocking(&self, state: State) -> NovaResult<State> {
+    pub fn run_blocking(&self, state: State) -> AgentResult<State> {
         let graph = self.clone();
         run_graph_blocking(async move { graph.run(state).await })
     }
@@ -339,9 +339,9 @@ where
     }
 }
 
-fn run_graph_blocking<Fut, T>(future: Fut) -> NovaResult<T>
+fn run_graph_blocking<Fut, T>(future: Fut) -> AgentResult<T>
 where
-    Fut: Future<Output = NovaResult<T>> + Send + 'static,
+    Fut: Future<Output = AgentResult<T>> + Send + 'static,
     T: Send + 'static,
 {
     std::thread::spawn(move || {
@@ -349,12 +349,12 @@ where
             .enable_all()
             .build()
             .map_err(|err| {
-                NovaError::ConfigError(format!("failed to create graph runtime: {err}"))
+                AgentError::ConfigError(format!("failed to create graph runtime: {err}"))
             })?;
         runtime.block_on(future)
     })
     .join()
-    .map_err(|_| NovaError::ConfigError("graph blocking runner panicked".to_string()))?
+    .map_err(|_| AgentError::ConfigError("graph blocking runner panicked".to_string()))?
 }
 
 // HANDWRITE-END
@@ -581,7 +581,7 @@ mod tests {
         let mut g: Graph<Counter> = Graph::new();
         g.add_fn("a", |s| async move { Ok(s) }).unwrap();
         g.add_fn("b", |_s| async move {
-            Err(agent::NovaError::ToolError("boom".into()))
+            Err(agent::AgentError::ToolError("boom".into()))
         })
         .unwrap();
         g.add_fn("c", |s| async move { Ok(s) }).unwrap();
@@ -590,7 +590,7 @@ mod tests {
         g.set_entry("a").unwrap();
 
         let err = g.run(empty()).await.unwrap_err();
-        assert!(matches!(err, agent::NovaError::ToolError(_)));
+        assert!(matches!(err, agent::AgentError::ToolError(_)));
     }
 
     #[test]

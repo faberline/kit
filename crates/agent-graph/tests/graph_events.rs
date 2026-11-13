@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use agent::NovaError;
+use agent::AgentError;
 use agentkit_graph::{Graph, GraphEvent, GraphEventBus};
 
 #[tokio::test(flavor = "current_thread")]
@@ -55,7 +55,7 @@ async fn node_error_emits_node_failed_and_walk_failed() {
     let mut g: Graph<u32> = Graph::new();
     g.add_fn("ok", |s: u32| async move { Ok(s + 1) }).unwrap();
     g.add_fn("boom", |_: u32| async move {
-        Err(NovaError::LLMError("boom".into()))
+        Err(AgentError::LLMError("boom".into()))
     })
     .unwrap();
     g.add_edge("ok", "boom").unwrap();
@@ -63,7 +63,7 @@ async fn node_error_emits_node_failed_and_walk_failed() {
     g.events(bus.clone());
 
     let err = g.run(0).await.unwrap_err();
-    assert!(matches!(err, NovaError::LLMError(_)));
+    assert!(matches!(err, AgentError::LLMError(_)));
 
     let events = sub.try_drain();
     assert!(events

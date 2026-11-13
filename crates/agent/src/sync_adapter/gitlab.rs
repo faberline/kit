@@ -5,7 +5,7 @@
 //! Not supported: push_spec — use [`ConfluenceSyncAdapter`] instead.
 
 use super::{SyncAdapter, SyncResult};
-use crate::error::{NovaError, NovaResult};
+use crate::error::{AgentError, AgentResult};
 use crate::protocols::{
     ChangeProtocol, CodeIndexProtocol, IssuePriority, IssueProtocol, IssueStatus, SpecProtocol,
 };
@@ -38,9 +38,9 @@ impl GitLabSyncAdapter {
         token: impl Into<String>,
         base_url: impl Into<String>,
         project_id: impl Into<String>,
-    ) -> NovaResult<Self> {
+    ) -> AgentResult<Self> {
         let client = HttpClient::default_client()
-            .map_err(|e| NovaError::ConfigError(format!("Failed to create HTTP client: {}", e)))?;
+            .map_err(|e| AgentError::ConfigError(format!("Failed to create HTTP client: {}", e)))?;
 
         let base_url = base_url.into().trim_end_matches('/').to_string();
 
@@ -57,7 +57,7 @@ impl GitLabSyncAdapter {
         format!("{}/api/v4/projects/{}/{}", self.base_url, encoded, path)
     }
 
-    async fn get<T: for<'de> Deserialize<'de>>(&self, url: &str) -> NovaResult<T> {
+    async fn get<T: for<'de> Deserialize<'de>>(&self, url: &str) -> AgentResult<T> {
         let req = RequestBuilder::new(HttpMethod::Get, url)
             .header("PRIVATE-TOKEN", &self.token)
             .header("Accept", "application/json");
@@ -66,25 +66,25 @@ impl GitLabSyncAdapter {
             .client
             .execute_builder(req)
             .await
-            .map_err(|e| NovaError::HttpError(e.to_string()))?;
+            .map_err(|e| AgentError::HttpError(e.to_string()))?;
 
         if !resp.is_success() {
             let body = resp.text().unwrap_or_default();
-            return Err(NovaError::ApiError(format!(
+            return Err(AgentError::ApiError(format!(
                 "GitLab {} {}: {}",
                 resp.status_code, url, body
             )));
         }
 
         resp.json_as()
-            .map_err(|e| NovaError::ApiError(format!("GitLab parse error: {}", e)))
+            .map_err(|e| AgentError::ApiError(format!("GitLab parse error: {}", e)))
     }
 
     async fn post<T: for<'de> Deserialize<'de>>(
         &self,
         url: &str,
         body: serde_json::Value,
-    ) -> NovaResult<T> {
+    ) -> AgentResult<T> {
         let req = RequestBuilder::new(HttpMethod::Post, url)
             .header("PRIVATE-TOKEN", &self.token)
             .json_value(body);
@@ -93,24 +93,24 @@ impl GitLabSyncAdapter {
             .client
             .execute_builder(req)
             .await
-            .map_err(|e| NovaError::HttpError(e.to_string()))?;
+            .map_err(|e| AgentError::HttpError(e.to_string()))?;
 
         if !resp.is_success() {
             let body_text = resp.text().unwrap_or_default();
-            return Err(NovaError::ApiError(format!(
+            return Err(AgentError::ApiError(format!(
                 "GitLab {} {}: {}",
                 resp.status_code, url, body_text
             )));
         }
 
         resp.json_as()
-            .map_err(|e| NovaError::ApiError(format!("GitLab parse error: {}", e)))
+            .map_err(|e| AgentError::ApiError(format!("GitLab parse error: {}", e)))
     }
 }
 
 #[async_trait]
 impl SyncAdapter for GitLabSyncAdapter {
-    async fn push_issue(&self, issue: &IssueProtocol) -> NovaResult<SyncResult> {
+    async fn push_issue(&self, issue: &IssueProtocol) -> AgentResult<SyncResult> {
         let url = self.api_url("issues");
         let body = serde_json::json!({
             "title": issue.title,
@@ -127,7 +127,7 @@ impl SyncAdapter for GitLabSyncAdapter {
         Ok(SyncResult::created(created.iid.to_string(), issue_url))
     }
 
-    async fn pull_issue(&self, external_id: &str) -> NovaResult<IssueProtocol> {
+    async fn pull_issue(&self, external_id: &str) -> AgentResult<IssueProtocol> {
         let url = self.api_url(&format!("issues/{}", external_id));
         let gl: GitLabIssueResponse = self.get(&url).await?;
 
@@ -145,15 +145,15 @@ impl SyncAdapter for GitLabSyncAdapter {
         })
     }
 
-    async fn push_spec(&self, _spec: &SpecProtocol) -> NovaResult<SyncResult> {
-        Err(NovaError::NotSupported(
+    async fn push_spec(&self, _spec: &SpecProtocol) -> AgentResult<SyncResult> {
+        Err(AgentError::NotSupported(
             "GitLabSyncAdapter does not support spec sync; use ConfluenceSyncAdapter".into(),
         ))
     }
 
-    async fn push_change(&self, change: &ChangeProtocol) -> NovaResult<SyncResult> {
+    async fn push_change(&self, change: &ChangeProtocol) -> AgentResult<SyncResult> {
         let branch = change.branch.as_deref().ok_or_else(|| {
-            NovaError::InvalidArguments("ChangeProtocol.branch is required for push_change".into())
+            AgentError::InvalidArguments("ChangeProtocol.branch is required for push_change".into())
         })?;
 
         let url = self.api_url("merge_requests");
@@ -172,7 +172,7 @@ impl SyncAdapter for GitLabSyncAdapter {
         Ok(SyncResult::created(mr.iid.to_string(), mr.web_url))
     }
 
-    async fn pull_code_index(&self, path: &str) -> NovaResult<CodeIndexProtocol> {
+    async fn pull_code_index(&self, path: &str) -> AgentResult<CodeIndexProtocol> {
         let encoded_path = urlencoding::encode(path);
         let url = self.api_url(&format!("repository/files/{}/raw?ref=main", encoded_path));
 
@@ -182,11 +182,11 @@ impl SyncAdapter for GitLabSyncAdapter {
             .client
             .execute_builder(req)
             .await
-            .map_err(|e| NovaError::HttpError(e.to_string()))?;
+            .map_err(|e| AgentError::HttpError(e.to_string()))?;
 
         if !resp.is_success() {
             let body = resp.text().unwrap_or_default();
-            return Err(NovaError::ApiError(format!(
+            return Err(AgentError::ApiError(format!(
                 "GitLab file fetch {} {}: {}",
                 resp.status_code, path, body
             )));
@@ -255,7 +255,7 @@ mod tests {
             GitLabSyncAdapter::new("token", "https://gitlab.com", "group/project").unwrap();
         let spec = SpecProtocol::new("spec-1", ".aw/tech-design/foo.md", "# Spec");
         let result = adapter.push_spec(&spec).await;
-        assert!(matches!(result, Err(NovaError::NotSupported(_))));
+        assert!(matches!(result, Err(AgentError::NotSupported(_))));
     }
 
     #[tokio::test]
@@ -265,6 +265,6 @@ mod tests {
         let change = ChangeProtocol::new("my-change", "proj", vec!["1".into()]);
         // branch is None → should return InvalidArguments
         let result = adapter.push_change(&change).await;
-        assert!(matches!(result, Err(NovaError::InvalidArguments(_))));
+        assert!(matches!(result, Err(AgentError::InvalidArguments(_))));
     }
 }

@@ -1,4 +1,4 @@
-use crate::error::{NovaError, NovaResult};
+use crate::error::{AgentError, AgentResult};
 use crate::tools::tool::{Tool, ToolParameter};
 use async_trait::async_trait;
 use serde::Deserialize;
@@ -42,7 +42,7 @@ impl BashTool {
         self
     }
 
-    async fn execute_impl(&self, args: BashArgs) -> NovaResult<serde_json::Value> {
+    async fn execute_impl(&self, args: BashArgs) -> AgentResult<serde_json::Value> {
         let timeout_ms = args
             .timeout
             .unwrap_or(self.default_timeout.as_millis() as u64);
@@ -62,12 +62,12 @@ impl BashTool {
 
         let child = cmd
             .spawn()
-            .map_err(|e| NovaError::CommandFailed(format!("Failed to spawn command: {}", e)))?;
+            .map_err(|e| AgentError::CommandFailed(format!("Failed to spawn command: {}", e)))?;
 
         let output = timeout(timeout_duration, child.wait_with_output())
             .await
-            .map_err(|_| NovaError::CommandTimeout(timeout_ms / 1000))?
-            .map_err(|e| NovaError::CommandFailed(format!("Command execution failed: {}", e)))?;
+            .map_err(|_| AgentError::CommandTimeout(timeout_ms / 1000))?
+            .map_err(|e| AgentError::CommandFailed(format!("Command execution failed: {}", e)))?;
 
         let exit_code = output.status.code().unwrap_or(-1);
         let mut stdout = String::from_utf8_lossy(&output.stdout).to_string();
@@ -136,7 +136,7 @@ impl Tool for BashTool {
         ]
     }
 
-    async fn execute(&self, arguments: serde_json::Value) -> NovaResult<serde_json::Value> {
+    async fn execute(&self, arguments: serde_json::Value) -> AgentResult<serde_json::Value> {
         let args: BashArgs = serde_json::from_value(arguments)?;
         self.execute_impl(args).await
     }
@@ -159,7 +159,7 @@ impl StreamingBashTool {
         command: &str,
         timeout_ms: Option<u64>,
         mut on_output: F,
-    ) -> NovaResult<i32>
+    ) -> AgentResult<i32>
     where
         F: FnMut(StreamOutput) + Send,
     {
@@ -179,7 +179,7 @@ impl StreamingBashTool {
 
         let mut child = cmd
             .spawn()
-            .map_err(|e| NovaError::CommandFailed(format!("Failed to spawn command: {}", e)))?;
+            .map_err(|e| AgentError::CommandFailed(format!("Failed to spawn command: {}", e)))?;
 
         let stdout = child.stdout.take().unwrap();
         let stderr = child.stderr.take().unwrap();
@@ -219,10 +219,10 @@ impl StreamingBashTool {
             tokio::join!(read_task, wait_task)
         })
         .await
-        .map_err(|_| NovaError::CommandTimeout(timeout_duration.as_secs()))?;
+        .map_err(|_| AgentError::CommandTimeout(timeout_duration.as_secs()))?;
 
         let status = status
-            .map_err(|e| NovaError::CommandFailed(format!("Failed to wait for command: {}", e)))?;
+            .map_err(|e| AgentError::CommandFailed(format!("Failed to wait for command: {}", e)))?;
 
         Ok(status.code().unwrap_or(-1))
     }

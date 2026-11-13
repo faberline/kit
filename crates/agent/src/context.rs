@@ -1,4 +1,4 @@
-use crate::error::NovaResult;
+use crate::error::AgentResult;
 use crate::llm::{CompletionRequest, LLMProvider};
 use crate::tokenizer::{self, Tokenizer};
 use crate::types::{Message, Role};
@@ -205,7 +205,7 @@ impl ContextManager {
     }
 
     /// LLM-based summarization compression
-    fn compress_with_summarization(&mut self) -> NovaResult<()> {
+    fn compress_with_summarization(&mut self) -> AgentResult<()> {
         let provider = self.compact_provider.as_ref().unwrap().clone();
         let model = self.compact_model.clone();
 
