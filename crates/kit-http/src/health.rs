@@ -1,5 +1,3 @@
-// SPEC-MANAGED: .score/tech_design/projects/httpkit/health.md#schema
-// CODEGEN-BEGIN
 /// Aggregate health of a component. Ordered most- to least-healthy.
 /// @spec .score/tech_design/projects/httpkit/health.md#schema
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
@@ -83,4 +81,3 @@ impl HealthManager {
         Ok(Self { checks })
     }
 }
-// CODEGEN-END

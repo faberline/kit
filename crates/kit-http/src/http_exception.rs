@@ -1,5 +1,3 @@
-// SPEC-MANAGED: .score/tech_design/projects/httpkit/http-exception.md#schema
-// CODEGEN-BEGIN
 use serde::{Deserialize, Serialize};
 
 /// @spec .score/tech_design/projects/httpkit/http-exception.md#schema
@@ -105,4 +103,3 @@ pub fn status_phrase(status_code: u16) -> &'static str {
         _ => "Unknown",
     }
 }
-// CODEGEN-END

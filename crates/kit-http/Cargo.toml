@@ -11,12 +11,9 @@ name = "kit_http"
 crate-type = ["rlib"]
 
 [dependencies]
-# SPEC-MANAGED: .aw/tech-design/projects/httpkit/request-response.md#manifest
-# CODEGEN-BEGIN
 thiserror.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
-# CODEGEN-END
 
 # Hand-written: client-side HTTP toolkit for `mambalibs.http`.
 anyhow.workspace = true

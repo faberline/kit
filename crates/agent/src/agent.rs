@@ -23,8 +23,7 @@
 // targets yet (the `cb gen-code` pipeline emits marker-only stubs for Rust
 // modules). Once a `rust-runtime` section type + emitter lands that can
 // reproduce this struct + impl from the lifecycle/dependency/test-plan
-// graphs, swap the markers below to CODEGEN-BEGIN / CODEGEN-END and let the
-// generator own the file. Until then this file is the temporary state.
+// graphs, let the generator own the file. Until then this file is handwritten.
 
 use std::collections::HashMap;
 use std::future::Future;

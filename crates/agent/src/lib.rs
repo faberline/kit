@@ -118,13 +118,3 @@ pub use sync_adapter::{
     ConfluenceSyncAdapter, GDocsSyncAdapter, GitHubSyncAdapter, GitLabSyncAdapter, JiraSyncAdapter,
     SyncAction, SyncAdapter, SyncResult,
 };
-// SPEC-MANAGED: .aw/tech-design/projects/agentkit/specs/unified-inner-core.md#dependency
-// CODEGEN-BEGIN
-// SPEC-REF: .aw/tech-design/projects/agentkit/specs/unified-inner-core.md#dependency
-// TODO: Implement projects/agentkit/core/src/lib.rs
-// CODEGEN-END
-// SPEC-MANAGED: .aw/tech-design/projects/agentkit/specs/cross-surface-rpc-contract.md#changes
-// CODEGEN-BEGIN
-// SPEC-REF: .aw/tech-design/projects/agentkit/specs/cross-surface-rpc-contract.md#changes
-// TODO: Implement projects/agentkit/core/src/lib.rs
-// CODEGEN-END

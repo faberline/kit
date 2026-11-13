@@ -1,5 +1,4 @@
-//! agentkit-tools — reusable agent tool implementations and external
-//! tool-source integrations.
+//! agentkit-tools — MCP client and server tools for agents.
 //!
 //! Currently houses:
 //!
