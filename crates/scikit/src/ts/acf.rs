@@ -73,8 +73,8 @@ pub fn pacf_from_acf(acf_vals: &[f64]) -> Result<Vec<f64>> {
 
         if den.abs() < 1e-15 {
             // Degenerate — fill remaining with 0
-            for _ in pacf_result.len()..max_lag {
-                pacf_result.push(0.0);
+            if pacf_result.len() < max_lag {
+                pacf_result.resize(max_lag, 0.0);
             }
             return Ok(pacf_result);
         }

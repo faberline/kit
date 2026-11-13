@@ -12,7 +12,7 @@ pub struct Peak {
 }
 
 /// Options for peak detection.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct PeakOptions {
     /// Minimum height for a peak.
     pub height: Option<f64>,
@@ -20,16 +20,6 @@ pub struct PeakOptions {
     pub distance: Option<usize>,
     /// Minimum prominence.
     pub prominence: Option<f64>,
-}
-
-impl Default for PeakOptions {
-    fn default() -> Self {
-        Self {
-            height: None,
-            distance: None,
-            prominence: None,
-        }
-    }
 }
 
 /// Find peaks in a 1D signal.
@@ -81,11 +71,7 @@ pub fn find_peaks(data: &[f64], options: &PeakOptions) -> Vec<Peak> {
                 if !keep[j] {
                     continue;
                 }
-                let dist = if peaks[i].index > peaks[j].index {
-                    peaks[i].index - peaks[j].index
-                } else {
-                    peaks[j].index - peaks[i].index
-                };
+                let dist = peaks[i].index.abs_diff(peaks[j].index);
                 if dist < min_dist {
                     keep[j] = false;
                 }
@@ -119,9 +105,9 @@ fn compute_prominence(data: &[f64], peak_idx: usize) -> f64 {
 
     // Search right
     let mut right_min = peak_val;
-    for i in peak_idx + 1..data.len() {
-        right_min = right_min.min(data[i]);
-        if data[i] > peak_val {
+    for &v in &data[peak_idx + 1..] {
+        right_min = right_min.min(v);
+        if v > peak_val {
             break;
         }
     }

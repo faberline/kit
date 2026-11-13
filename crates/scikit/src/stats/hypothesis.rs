@@ -379,7 +379,7 @@ pub fn shapiro(x: &[f64]) -> TestResult {
     let n = x.len();
 
     // Validate sample size
-    if n < 3 || n > 5000 {
+    if !(3..=5000).contains(&n) {
         return TestResult::new(f64::NAN, f64::NAN);
     }
 
@@ -500,7 +500,7 @@ pub fn kstest_normal(x: &[f64]) -> TestResult {
     let lambda = (n.sqrt() + 0.12 + 0.11 / n.sqrt()) * d;
     let pvalue = 2.0 * (-2.0 * lambda * lambda).exp();
 
-    TestResult::new(d, pvalue.min(1.0).max(0.0))
+    TestResult::new(d, pvalue.clamp(0.0, 1.0))
 }
 
 // ============================================================================

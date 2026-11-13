@@ -100,9 +100,9 @@ impl CscMatrix {
     pub fn dot(&self, x: &[f64]) -> Vec<f64> {
         assert_eq!(x.len(), self.ncols, "vector length mismatch");
         let mut y = vec![0.0; self.nrows];
-        for j in 0..self.ncols {
+        for (j, &xj) in x.iter().enumerate() {
             for k in self.indptr[j]..self.indptr[j + 1] {
-                y[self.indices[k]] += self.data[k] * x[j];
+                y[self.indices[k]] += self.data[k] * xj;
             }
         }
         y
