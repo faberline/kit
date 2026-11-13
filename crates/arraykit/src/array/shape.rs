@@ -83,7 +83,7 @@ impl Shape {
         let max_ndim = a.ndim().max(b.ndim());
         let mut result = vec![0; max_ndim];
 
-        for i in 0..max_ndim {
+        for (i, out) in result.iter_mut().enumerate() {
             let a_dim = if i < max_ndim - a.ndim() {
                 1
             } else {
@@ -96,11 +96,11 @@ impl Shape {
             };
 
             if a_dim == b_dim {
-                result[i] = a_dim;
+                *out = a_dim;
             } else if a_dim == 1 {
-                result[i] = b_dim;
+                *out = b_dim;
             } else if b_dim == 1 {
-                result[i] = a_dim;
+                *out = a_dim;
             } else {
                 return Err(ArrayError::BroadcastError {
                     left: a.dims.clone(),
@@ -125,15 +125,15 @@ impl Shape {
         let offset = target.ndim() - self.ndim();
         let mut result = vec![0; target.ndim()];
 
-        for i in 0..target.ndim() {
+        for (i, out) in result.iter_mut().enumerate() {
             if i < offset {
-                result[i] = 0; // Broadcast dimension
+                *out = 0; // Broadcast dimension
             } else {
                 let self_idx = i - offset;
                 if self.dims[self_idx] == target.dims[i] {
-                    result[i] = self.strides[self_idx];
+                    *out = self.strides[self_idx];
                 } else if self.dims[self_idx] == 1 {
-                    result[i] = 0; // Broadcast this dimension
+                    *out = 0; // Broadcast this dimension
                 } else {
                     return Err(ArrayError::BroadcastError {
                         left: self.dims.clone(),

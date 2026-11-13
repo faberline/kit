@@ -399,8 +399,8 @@ impl NdArray<f64> {
                 continue;
             }
             let mut sum = qt_b.data[i];
-            for j in (i + 1)..n {
-                sum -= qr.r.data[i * n + j] * x[j];
+            for (j, xj) in x.iter().enumerate().take(n).skip(i + 1) {
+                sum -= qr.r.data[i * n + j] * *xj;
             }
             x[i] = sum / r_ii;
         }
@@ -559,11 +559,11 @@ mod tests {
             }
         }
 
-        for i in 0..4 {
+        for (i, r) in result.iter().enumerate().take(4) {
             assert!(
-                (result[i] - a.data[i]).abs() < 1e-6,
+                (*r - a.data[i]).abs() < 1e-6,
                 "SVD reconstruction mismatch at {i}: {} vs {}",
-                result[i],
+                *r,
                 a.data[i]
             );
         }
