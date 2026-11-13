@@ -12,9 +12,9 @@
 //!
 //! * [`ExactMatchScorer`] — `==` between expected and actual.
 //! * [`JsonEqScorer`]    — `Output: Serialize` round-tripped through
-//!                          `serde_json::Value` then compared, useful
-//!                          for typed structured outputs where field
-//!                          order shouldn't matter.
+//!   `serde_json::Value` then compared, useful
+//!   for typed structured outputs where field
+//!   order shouldn't matter.
 
 // HANDWRITE-BEGIN reason: no rust-runtime generator for an eval
 // harness yet. Same Epic-3 gap as the rest of agentkit-core.
