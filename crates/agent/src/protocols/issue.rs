@@ -7,20 +7,15 @@ use crate::integrations::{Issue, IssueState, IssueSummary};
 use serde::{Deserialize, Serialize};
 
 /// Lifecycle status of an issue.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum IssueStatus {
+    #[default]
     Open,
     Closed,
     InProgress,
     Resolved,
     Wontfix,
-}
-
-impl Default for IssueStatus {
-    fn default() -> Self {
-        Self::Open
-    }
 }
 
 impl From<IssueState> for IssueStatus {
@@ -36,19 +31,14 @@ impl From<IssueState> for IssueStatus {
 }
 
 /// Priority level of an issue.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum IssuePriority {
     Low,
+    #[default]
     Medium,
     High,
     Critical,
-}
-
-impl Default for IssuePriority {
-    fn default() -> Self {
-        Self::Medium
-    }
 }
 
 /// Domain contract for an issue/ticket.

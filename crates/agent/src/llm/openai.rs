@@ -27,8 +27,9 @@ impl OpenAIProvider {
         api_key: impl Into<String>,
         base_url: impl Into<String>,
     ) -> NovaResult<Self> {
+        let base_url: String = base_url.into();
         let config = HttpClientConfig::new()
-            .base_url(&base_url.into())
+            .base_url(base_url)
             .timeout_secs(60.0);
 
         let client = HttpClient::new(config)?;
@@ -88,7 +89,7 @@ impl OpenAIProvider {
 
     fn build_request(&self, url: &str, body: serde_json::Value) -> RequestBuilder {
         RequestBuilder::new(HttpMethod::Post, url)
-            .header("Authorization", &format!("Bearer {}", self.api_key))
+            .header("Authorization", format!("Bearer {}", self.api_key))
             .header("Content-Type", "application/json")
             .json_value(body)
     }

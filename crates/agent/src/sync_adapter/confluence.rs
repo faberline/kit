@@ -104,10 +104,9 @@ impl SyncAdapter for ConfluenceSyncAdapter {
         let title = spec
             .id
             .split('/')
-            .last()
+            .next_back()
             .unwrap_or(&spec.id)
-            .replace('-', " ")
-            .replace('_', " ");
+            .replace(['-', '_'], " ");
 
         let body = serde_json::json!({
             "type": "page",

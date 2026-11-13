@@ -120,12 +120,7 @@ impl JiraIntegration {
             .filter(|line| !line.trim().is_empty())
             .map(|line| {
                 // Handle checkbox lines
-                let content =
-                    if line.trim().starts_with("- [ ]") || line.trim().starts_with("- [x]") {
-                        line.to_string()
-                    } else {
-                        line.to_string()
-                    };
+                let content = line.to_string();
                 serde_json::json!({
                     "type": "paragraph",
                     "content": [
@@ -206,7 +201,7 @@ impl PlatformIntegration for JiraIntegration {
             .fields
             .description
             .as_ref()
-            .map(|d| Self::extract_text_from_adf(d))
+            .map(Self::extract_text_from_adf)
             .unwrap_or_default();
 
         Ok(Issue {

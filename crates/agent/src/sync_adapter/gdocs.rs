@@ -87,10 +87,9 @@ impl SyncAdapter for GDocsSyncAdapter {
         let title = spec
             .id
             .split('/')
-            .last()
+            .next_back()
             .unwrap_or(&spec.id)
-            .replace('-', " ")
-            .replace('_', " ");
+            .replace(['-', '_'], " ");
 
         // Step 1: create the document via Docs API.
         let create_url = format!("{}/documents", GDOCS_API_BASE);

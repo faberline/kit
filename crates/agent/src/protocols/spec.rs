@@ -8,7 +8,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Authoring format of a specification file.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SpecFormat {
     /// OpenRPC JSON — for MCP tool interface definitions.
@@ -20,15 +20,10 @@ pub enum SpecFormat {
     /// YAML — config schemas, CLI command trees.
     Yaml,
     /// Markdown — tables, checklists, or mixed content.
+    #[default]
     Markdown,
     /// Free-form prose (minimal; last resort).
     Prose,
-}
-
-impl Default for SpecFormat {
-    fn default() -> Self {
-        Self::Markdown
-    }
 }
 
 impl std::fmt::Display for SpecFormat {

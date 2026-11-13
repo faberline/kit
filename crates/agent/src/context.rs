@@ -179,8 +179,7 @@ impl ContextManager {
         let msg = &self.messages[idx];
 
         // If this is an assistant message with tool_calls, also remove subsequent tool results
-        if msg.role == Role::Assistant && msg.tool_calls.is_some() {
-            let tool_calls = msg.tool_calls.as_ref().unwrap();
+        if let (Role::Assistant, Some(tool_calls)) = (&msg.role, &msg.tool_calls) {
             let tool_call_ids: Vec<&str> = tool_calls.iter().map(|c| c.id.as_str()).collect();
 
             let mut count = 1; // the assistant message itself

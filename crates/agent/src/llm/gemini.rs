@@ -25,11 +25,17 @@ impl GeminiProvider {
 
     /// Create with a custom base URL (e.g., internal gateway).
     ///
-    /// ```rust,ignore
+    /// ```
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// use agent::llm::GeminiProvider;
+    ///
     /// let provider = GeminiProvider::with_base_url(
-    ///     "your-api-key",
-    ///     "https://your-internal-gateway.example.com/v1",
+    ///     "test-key",
+    ///     "https://gateway.example.invalid/v1",
     /// )?;
+    /// # let _ = provider;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn with_base_url(
         api_key: impl Into<String>,
