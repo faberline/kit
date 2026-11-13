@@ -1,4 +1,4 @@
-//! # cclab-sci
+//! # scikit
 //!
 //! Scientific computing: statistics, FFT, signal processing,
 //! interpolation, optimization, time-series analysis, spatial

@@ -73,7 +73,7 @@ mod tests {
     fn test_change_protocol_roundtrip() {
         let change = ChangeProtocol {
             id: "agent-protocols".to_string(),
-            project_id: "cclab-agent".to_string(),
+            project_id: "kit-agent".to_string(),
             issue_ids: vec!["958".to_string()],
             spec_ids: vec!["agent-protocols-spec".to_string()],
             branch: Some("feat/agent-protocols".to_string()),

@@ -31,9 +31,7 @@
 //! (`pattern`, `enum`, …), union / oneOf, $ref,
 //! tuple-typed arrays, additionalProperties tuning.
 //!
-//! API + primitive field types. The spec lives on the GitHub issue body
-//! until a `.aw/tech-design/projects/agentkit/specs/schema-builder.md`
-//! spec gets authored alongside the rest of the typed-I/O track.
+//! API + primitive field types.
 
 // HANDWRITE-BEGIN reason: codegen has no generator for fresh Rust modules
 // that define a primitive vocabulary (enum + builder + JSON emitter). The

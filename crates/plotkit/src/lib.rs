@@ -1,4 +1,4 @@
-//! # cclab-plot
+//! # plotkit
 //!
 //! Data visualization (inspired by Matplotlib).
 

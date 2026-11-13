@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CodeIndexProtocol {
     /// Module path in the codebase (e.g. `src/agents/code_agent/mod.rs`
-    /// or a dotted Python path like `cclab.agent.code_agent`).
+    /// or a dotted Python path like `kit.agent.code_agent`).
     pub module_path: String,
     /// Public API endpoints or entry-point function signatures exported
     /// by this module.
@@ -42,7 +42,7 @@ mod tests {
     #[test]
     fn test_code_index_protocol_roundtrip() {
         let entry = CodeIndexProtocol {
-            module_path: "crates/cclab-agent/src/agents/code_agent/mod.rs".to_string(),
+            module_path: "crates/kit-agent/src/agents/code_agent/mod.rs".to_string(),
             endpoints: vec![
                 "CodeAgent::run".to_string(),
                 "CodeAgent::run_with_handler".to_string(),
@@ -60,7 +60,7 @@ mod tests {
 
         assert_eq!(
             decoded.module_path,
-            "crates/cclab-agent/src/agents/code_agent/mod.rs"
+            "crates/kit-agent/src/agents/code_agent/mod.rs"
         );
         assert_eq!(decoded.endpoints.len(), 2);
         assert_eq!(decoded.models.len(), 3);

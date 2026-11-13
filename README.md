@@ -39,18 +39,9 @@ A quality check found wrong results. Open issues track them: #3 (frame), #4 (arr
 
 ## Origin and renames
 
-These crates were copied from the `mambalibs` kits of a private project. The history
-is not imported. Renamed: `mambalibs-http` to `kit-http`, `mamba-core` to `kit-core`.
+These crates were copied from a private project. The history is not imported. `mambalibs-http` became `kit-http` and `mamba-core` became `kit-core`.
 
-Not renamed (not mechanical, or still in use as names inside the code):
-
-- The `agent` crate still uses the User-Agent `cclab-nova`. Several doc comments and
-  test fixtures still say `cclab`.
-- `kit-core` still names its error type `DataBridgeError`.
-- `kit-http` still emits the OpenAPI extension key `x-mamba-dependencies` and the
-  default title `Mamba API`.
-- Package names `agentkit-graph` and `agentkit-tools` do not match their directories.
-- Some crate READMEs (`frame`, `kit-core`) still say "Cclab".
+The package names `agentkit-graph` and `agentkit-tools` do not match their directories.
 
 ## Known gaps in checks
 

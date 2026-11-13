@@ -150,13 +150,13 @@ mod tests {
                 "groups": [
                     {
                         "name": "crates/agent",
-                        "paths": ["crates/cclab-agent/src"],
+                        "paths": ["crates/kit-agent/src"],
                         "description": "Agent implementation crate",
                         "estimated_tokens": 12000
                     },
                     {
                         "name": "crates/cli",
-                        "paths": ["crates/cclab-cli/src"],
+                        "paths": ["crates/kit-cli/src"],
                         "description": "CLI entry point",
                         "estimated_tokens": 4000
                     }
@@ -172,7 +172,7 @@ mod tests {
         let groups = stored.groups.as_ref().unwrap();
         assert_eq!(groups.len(), 2);
         assert_eq!(groups[0].name, "crates/agent");
-        assert_eq!(groups[0].paths, vec!["crates/cclab-agent/src"]);
+        assert_eq!(groups[0].paths, vec!["crates/kit-agent/src"]);
         assert_eq!(groups[0].estimated_tokens, Some(12000));
         assert_eq!(groups[1].name, "crates/cli");
     }
@@ -241,7 +241,7 @@ mod tests {
     fn test_spec_group_round_trip() {
         let group = SpecGroup {
             name: "crates/agent".to_string(),
-            paths: vec!["crates/cclab-agent/src".to_string()],
+            paths: vec!["crates/kit-agent/src".to_string()],
             description: "Agent crate".to_string(),
             estimated_tokens: Some(50_000),
         };
