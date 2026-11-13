@@ -146,9 +146,9 @@ impl CsrMatrix {
     pub fn dot(&self, x: &[f64]) -> Vec<f64> {
         assert_eq!(x.len(), self.ncols, "vector length mismatch");
         let mut y = vec![0.0; self.nrows];
-        for i in 0..self.nrows {
+        for (i, yi) in y.iter_mut().enumerate() {
             for k in self.indptr[i]..self.indptr[i + 1] {
-                y[i] += self.data[k] * x[self.indices[k]];
+                *yi += self.data[k] * x[self.indices[k]];
             }
         }
         y

@@ -131,7 +131,7 @@ pub fn irfft(input: &[Complex], n: usize) -> Vec<f64> {
 pub fn fftfreq(n: usize, d: f64) -> Vec<f64> {
     let mut freqs = Vec::with_capacity(n);
     let val = 1.0 / (n as f64 * d);
-    let half = (n + 1) / 2;
+    let half = n.div_ceil(2);
     for i in 0..half {
         freqs.push(i as f64 * val);
     }

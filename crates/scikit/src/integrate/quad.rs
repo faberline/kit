@@ -77,7 +77,7 @@ fn adaptive_simpson_recursive<F: Fn(f64) -> f64>(
     let s_right = h / 12.0 * (fm + 4.0 * f2 + fb);
     let s_combined = s_left + s_right;
 
-    if depth <= 0 || (s_combined - s_prev).abs() < 15.0 * tol {
+    if depth == 0 || (s_combined - s_prev).abs() < 15.0 * tol {
         return s_combined + (s_combined - s_prev) / 15.0;
     }
 
@@ -131,7 +131,7 @@ pub fn simps(y: &[f64], dx: f64) -> f64 {
     let mut result = 0.0;
 
     // Apply Simpson's 1/3 rule for pairs of intervals
-    let n_simps = if n % 2 == 0 { n } else { n - 1 };
+    let n_simps = if n.is_multiple_of(2) { n } else { n - 1 };
     let mut i = 0;
     while i < n_simps {
         result += dx / 3.0 * (y[i] + 4.0 * y[i + 1] + y[i + 2]);
@@ -139,7 +139,7 @@ pub fn simps(y: &[f64], dx: f64) -> f64 {
     }
 
     // Handle the last interval with trapezoid if n is odd
-    if n % 2 != 0 {
+    if !n.is_multiple_of(2) {
         result += dx / 2.0 * (y[n - 1] + y[n]);
     }
 

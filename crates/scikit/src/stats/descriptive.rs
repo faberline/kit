@@ -139,7 +139,7 @@ pub fn median(data: &[f64]) -> Option<f64> {
     sorted.sort_by(|a, b| a.total_cmp(b));
 
     let mid = sorted.len() / 2;
-    if sorted.len() % 2 == 0 {
+    if sorted.len().is_multiple_of(2) {
         Some((sorted[mid - 1] + sorted[mid]) / 2.0)
     } else {
         Some(sorted[mid])
@@ -157,7 +157,7 @@ pub fn iqr(data: &[f64]) -> Option<f64> {
 ///
 /// Uses linear interpolation between closest ranks.
 pub fn percentile(data: &[f64], p: f64) -> Option<f64> {
-    if data.is_empty() || p < 0.0 || p > 100.0 {
+    if data.is_empty() || !(0.0..=100.0).contains(&p) {
         return None;
     }
 
@@ -317,6 +317,11 @@ pub fn describe(data: &[f64]) -> DescribeResult {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn percentile_nan_p_is_none() {
+        assert_eq!(percentile(&[1.0, 2.0, 3.0], f64::NAN), None);
+    }
 
     #[test]
     fn test_skew_symmetric() {

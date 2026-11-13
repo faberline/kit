@@ -279,9 +279,7 @@ fn yule_walker(data: &[f64], p: usize) -> Result<Vec<f64>> {
         if den.abs() < 1e-15 {
             // Near-singular: return what we have so far
             let mut coeffs = vec![0.0; p];
-            for j in 1..k {
-                coeffs[j - 1] = phi[k - 1][j];
-            }
+            coeffs[..k - 1].copy_from_slice(&phi[k - 1][1..k]);
             return Ok(coeffs);
         }
 

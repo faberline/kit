@@ -101,7 +101,7 @@ mod tests {
     fn test_hamming_bounds() {
         let w = hamming(16);
         for &v in &w {
-            assert!(v >= 0.0 && v <= 1.0);
+            assert!((0.0..=1.0).contains(&v));
         }
     }
 

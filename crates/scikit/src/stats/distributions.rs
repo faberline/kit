@@ -239,7 +239,10 @@ impl Beta {
 
 impl ContinuousDistribution for Beta {
     fn pdf(&self, x: f64) -> f64 {
-        if x < 0.0 || x > 1.0 {
+        if x.is_nan() {
+            return f64::NAN;
+        }
+        if !(0.0..=1.0).contains(&x) {
             return 0.0;
         }
         let b = beta_fn(self.alpha, self.beta);
@@ -573,14 +576,14 @@ pub fn gamma_fn(x: f64) -> f64 {
     // Lanczos coefficients
     let g = 7.0;
     let c = [
-        0.99999999999980993,
+        0.999_999_999_999_809_9,
         676.5203681218851,
         -1259.1392167224028,
-        771.32342877765313,
-        -176.61502916214059,
+        771.323_428_777_653_1,
+        -176.615_029_162_140_6,
         12.507343278686905,
         -0.13857109526572012,
-        9.9843695780195716e-6,
+        9.984_369_578_019_572e-6,
         1.5056327351493116e-7,
     ];
 
@@ -726,6 +729,16 @@ pub fn binomial_coef(n: u64, k: u64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn beta_pdf_nan_is_nan() {
+        assert!(Beta::new(2.0, 3.0).pdf(f64::NAN).is_nan());
+    }
+
+    #[test]
+    fn beta_pdf_reference() {
+        assert!((Beta::new(2.0, 3.0).pdf(0.5) - 1.5).abs() < 1e-12);
+    }
 
     #[test]
     fn test_normal_pdf() {

@@ -108,8 +108,9 @@ where
             } else {
                 // Shrink
                 for i in 1..=n {
-                    for j in 0..n {
-                        simplex[i][j] = simplex[0][j] + sigma * (simplex[i][j] - simplex[0][j]);
+                    let base = simplex[0].clone();
+                    for (j, b) in base.iter().enumerate() {
+                        simplex[i][j] = b + sigma * (simplex[i][j] - b);
                     }
                     values[i] = f(&simplex[i]);
                 }
@@ -143,8 +144,8 @@ where
 
     // Initialize inverse Hessian as identity
     let mut h_inv = vec![vec![0.0; n]; n];
-    for i in 0..n {
-        h_inv[i][i] = 1.0;
+    for (i, row) in h_inv.iter_mut().enumerate() {
+        row[i] = 1.0;
     }
 
     for iter in 0..max_iter {
