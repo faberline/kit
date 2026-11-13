@@ -266,7 +266,7 @@ mod tests {
         let mut rng = Pcg64::new(42);
         for _ in 0..1000 {
             let val = rng.next_f64();
-            assert!(val >= 0.0 && val < 1.0, "out of range: {}", val);
+            assert!((0.0..1.0).contains(&val), "out of range: {}", val);
         }
     }
 
@@ -275,7 +275,7 @@ mod tests {
         let mut rng = Pcg64::new(42);
         for _ in 0..1000 {
             let val = rng.uniform(5.0, 10.0);
-            assert!(val >= 5.0 && val < 10.0, "out of range: {}", val);
+            assert!((5.0..10.0).contains(&val), "out of range: {}", val);
         }
     }
 
@@ -308,7 +308,7 @@ mod tests {
         let mut rng = Pcg64::new(42);
         for _ in 0..1000 {
             let val = rng.randint(0, 10);
-            assert!(val >= 0 && val < 10, "out of range: {}", val);
+            assert!((0..10).contains(&val), "out of range: {}", val);
         }
     }
 
@@ -349,7 +349,7 @@ mod tests {
         assert_eq!(arr.dims(), &[3, 4]);
         assert_eq!(arr.size(), 12);
         for &val in arr.data() {
-            assert!(val >= 0.0 && val < 1.0);
+            assert!((0.0..1.0).contains(&val));
         }
     }
 

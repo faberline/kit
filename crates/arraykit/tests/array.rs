@@ -858,6 +858,19 @@ fn test_percentile() {
 }
 
 #[test]
+fn percentile_rejects_out_of_range_q() {
+    let arr: NdArray<f64> = NdArray::new(vec![1.0, 2.0, 3.0], vec![3]).unwrap();
+    assert_eq!(arr.percentile(-0.1), None);
+    assert_eq!(arr.percentile(100.1), None);
+}
+
+#[test]
+fn percentile_rejects_nan_q() {
+    let arr: NdArray<f64> = NdArray::new(vec![1.0, 2.0, 3.0], vec![3]).unwrap();
+    assert_eq!(arr.percentile(f64::NAN), None);
+}
+
+#[test]
 fn test_quantile() {
     let arr: NdArray<f64> = NdArray::new(vec![1.0, 2.0, 3.0, 4.0, 5.0], vec![5]).unwrap();
     assert_eq!(arr.quantile(0.0), Some(1.0));

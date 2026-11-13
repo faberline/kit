@@ -88,12 +88,12 @@ impl<T: LinalgOps> NdArray<T> {
                     });
                 }
                 let mut result = vec![T::zero(); m];
-                for i in 0..m {
+                for (i, out) in result.iter_mut().enumerate() {
                     let mut sum = T::zero();
                     for j in 0..k {
                         sum = sum + self.data[i * k + j] * other.data[j];
                     }
-                    result[i] = sum;
+                    *out = sum;
                 }
                 NdArray::new(result, vec![m])
             }

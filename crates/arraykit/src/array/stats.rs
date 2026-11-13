@@ -400,7 +400,7 @@ impl NdArray<f64> {
         sorted.sort_by(|a, b| a.total_cmp(b));
 
         let mid = sorted.len() / 2;
-        if sorted.len() % 2 == 0 {
+        if sorted.len().is_multiple_of(2) {
             Some((sorted[mid - 1] + sorted[mid]) / 2.0)
         } else {
             Some(sorted[mid])
@@ -607,7 +607,7 @@ impl NdArray<f64> {
     ///
     /// q should be between 0 and 100.
     pub fn percentile(&self, q: f64) -> Option<f64> {
-        if self.data.is_empty() || q < 0.0 || q > 100.0 {
+        if self.data.is_empty() || !(0.0..=100.0).contains(&q) {
             return None;
         }
 
