@@ -2,7 +2,7 @@
 name = "agentkit-tools"
 version = "0.1.0"
 edition = "2021"
-description = "Reusable agent tool implementations (search, fs, HTTP, etc.)"
+description = "MCP client and server tools for agents"
 license = "MIT"
 authors.workspace = true
 

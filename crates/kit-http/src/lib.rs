@@ -5,15 +5,12 @@
 //! the async HTTP client (`client`). Language bindings live in sibling crates
 //! such as `mambalibs/httpkit/binding`.
 
-// SPEC-MANAGED: generated/httpkit-core#mamba-independent-mod-decls
-// CODEGEN-BEGIN
 pub mod app;
 pub mod health;
 pub mod host;
 pub mod http_exception;
 pub mod protocol;
 pub mod request_response;
-// CODEGEN-END
 
 // Hand-written: unified HTTP wire-level types (Request/Response/Cookie/...)
 // shared by the server and client sides. See `http/mod.rs` for the rationale

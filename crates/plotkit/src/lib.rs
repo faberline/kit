@@ -1,5 +1,5 @@
 //! # cclab-plot
 //!
-//! Data visualization (Matplotlib-like).
+//! Data visualization (inspired by Matplotlib).
 
 pub mod viz;

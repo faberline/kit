@@ -1,6 +1,3 @@
-// SPEC-MANAGED: .aw/tech-design/projects/httpkit/health.md#tests
-// CODEGEN-BEGIN
-
 use kit_http::health::{HealthCheck, HealthStatus};
 use std::str::FromStr;
 
@@ -42,4 +39,3 @@ fn check_accepts_omitted_description() {
     assert!(c.description.is_none());
     assert_eq!(c.status, HealthStatus::Degraded);
 }
-// CODEGEN-END

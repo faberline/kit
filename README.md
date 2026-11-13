@@ -5,18 +5,26 @@ Rust libraries for data analysis, machine learning and agents.
 `kit` is a Cargo workspace of plain Rust crates. They have no Python binding, no
 `pyo3` and no runtime dependency outside crates.io.
 
+## Status
+
+The crates are experimental.
+
+Results are not yet checked against reference libraries (NumPy, pandas, SciPy).
+
+A quality check found wrong results. Open issues track them: #3 (frame), #4 (arraykit and scikit), #5 (agent), and #1, #7 to #11 (CI and clippy).
+
 ## Crates
 
 | Crate | What it is |
 | --- | --- |
-| `arraykit` | N-dimensional arrays (NumPy-like): shapes, broadcasting, linear algebra basics. |
-| `frame` | DataFrame and Series (pandas-like): grouping, joins, CSV and JSON I/O. |
-| `scikit` | Scientific computing (SciPy-like), by feature: `stats`, `fft`, `signal`, `interpolate`, `optimize`, `ts`, `spatial`, `sparse`, `integrate`. |
-| `plotkit` | Data visualization (Matplotlib-like) chart model and rendering. |
+| `arraykit` | N-dimensional arrays (inspired by NumPy): shapes, broadcasting, linear algebra basics. |
+| `frame` | DataFrame and Series (inspired by pandas): grouping, joins, CSV and JSON I/O. |
+| `scikit` | Scientific computing (inspired by SciPy), by feature: `stats`, `fft`, `signal`, `interpolate`, `optimize`, `ts`, `spatial`, `sparse`, `integrate`. |
+| `plotkit` | Data visualization (inspired by Matplotlib) chart model and rendering. |
 | `agent` | LLM agent framework: agents, tools, LLM providers, MCP, structured output, integrations. |
 | `agent-derive` | `AgentSchema` derive macro for typed agent input and output. |
 | `agent-graph` (package `agentkit-graph`) | Stateful agent graph runtime. |
-| `agent-tools` (package `agentkit-tools`) | Reusable agent tool implementations. |
+| `agent-tools` (package `agentkit-tools`) | MCP client and server tools for agents. |
 | `kit-http` | HTTP client and server-side route model. `agent` uses it. |
 | `kit-core` | Small shared error, error-sanitizing and HTTP scalar types. |
 

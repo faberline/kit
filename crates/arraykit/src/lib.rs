@@ -1,6 +1,6 @@
 //! # arraykit
 //!
-//! N-dimensional arrays (NumPy-equivalent).
+//! N-dimensional arrays (inspired by NumPy).
 
 pub mod array;
 

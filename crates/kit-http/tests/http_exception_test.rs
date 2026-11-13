@@ -1,6 +1,3 @@
-// SPEC-MANAGED: .score/tech_design/projects/httpkit/http-exception.md#tests
-// CODEGEN-BEGIN
-
 use kit_http::http_exception::HTTPException;
 use std::collections::HashMap;
 
@@ -44,4 +41,3 @@ fn headers_round_trip_when_provided() {
         Some("30")
     );
 }
-// CODEGEN-END

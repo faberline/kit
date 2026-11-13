@@ -1,6 +1,3 @@
-// SPEC-MANAGED: .score/tech_design/projects/httpkit/request-response.md#tests
-// CODEGEN-BEGIN
-
 use kit_http::request_response::{Cookie, Request, Response};
 use std::collections::HashMap;
 
@@ -85,4 +82,3 @@ fn response_accepts_default_json_media_type() {
     assert_eq!(resp.media_type, "application/json");
     assert!(resp.body.as_ref().is_some_and(|b| !b.is_empty()));
 }
-// CODEGEN-END

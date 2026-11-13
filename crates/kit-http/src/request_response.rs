@@ -1,5 +1,3 @@
-// SPEC-MANAGED: .score/tech_design/projects/httpkit/request-response.md#schema
-// CODEGEN-BEGIN
 use serde::{Deserialize, Serialize};
 
 /// @spec .score/tech_design/projects/httpkit/request-response.md#schema
@@ -139,4 +137,3 @@ impl Response {
         })
     }
 }
-// CODEGEN-END

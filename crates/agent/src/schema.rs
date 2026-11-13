@@ -45,9 +45,8 @@
 // a spec for this file (see todo for P-track spec authoring).
 //
 // Until the generator lands: this file is the temporary state; once codegen
-// can emit the same surface byte-equivalently, the markers below get
-// rewritten to CODEGEN-BEGIN / CODEGEN-END and the source of truth becomes
-// the spec file.
+// can emit the same surface byte-equivalently, the generated file becomes
+// the source of truth.
 
 use serde_json::{json, Map, Number, Value};
 
