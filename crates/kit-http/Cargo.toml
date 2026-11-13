@@ -15,7 +15,7 @@ thiserror.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 
-# Hand-written: client-side HTTP toolkit for `mambalibs.http`.
+# Hand-written: client-side HTTP toolkit for `kit.http`.
 anyhow.workspace = true
 async-trait.workspace = true
 bytes.workspace = true

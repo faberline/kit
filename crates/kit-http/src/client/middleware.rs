@@ -13,7 +13,7 @@
 //! # Example
 //!
 //! ```ignore
-//! use cclab_fetch::middleware::{Middleware, MiddlewareChain, LoggingMiddleware};
+//! use kit_http::middleware::{Middleware, MiddlewareChain, LoggingMiddleware};
 //!
 //! let chain = MiddlewareChain::new()
 //!     .with(LoggingMiddleware)

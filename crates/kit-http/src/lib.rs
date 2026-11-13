@@ -3,7 +3,7 @@
 //! This crate owns the native API-side model: app/route metadata,
 //! request/response types, protocol normalization, host configuration, and
 //! the async HTTP client (`client`). Language bindings live in sibling crates
-//! such as `mambalibs/httpkit/binding`.
+//! such as `kit/httpkit/binding`.
 
 pub mod app;
 pub mod health;
@@ -15,9 +15,9 @@ pub mod request_response;
 // Hand-written: unified HTTP wire-level types (Request/Response/Cookie/...)
 // shared by the server and client sides. See `http/mod.rs` for the rationale
 // — this layer supersedes the schema-driven `request_response::*` codegen
-// once the mamba-native BaseModel + DI engine lands (Phase 1b/1c).
+// once the kit-native BaseModel + DI engine lands (Phase 1b/1c).
 pub mod http;
 
 // Hand-written: client-side HTTP toolkit. Httpkit owns both server-side route
-// registration and client-side request execution for `mambalibs.http`.
+// registration and client-side request execution for `kit.http`.
 pub mod client;

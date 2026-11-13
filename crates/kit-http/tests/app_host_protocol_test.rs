@@ -91,7 +91,7 @@ fn app_openapi_json_exports_route_dependency_and_model_refs() {
         Some("#/components/schemas/ItemCreate")
     );
     assert_eq!(
-        doc["paths"]["/items"]["post"]["x-mamba-dependencies"][0].as_str(),
+        doc["paths"]["/items"]["post"]["x-kit-dependencies"][0].as_str(),
         Some("current_user")
     );
     assert_eq!(
@@ -368,12 +368,12 @@ fn app_openapi_and_preflight_handle_query_header_parameters() {
         "/search",
         serde_json::json!({}),
         HashMap::new(),
-        HashMap::from([("q".to_string(), "mamba".to_string())]),
+        HashMap::from([("q".to_string(), "kit".to_string())]),
         HashMap::new(),
     ))
     .expect("preflight report should parse");
     assert_eq!(ok["status_code"].as_i64(), Some(200));
-    assert_eq!(ok["parameters"]["q"].as_str(), Some("mamba"));
+    assert_eq!(ok["parameters"]["q"].as_str(), Some("kit"));
     assert_eq!(ok["parameters"]["X-Trace-ID"].as_str(), Some("local"));
 
     let missing: serde_json::Value =
@@ -430,4 +430,14 @@ fn protocol_heads_normalize_wire_protocol_before_dispatch() {
     assert_eq!(request.path, "/health");
     assert_eq!(response.status_code, 200);
     assert_eq!(response.body_mode, BodyMode::Buffered);
+}
+
+#[test]
+fn default_title_is_kit_api() {
+    let mut app = App::new(HashMap::new());
+    app.add_endpoint(Endpoint::new("get", "/ping"));
+
+    let doc: serde_json::Value =
+        serde_json::from_str(&app.openapi_json()).expect("openapi json should parse");
+    assert_eq!(doc["info"]["title"].as_str(), Some("Kit API"));
 }

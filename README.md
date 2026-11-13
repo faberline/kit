@@ -46,9 +46,6 @@ Not renamed (not mechanical, or still in use as names inside the code):
 
 - The `agent` crate still uses the User-Agent `cclab-nova`. Several doc comments and
   test fixtures still say `cclab`.
-- `kit-core` still names its error type `DataBridgeError`.
-- `kit-http` still emits the OpenAPI extension key `x-mamba-dependencies` and the
-  default title `Mamba API`.
 - Package names `agentkit-graph` and `agentkit-tools` do not match their directories.
 - Some crate READMEs (`frame`, `kit-core`) still say "Cclab".
 
