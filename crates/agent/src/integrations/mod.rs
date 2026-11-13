@@ -47,20 +47,15 @@ pub struct Issue {
 }
 
 /// Issue state.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum IssueState {
+    #[default]
     Open,
     Closed,
     InProgress,
     Resolved,
     Wontfix,
-}
-
-impl Default for IssueState {
-    fn default() -> Self {
-        Self::Open
-    }
 }
 
 /// A comment on an issue.

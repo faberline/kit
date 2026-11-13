@@ -32,16 +32,17 @@ where
     async fn call(&self, state: State) -> NovaResult<State>;
 }
 
+/// Boxed future that a [`FnNode`] handler returns.
+type NodeFuture<State> = Pin<Box<dyn Future<Output = NovaResult<State>> + Send>>;
+
+/// Shared, type-erased handler stored by a [`FnNode`].
+type NodeHandler<State> = Arc<dyn Fn(State) -> NodeFuture<State> + Send + Sync + 'static>;
+
 /// Closure-backed [`Node`] for the common case where the user just wants to
 /// hand the graph a function. See [`FnNode::new`].
 pub struct FnNode<State> {
     name: String,
-    handler: Arc<
-        dyn Fn(State) -> Pin<Box<dyn Future<Output = NovaResult<State>> + Send>>
-            + Send
-            + Sync
-            + 'static,
-    >,
+    handler: NodeHandler<State>,
 }
 
 impl<State> FnNode<State>

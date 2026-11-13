@@ -97,7 +97,7 @@ pub fn write_columnar<W: Write>(df: &DataFrame, writer: &mut W) -> Result<()> {
         writer.write_all(&[type_tag]).map_err(io_err)?;
 
         // Null bitmap
-        let bitmap_len = (nrows + 7) / 8;
+        let bitmap_len = nrows.div_ceil(8);
         let mut bitmap = vec![0u8; bitmap_len];
         for (i, v) in values.iter().enumerate() {
             if !v.is_null() {
@@ -122,7 +122,7 @@ fn write_column_data<W: Write>(
 ) -> Result<()> {
     match type_tag {
         TYPE_BOOL => {
-            let bitmap_len = (nrows + 7) / 8;
+            let bitmap_len = nrows.div_ceil(8);
             let mut bitmap = vec![0u8; bitmap_len];
             for (i, v) in values.iter().enumerate() {
                 if let Some(true) = v.as_bool() {
@@ -224,7 +224,7 @@ pub fn read_columnar<R: Read>(reader: &mut R) -> Result<DataFrame> {
         let type_tag = type_buf[0];
 
         // Null bitmap
-        let bitmap_len = (nrows + 7) / 8;
+        let bitmap_len = nrows.div_ceil(8);
         let mut bitmap = vec![0u8; bitmap_len];
         reader.read_exact(&mut bitmap).map_err(io_err)?;
 
@@ -261,7 +261,7 @@ fn read_column_data<R: Read>(
 
     match type_tag {
         TYPE_BOOL => {
-            let data_bitmap_len = (nrows + 7) / 8;
+            let data_bitmap_len = nrows.div_ceil(8);
             let mut data_bitmap = vec![0u8; data_bitmap_len];
             reader.read_exact(&mut data_bitmap).map_err(io_err)?;
 

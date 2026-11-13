@@ -7,10 +7,11 @@
 use serde::{Deserialize, Serialize};
 
 /// Lifecycle status of a change.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ChangeStatus {
     /// Not yet started.
+    #[default]
     Pending,
     /// Actively being implemented.
     InProgress,
@@ -20,12 +21,6 @@ pub enum ChangeStatus {
     Merged,
     /// Abandoned or rejected.
     Cancelled,
-}
-
-impl Default for ChangeStatus {
-    fn default() -> Self {
-        Self::Pending
-    }
 }
 
 /// Domain contract for a code change.

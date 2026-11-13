@@ -426,9 +426,14 @@ impl DataFrame {
     /// Drop rows with any null values.
     ///
     /// # Example
-    /// ```ignore
-    /// let df = DataFrame::from_columns(...);
-    /// let clean = df.dropna();
+    /// ```
+    /// use frame::frame::{DataFrame, Series, Value};
+    ///
+    /// let a = Series::new(vec![Value::Int(1), Value::Null, Value::Int(3)]);
+    /// let b = Series::new(vec![Value::Int(4), Value::Int(5), Value::Int(6)]);
+    /// let df = DataFrame::from_columns(vec![("a", a), ("b", b)]).unwrap();
+    /// let clean = df.dropna().unwrap();
+    /// assert_eq!(clean.nrows(), 2);
     /// ```
     pub fn dropna(&self) -> Result<DataFrame> {
         let mask: Vec<bool> = self.isna_any().iter().map(|&has_null| !has_null).collect();
@@ -472,9 +477,13 @@ impl DataFrame {
     /// Apply a function to each column.
     ///
     /// # Example
-    /// ```ignore
-    /// let df = DataFrame::from_columns(...);
+    /// ```
+    /// use frame::frame::{DataFrame, Series, Value};
+    ///
+    /// let a = Series::new(vec![Value::Int(1), Value::Int(2)]);
+    /// let df = DataFrame::from_columns(vec![("a", a)]).unwrap();
     /// let result = df.apply(|col| col.sum().unwrap_or(0.0));
+    /// assert_eq!(result["a"], 3.0);
     /// ```
     pub fn apply<F, R>(&self, f: F) -> HashMap<String, R>
     where
@@ -596,15 +605,15 @@ impl DataFrame {
 
         match keep {
             "first" => {
-                for i in 0..self.nrows() {
+                for (i, slot) in result.iter_mut().enumerate() {
                     let key: Vec<Value> = cols
                         .iter()
                         .map(|c| c.iloc(i).cloned().unwrap_or(Value::Null))
                         .collect();
-                    if seen.contains_key(&key) {
-                        result[i] = true;
+                    if let std::collections::hash_map::Entry::Vacant(e) = seen.entry(key) {
+                        e.insert(i);
                     } else {
-                        seen.insert(key, i);
+                        *slot = true;
                     }
                 }
             }
@@ -629,13 +638,13 @@ impl DataFrame {
                         .collect();
                     *counts.entry(key).or_insert(0) += 1;
                 }
-                for i in 0..self.nrows() {
+                for (i, slot) in result.iter_mut().enumerate() {
                     let key: Vec<Value> = cols
                         .iter()
                         .map(|c| c.iloc(i).cloned().unwrap_or(Value::Null))
                         .collect();
                     if counts.get(&key).map(|&c| c > 1).unwrap_or(false) {
-                        result[i] = true;
+                        *slot = true;
                     }
                 }
             }
