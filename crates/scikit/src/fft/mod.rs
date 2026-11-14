@@ -1,4 +1,4 @@
-//! FFT module — Cooley-Tukey radix-2 and related transforms.
+//! FFT module: radix-2 for powers of two and a direct DFT for other lengths.
 //!
 //! - **fft / ifft**: Complex FFT and inverse
 //! - **rfft / irfft**: Real-valued FFT

@@ -1,4 +1,4 @@
-//! FFT implementation using Cooley-Tukey radix-2 with Bluestein for non-power-of-2.
+//! FFT implementation: radix-2 for powers of two and a direct DFT for other lengths.
 
 use std::f64::consts::PI;
 
@@ -67,39 +67,61 @@ impl std::ops::Mul<f64> for Complex {
     }
 }
 
-/// Compute the FFT of a complex signal (Cooley-Tukey radix-2).
+/// Compute the FFT of a complex signal.
 ///
-/// Input length is zero-padded to the next power of 2 if needed.
+/// Powers of two use radix-2 Cooley-Tukey. Other lengths use the exact
+/// length-n DFT, so the output has the same length as the input.
 pub fn fft(input: &[Complex]) -> Vec<Complex> {
     let n = input.len();
     if n == 0 {
         return vec![];
     }
-    let n_padded = n.next_power_of_two();
-    let mut data: Vec<Complex> = input.to_vec();
-    data.resize(n_padded, Complex::zero());
-    fft_radix2(&mut data, false);
-    data.truncate(n);
-    data
+    if n.is_power_of_two() {
+        let mut data: Vec<Complex> = input.to_vec();
+        fft_radix2(&mut data, false);
+        data
+    } else {
+        dft(input, false)
+    }
 }
 
-/// Compute the inverse FFT.
+/// Compute the inverse FFT. The result is scaled by `1/n`, where `n` is the input length.
 pub fn ifft(input: &[Complex]) -> Vec<Complex> {
     let n = input.len();
     if n == 0 {
         return vec![];
     }
-    let n_padded = n.next_power_of_two();
-    let mut data: Vec<Complex> = input.to_vec();
-    data.resize(n_padded, Complex::zero());
-    fft_radix2(&mut data, true);
-    let scale = 1.0 / n_padded as f64;
+    let mut data = if n.is_power_of_two() {
+        let mut d: Vec<Complex> = input.to_vec();
+        fft_radix2(&mut d, true);
+        d
+    } else {
+        dft(input, true)
+    };
+    let scale = 1.0 / n as f64;
     data.iter_mut().for_each(|c| {
         c.re *= scale;
         c.im *= scale;
     });
-    data.truncate(n);
     data
+}
+
+/// Direct DFT of exact length `n = input.len()`, O(n^2). No scaling.
+///
+/// `X[k] = sum_j x[j] * exp(-+2 pi i (j k mod n) / n)`; `inverse` picks `+`.
+fn dft(input: &[Complex], inverse: bool) -> Vec<Complex> {
+    let n = input.len();
+    let sign = if inverse { 1.0 } else { -1.0 };
+    (0..n)
+        .map(|k| {
+            let mut acc = Complex::zero();
+            for (j, &x) in input.iter().enumerate() {
+                let angle = sign * 2.0 * PI * ((j * k) % n) as f64 / n as f64;
+                acc = acc + x * Complex::new(angle.cos(), angle.sin());
+            }
+            acc
+        })
+        .collect()
 }
 
 /// FFT of a real-valued signal. Returns N/2+1 complex values.
@@ -114,15 +136,19 @@ pub fn rfft(input: &[f64]) -> Vec<Complex> {
 ///
 /// `n` is the original signal length.
 pub fn irfft(input: &[Complex], n: usize) -> Vec<f64> {
-    let mut full = Vec::with_capacity(n);
-    full.extend_from_slice(input);
-    // Mirror conjugate symmetry
-    for i in 1..n - input.len() + 1 {
-        full.push(input[input.len() - 1 - i].conj());
+    if n == 0 {
+        return vec![];
     }
-    full.resize(n, Complex::zero());
-    let result = ifft(&full);
-    result.iter().map(|c| c.re).collect()
+    // Bins 0..=n/2 come from input (zero when missing); the rest mirror them.
+    let half = n / 2 + 1;
+    let mut full = vec![Complex::zero(); n];
+    let m = half.min(input.len()).min(n);
+    full[..m].copy_from_slice(&input[..m]);
+    for k in half..n {
+        // n - k < half, so this bin is already set.
+        full[k] = full[n - k].conj();
+    }
+    ifft(&full).iter().map(|c| c.re).collect()
 }
 
 /// Return the DFT sample frequencies.
