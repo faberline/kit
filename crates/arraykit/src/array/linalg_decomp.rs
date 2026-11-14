@@ -13,7 +13,7 @@ pub struct QrResult {
 
 /// Result of eigenvalue decomposition.
 pub struct EigResult {
-    /// Eigenvalues (may be complex — real parts stored).
+    /// Eigenvalues (real only, ascending).
     pub values: Vec<f64>,
     /// Eigenvectors as columns of an n × n matrix.
     pub vectors: NdArray<f64>,
@@ -169,10 +169,13 @@ impl NdArray<f64> {
         NdArray::new(l, vec![n, n])
     }
 
-    /// Eigenvalue decomposition using the QR algorithm with shifts.
+    /// Eigenvalue decomposition: shifted QR iteration for the eigenvalues,
+    /// inverse iteration for the eigenvectors.
     ///
-    /// Works on square matrices. Returns eigenvalues and eigenvectors.
-    /// For non-symmetric matrices, eigenvalues are real approximations.
+    /// Works on square matrices with finite entries. Returns real eigenvalues
+    /// in ascending order and the eigenvectors as columns. Real eigenvalues
+    /// only: complex eigenvalues return an error, and so does a failure to
+    /// converge.
     pub fn eig(&self) -> Result<EigResult> {
         if self.ndim() != 2 {
             return Err(ArrayError::ShapeMismatch {
@@ -189,6 +192,12 @@ impl NdArray<f64> {
             });
         }
 
+        if self.data.iter().any(|v| !v.is_finite()) {
+            return Err(ArrayError::InvalidOperation(
+                "matrix contains NaN or infinity".into(),
+            ));
+        }
+
         if n == 0 {
             return Ok(EigResult {
                 values: vec![],
@@ -203,63 +212,44 @@ impl NdArray<f64> {
             });
         }
 
-        // QR iteration: repeatedly do QR decomposition and form RQ
-        let max_iter = 200;
-        let tol = 1e-10;
+        // A zero matrix has a zero shift, so the inverse iteration would always
+        // meet a singular matrix. Its eigenvectors are the unit vectors.
+        let norm_a = self.data.iter().fold(0.0_f64, |m, x| m.max(x.abs()));
+        if norm_a == 0.0 {
+            let mut identity = vec![0.0; n * n];
+            for k in 0..n {
+                identity[k * n + k] = 1.0;
+            }
+            return Ok(EigResult {
+                values: vec![0.0; n],
+                vectors: NdArray::new(identity, vec![n, n])?,
+            });
+        }
 
-        let mut a_data = self.data.clone();
-        // Accumulate eigenvectors
+        // Eigenvalues: reduce a copy of A to Hessenberg form, then shifted QR
+        // on its unreduced blocks. V is not accumulated.
+        let mut a = self.data.clone();
+        hessenberg(&mut a, n);
+        let mut values = hessenberg_eigenvalues(&mut a, n)?;
+        values.sort_by(f64::total_cmp);
+
+        // Eigenvectors by inverse iteration, one per eigenvalue (the columns of V).
         let mut v_data = vec![0.0; n * n];
-        for i in 0..n {
-            v_data[i * n + i] = 1.0;
+        let mut found: Vec<(f64, Vec<f64>)> = Vec::with_capacity(n);
+        for (k, &lambda) in values.iter().enumerate() {
+            let tol = 1e-8 * lambda.abs().max(norm_a);
+            // Vectors already found for the same (repeated) eigenvalue
+            let cluster: Vec<Vec<f64>> = found
+                .iter()
+                .filter(|(mu, _)| (mu - lambda).abs() <= tol)
+                .map(|(_, v)| v.clone())
+                .collect();
+            let v = eigenvector_by_inverse_iteration(&self.data, n, lambda, &cluster)?;
+            for (row, &x) in v.iter().enumerate() {
+                v_data[row * n + k] = x;
+            }
+            found.push((lambda, v));
         }
-
-        for _ in 0..max_iter {
-            // Wilkinson shift: use eigenvalue of bottom-right 2×2 closer to a[n-1][n-1]
-            let shift = if n >= 2 {
-                wilkinson_shift(
-                    a_data[(n - 2) * n + (n - 2)],
-                    a_data[(n - 2) * n + (n - 1)],
-                    a_data[(n - 1) * n + (n - 2)],
-                    a_data[(n - 1) * n + (n - 1)],
-                )
-            } else {
-                0.0
-            };
-
-            // Apply shift: A - σI
-            for i in 0..n {
-                a_data[i * n + i] -= shift;
-            }
-
-            // QR decomposition of shifted matrix
-            let a_mat = NdArray::new(a_data.clone(), vec![n, n])?;
-            let qr = a_mat.qr()?;
-
-            // A = R * Q + σI
-            let rq = qr.r.matmul(&qr.q)?;
-            a_data = rq.data.clone();
-            for i in 0..n {
-                a_data[i * n + i] += shift;
-            }
-
-            // Accumulate eigenvectors: V = V * Q
-            let v_mat = NdArray::new(v_data.clone(), vec![n, n])?;
-            let new_v = v_mat.matmul(&qr.q)?;
-            v_data = new_v.data;
-
-            // Check convergence: sub-diagonal elements should be near zero
-            let mut max_off = 0.0_f64;
-            for i in 1..n {
-                max_off = max_off.max(a_data[i * n + (i - 1)].abs());
-            }
-            if max_off < tol {
-                break;
-            }
-        }
-
-        // Extract eigenvalues from diagonal
-        let values: Vec<f64> = (0..n).map(|i| a_data[i * n + i]).collect();
 
         Ok(EigResult {
             values,
@@ -575,6 +565,278 @@ impl NdArray<f64> {
         }
         NdArray::new(result, vec![n, m])
     }
+}
+
+/// Reduces the n x n row-major matrix `a` to upper Hessenberg form with
+/// Householder reflections. A reflection is a similarity transform, so the
+/// eigenvalues do not change.
+fn hessenberg(a: &mut [f64], n: usize) {
+    for k in 0..n.saturating_sub(2) {
+        let norm = (k + 1..n).map(|i| a[i * n + k].powi(2)).sum::<f64>().sqrt();
+        if norm == 0.0 {
+            continue;
+        }
+        let alpha = if a[(k + 1) * n + k] > 0.0 {
+            -norm
+        } else {
+            norm
+        };
+        // v = x - alpha e1, where x is the column k below the diagonal
+        let mut v = vec![0.0; n];
+        for (i, vi) in v.iter_mut().enumerate().skip(k + 1) {
+            *vi = a[i * n + k];
+        }
+        v[k + 1] -= alpha;
+        let vv: f64 = v.iter().map(|x| x * x).sum();
+        if vv == 0.0 {
+            continue;
+        }
+        // A = H A: the rows k+1.. of every column
+        for j in 0..n {
+            let s: f64 = (k + 1..n).map(|i| v[i] * a[i * n + j]).sum();
+            let f = 2.0 * s / vv;
+            for (i, vi) in v.iter().enumerate().skip(k + 1) {
+                a[i * n + j] -= f * vi;
+            }
+        }
+        // A = A H: the columns k+1.. of every row
+        for i in 0..n {
+            let s: f64 = (k + 1..n).map(|j| a[i * n + j] * v[j]).sum();
+            let f = 2.0 * s / vv;
+            for (j, vj) in v.iter().enumerate().skip(k + 1) {
+                a[i * n + j] -= f * vj;
+            }
+        }
+        for i in k + 2..n {
+            a[i * n + k] = 0.0;
+        }
+    }
+}
+
+/// True when the sub-diagonal entry `a[i][i-1]` (i >= 1) of the n x n row-major
+/// matrix `a` is negligible.
+fn negligible_sub(a: &[f64], n: usize, i: usize) -> bool {
+    let sub = a[i * n + i - 1].abs();
+    sub == 0.0 || sub <= 1e-12 * (a[i * n + i].abs() + a[(i - 1) * n + i - 1].abs())
+}
+
+/// Eigenvalues of the n x n row-major upper Hessenberg matrix `a` by shifted QR
+/// iteration. The matrix is split at negligible sub-diagonal entries, and each
+/// unreduced block is iterated until it is 1x1 or 2x2. A 1x1 block gives a real
+/// eigenvalue, a 2x2 block gives two real roots, and a complex 2x2 block is an error.
+fn hessenberg_eigenvalues(a: &mut [f64], n: usize) -> Result<Vec<f64>> {
+    let max_iter = 50 * n;
+    let mut values = Vec::with_capacity(n);
+    let mut hi = n - 1;
+    let mut iter = 0;
+    loop {
+        // The unreduced block [lo..=hi]: the entry above its first row is negligible
+        let mut lo = hi;
+        while lo > 0 && !negligible_sub(a, n, lo) {
+            lo -= 1;
+        }
+        if lo > 0 {
+            a[lo * n + lo - 1] = 0.0;
+        }
+        if lo == hi {
+            values.push(a[hi * n + hi]);
+        } else if lo + 1 == hi {
+            let (p, q, r, s) = (
+                a[lo * n + lo],
+                a[lo * n + hi],
+                a[hi * n + lo],
+                a[hi * n + hi],
+            );
+            let disc = ((p - s) / 2.0).powi(2) + q * r;
+            if disc < 0.0 {
+                return Err(ArrayError::InvalidOperation(
+                    "matrix has complex eigenvalues".into(),
+                ));
+            }
+            let mid = (p + s) / 2.0;
+            values.push(mid - disc.sqrt());
+            values.push(mid + disc.sqrt());
+        } else {
+            if iter == max_iter {
+                return Err(ArrayError::InvalidOperation("eig did not converge".into()));
+            }
+            iter += 1;
+            qr_step(a, n, lo, hi, iter)?;
+            continue;
+        }
+        if lo == 0 {
+            return Ok(values);
+        }
+        hi = lo - 1;
+        iter = 0;
+    }
+}
+
+/// One shifted QR step on the unreduced block [lo..=hi] of the Hessenberg matrix
+/// `a`, written back in place. The shift is the Wilkinson shift of the bottom 2x2
+/// of the block, or its corner entry when that 2x2 is complex. Every tenth step
+/// of a block uses an exceptional shift, so a stall ends.
+fn qr_step(a: &mut [f64], n: usize, lo: usize, hi: usize, iter: usize) -> Result<()> {
+    let m = hi - lo + 1;
+    let (p, q, r, s) = (
+        a[(hi - 1) * n + hi - 1],
+        a[(hi - 1) * n + hi],
+        a[hi * n + hi - 1],
+        a[hi * n + hi],
+    );
+    let shift = if iter.is_multiple_of(10) {
+        s + r.abs()
+    } else if ((p - s) / 2.0).powi(2) + q * r < 0.0 {
+        s
+    } else {
+        wilkinson_shift(p, q, r, s)
+    };
+    let mut block = vec![0.0; m * m];
+    for i in 0..m {
+        for j in 0..m {
+            block[i * m + j] = a[(lo + i) * n + lo + j];
+        }
+        block[i * m + i] -= shift;
+    }
+    let qr = NdArray::new(block, vec![m, m])?.qr()?;
+    let rq = qr.r.matmul(&qr.q)?;
+    for i in 0..m {
+        for j in 0..m {
+            a[(lo + i) * n + lo + j] = rq.data[i * m + j];
+        }
+        a[(lo + i) * n + lo + i] += shift;
+    }
+    Ok(())
+}
+
+/// Solves `m * x = b` for an n x n row-major matrix `m` by Gaussian elimination
+/// with partial pivoting. Returns None for a singular or non-finite result.
+fn solve_linear(m: &[f64], b: &[f64], n: usize) -> Option<Vec<f64>> {
+    let mut a = m.to_vec();
+    let mut x = b.to_vec();
+    for col in 0..n {
+        let mut piv = col;
+        for row in col + 1..n {
+            if a[row * n + col].abs() > a[piv * n + col].abs() {
+                piv = row;
+            }
+        }
+        if a[piv * n + col].abs() <= 1e-300 {
+            return None;
+        }
+        if piv != col {
+            for k in 0..n {
+                a.swap(col * n + k, piv * n + k);
+            }
+            x.swap(col, piv);
+        }
+        for row in col + 1..n {
+            let factor = a[row * n + col] / a[col * n + col];
+            for k in col..n {
+                a[row * n + k] -= factor * a[col * n + k];
+            }
+            x[row] -= factor * x[col];
+        }
+    }
+    for row in (0..n).rev() {
+        let mut sum = x[row];
+        for k in row + 1..n {
+            sum -= a[row * n + k] * x[k];
+        }
+        x[row] = sum / a[row * n + row];
+    }
+    x.iter().all(|v| v.is_finite()).then_some(x)
+}
+
+/// Eigenvector of the real eigenvalue `lambda` of the n x n row-major matrix `a`,
+/// by inverse iteration. `cluster` holds the vectors already found for the same
+/// eigenvalue; the new vector is made orthogonal to them. A vector is accepted
+/// only when its residual `|A v - lambda v|` is small. Otherwise the next start
+/// vector is tried.
+fn eigenvector_by_inverse_iteration(
+    a: &[f64],
+    n: usize,
+    lambda: f64,
+    cluster: &[Vec<f64>],
+) -> Result<Vec<f64>> {
+    let norm_a = a.iter().fold(0.0_f64, |m, x| m.max(x.abs()));
+    let scale = 1e-10 * lambda.abs().max(norm_a);
+    let tol = 1e-9 * norm_a;
+    // The ones vector first, then the unit vectors
+    let mut starts: Vec<Vec<f64>> = vec![vec![1.0; n]];
+    for k in 0..n {
+        let mut e = vec![0.0; n];
+        e[k] = 1.0;
+        starts.push(e);
+    }
+    for start in &starts {
+        // Up to four tries with the shift perturbed by a factor 10 each time
+        let mut delta = scale;
+        for _ in 0..4 {
+            let mut m = a.to_vec();
+            for i in 0..n {
+                m[i * n + i] -= lambda + delta;
+            }
+            if let Some(v) = inverse_iterate(&m, n, start.clone(), cluster) {
+                if residual(a, n, lambda, &v) <= tol {
+                    return Ok(v);
+                }
+            }
+            delta *= 10.0;
+        }
+    }
+    if !cluster.is_empty() {
+        // A defective repeated eigenvalue has fewer independent eigenvectors than
+        // its multiplicity. Then the vector without the orthogonality step is
+        // returned: the columns are equal, and each one is still an eigenvector.
+        return eigenvector_by_inverse_iteration(a, n, lambda, &[]);
+    }
+    Err(ArrayError::InvalidOperation(
+        "eigenvector did not converge".into(),
+    ))
+}
+
+/// Largest `|(A v)_i - lambda v_i|` over the rows of the n x n matrix `a`.
+fn residual(a: &[f64], n: usize, lambda: f64, v: &[f64]) -> f64 {
+    (0..n)
+        .map(|i| {
+            let av: f64 = (0..n).map(|j| a[i * n + j] * v[j]).sum();
+            (av - lambda * v[i]).abs()
+        })
+        .fold(0.0, f64::max)
+}
+
+/// Up to ten steps of inverse iteration with the matrix `m`, starting from `v`.
+/// After each step the vector is made orthogonal to `cluster` and normalized.
+/// Returns None when a solve fails or the vector lies in the span of `cluster`.
+fn inverse_iterate(m: &[f64], n: usize, mut v: Vec<f64>, cluster: &[Vec<f64>]) -> Option<Vec<f64>> {
+    for _ in 0..10 {
+        v = solve_linear(m, &v, n)?;
+        let before = v.iter().map(|x| x * x).sum::<f64>().sqrt();
+        for c in cluster {
+            let dot: f64 = v.iter().zip(c).map(|(x, y)| x * y).sum();
+            for (x, y) in v.iter_mut().zip(c) {
+                *x -= dot * y;
+            }
+        }
+        let norm = v.iter().map(|x| x * x).sum::<f64>().sqrt();
+        // A vector that lies (almost) in the span of `cluster` leaves only rounding
+        // noise after the projection, so it is rejected
+        if !(norm.is_finite() && norm > 1e-12 && norm > 1e-8 * before) {
+            return None;
+        }
+        for x in v.iter_mut() {
+            *x /= norm;
+        }
+    }
+    // Fix the sign: the first non-zero entry is positive
+    let flip = v.iter().find(|x| x.abs() > 1e-12).is_some_and(|x| *x < 0.0);
+    if flip {
+        for x in v.iter_mut() {
+            *x = -*x;
+        }
+    }
+    Some(v)
 }
 
 /// Wilkinson shift for QR iteration.
