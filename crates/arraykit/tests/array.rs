@@ -1597,3 +1597,65 @@ fn test_mode_zero_and_nan() {
     let b = NdArray::new(vec![f64::NAN, f64::NAN, 1.0], vec![3]).unwrap();
     assert!(b.mode().unwrap().is_nan());
 }
+
+// ============================================================================
+// eig tests (real eigenvalues only, ascending)
+// ============================================================================
+
+#[test]
+fn eig_rotation_errors() {
+    // np.linalg.eig(np.array([[0., -1.], [1., 0.]]))[0] = [0+1j, 0-1j]
+    let a = NdArray::new(vec![0.0, -1.0, 1.0, 0.0], vec![2, 2]).unwrap();
+    assert!(a.eig().is_err());
+}
+
+#[test]
+fn eig_upper_triangular_vectors() {
+    // np.linalg.eig(np.array([[1., 1.], [0., 2.]])): values [1, 2];
+    // vectors [[1, 0.7071067811865475], [0, 0.7071067811865475]].
+    let a = NdArray::new(vec![1.0, 1.0, 0.0, 2.0], vec![2, 2]).unwrap();
+    let r = a.eig().unwrap();
+    assert!((r.values[0] - 1.0).abs() < 1e-9, "values: {:?}", r.values);
+    assert!((r.values[1] - 2.0).abs() < 1e-9, "values: {:?}", r.values);
+    let v = r.vectors.data();
+    let s = 0.5_f64.sqrt();
+    // Column 0 is [1, 0].
+    assert!(
+        (v[0] - 1.0).abs() < 1e-9 && v[2].abs() < 1e-9,
+        "column 0: {v:?}"
+    );
+    // Column 1 is [1, 1] / sqrt(2).
+    assert!(
+        (v[1] - s).abs() < 1e-9 && (v[3] - s).abs() < 1e-9,
+        "column 1: {v:?}"
+    );
+}
+
+#[test]
+fn eig_residual_3x3() {
+    // Lower triangular: eigenvalues 2, 3, 6.
+    let data = vec![2.0, 0.0, 0.0, 1.0, 3.0, 0.0, 4.0, 5.0, 6.0];
+    let n = 3;
+    let a = NdArray::new(data.clone(), vec![n, n]).unwrap();
+    let r = a.eig().unwrap();
+    let expected = [2.0, 3.0, 6.0];
+    for (got, want) in r.values.iter().zip(expected.iter()) {
+        assert!((got - want).abs() < 1e-9, "values: {:?}", r.values);
+    }
+    let v = r.vectors.data();
+    for k in 0..n {
+        for i in 0..n {
+            let av: f64 = (0..n).map(|j| data[i * n + j] * v[j * n + k]).sum();
+            let lv = r.values[k] * v[i * n + k];
+            assert!((av - lv).abs() <= 1e-9, "column {k}, row {i}");
+        }
+    }
+}
+
+#[test]
+fn eig_nan_errors() {
+    let a = NdArray::new(vec![1.0, f64::NAN, 0.0, 2.0], vec![2, 2]).unwrap();
+    assert!(a.eig().is_err());
+    let b = NdArray::new(vec![f64::NAN], vec![1, 1]).unwrap();
+    assert!(b.eig().is_err());
+}

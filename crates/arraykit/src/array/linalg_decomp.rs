@@ -13,7 +13,7 @@ pub struct QrResult {
 
 /// Result of eigenvalue decomposition.
 pub struct EigResult {
-    /// Eigenvalues (may be complex — real parts stored).
+    /// Eigenvalues (real only, ascending).
     pub values: Vec<f64>,
     /// Eigenvectors as columns of an n × n matrix.
     pub vectors: NdArray<f64>,
@@ -169,10 +169,12 @@ impl NdArray<f64> {
         NdArray::new(l, vec![n, n])
     }
 
-    /// Eigenvalue decomposition using the QR algorithm with shifts.
+    /// Eigenvalue decomposition with the shifted QR algorithm.
     ///
-    /// Works on square matrices. Returns eigenvalues and eigenvectors.
-    /// For non-symmetric matrices, eigenvalues are real approximations.
+    /// Works on square matrices. Returns real eigenvalues in ascending order
+    /// and the eigenvectors as columns. Real eigenvalues only: a complex
+    /// eigenvalue returns an error, as does a non-finite entry or no
+    /// convergence within 50 * n iterations.
     pub fn eig(&self) -> Result<EigResult> {
         if self.ndim() != 2 {
             return Err(ArrayError::ShapeMismatch {
@@ -189,6 +191,12 @@ impl NdArray<f64> {
             });
         }
 
+        if self.data.iter().any(|x| !x.is_finite()) {
+            return Err(ArrayError::InvalidOperation(
+                "matrix contains NaN or infinity".into(),
+            ));
+        }
+
         if n == 0 {
             return Ok(EigResult {
                 values: vec![],
@@ -203,63 +211,90 @@ impl NdArray<f64> {
             });
         }
 
-        // QR iteration: repeatedly do QR decomposition and form RQ
-        let max_iter = 200;
-        let tol = 1e-10;
-
-        let mut a_data = self.data.clone();
-        // Accumulate eigenvectors
-        let mut v_data = vec![0.0; n * n];
-        for i in 0..n {
-            v_data[i * n + i] = 1.0;
-        }
-
+        // Shifted QR iteration on a copy. It finds the eigenvalues only.
+        let max_iter = 50 * n;
+        let mut a = self.data.clone();
+        let mut found = is_quasi_triangular(&a, n);
         for _ in 0..max_iter {
-            // Wilkinson shift: use eigenvalue of bottom-right 2×2 closer to a[n-1][n-1]
-            let shift = if n >= 2 {
-                wilkinson_shift(
-                    a_data[(n - 2) * n + (n - 2)],
-                    a_data[(n - 2) * n + (n - 1)],
-                    a_data[(n - 1) * n + (n - 2)],
-                    a_data[(n - 1) * n + (n - 1)],
-                )
-            } else {
-                0.0
-            };
-
-            // Apply shift: A - σI
-            for i in 0..n {
-                a_data[i * n + i] -= shift;
-            }
-
-            // QR decomposition of shifted matrix
-            let a_mat = NdArray::new(a_data.clone(), vec![n, n])?;
-            let qr = a_mat.qr()?;
-
-            // A = R * Q + σI
-            let rq = qr.r.matmul(&qr.q)?;
-            a_data = rq.data.clone();
-            for i in 0..n {
-                a_data[i * n + i] += shift;
-            }
-
-            // Accumulate eigenvectors: V = V * Q
-            let v_mat = NdArray::new(v_data.clone(), vec![n, n])?;
-            let new_v = v_mat.matmul(&qr.q)?;
-            v_data = new_v.data;
-
-            // Check convergence: sub-diagonal elements should be near zero
-            let mut max_off = 0.0_f64;
-            for i in 1..n {
-                max_off = max_off.max(a_data[i * n + (i - 1)].abs());
-            }
-            if max_off < tol {
+            if found {
                 break;
             }
+
+            // Wilkinson shift from the bottom-right 2x2 block. When that
+            // block has complex eigenvalues, use its corner instead, so the
+            // iteration stays real.
+            let (p, q, r, s) = (
+                a[(n - 2) * n + (n - 2)],
+                a[(n - 2) * n + (n - 1)],
+                a[(n - 1) * n + (n - 2)],
+                a[(n - 1) * n + (n - 1)],
+            );
+            let disc = (p - s) * (p - s) / 4.0 + q * r;
+            let shift = if disc >= 0.0 {
+                wilkinson_shift(p, q, r, s)
+            } else {
+                s
+            };
+
+            // A - sI = QR, then A = RQ + sI.
+            for i in 0..n {
+                a[i * n + i] -= shift;
+            }
+            let a_mat = NdArray::new(a.clone(), vec![n, n])?;
+            let qr = a_mat.qr()?;
+            let rq = qr.r.matmul(&qr.q)?;
+            a = rq.data;
+            for i in 0..n {
+                a[i * n + i] += shift;
+            }
+
+            // Deflate: a tiny sub-diagonal entry becomes exactly zero.
+            for i in 1..n {
+                let scale = a[i * n + i].abs() + a[(i - 1) * n + (i - 1)].abs();
+                if a[i * n + (i - 1)].abs() <= 1e-12 * scale {
+                    a[i * n + (i - 1)] = 0.0;
+                }
+            }
+
+            found = is_quasi_triangular(&a, n);
+        }
+        if !found {
+            return Err(ArrayError::InvalidOperation("eig did not converge".into()));
         }
 
-        // Extract eigenvalues from diagonal
-        let values: Vec<f64> = (0..n).map(|i| a_data[i * n + i]).collect();
+        // Read the eigenvalues from the 1x1 and 2x2 diagonal blocks.
+        let mut values: Vec<f64> = Vec::with_capacity(n);
+        let mut i = 0;
+        while i < n {
+            if i + 1 < n && a[(i + 1) * n + i] != 0.0 {
+                let (p, q) = (a[i * n + i], a[i * n + i + 1]);
+                let (r, s) = (a[(i + 1) * n + i], a[(i + 1) * n + i + 1]);
+                let mid = (p + s) / 2.0;
+                let disc = (p - s) * (p - s) / 4.0 + q * r;
+                if disc < 0.0 {
+                    return Err(ArrayError::InvalidOperation(
+                        "matrix has complex eigenvalues".into(),
+                    ));
+                }
+                let root = disc.sqrt();
+                values.push(mid - root);
+                values.push(mid + root);
+                i += 2;
+            } else {
+                values.push(a[i * n + i]);
+                i += 1;
+            }
+        }
+        values.sort_by(|x, y| x.total_cmp(y));
+
+        // Eigenvectors of the original matrix by inverse iteration.
+        let mut v_data = vec![0.0; n * n];
+        for (k, &lambda) in values.iter().enumerate() {
+            let v = eigenvector(&self.data, n, lambda)?;
+            for row in 0..n {
+                v_data[row * n + k] = v[row];
+            }
+        }
 
         Ok(EigResult {
             values,
@@ -456,6 +491,101 @@ fn wilkinson_shift(a: f64, b: f64, c: f64, d: f64) -> f64 {
     } else {
         d - bc / (delta + delta.signum() * (delta * delta + bc).abs().sqrt())
     }
+}
+
+/// True when no two neighbouring sub-diagonal entries are non-zero. Such a
+/// matrix is block upper triangular with 1x1 and 2x2 diagonal blocks.
+fn is_quasi_triangular(a: &[f64], n: usize) -> bool {
+    (1..n).all(|i| a[i * n + (i - 1)] == 0.0 || i + 1 >= n || a[(i + 1) * n + i] == 0.0)
+}
+
+/// Solve `m x = b` for a dense n x n row-major matrix by Gaussian elimination
+/// with partial pivoting. Returns None for a singular matrix or a non-finite result.
+fn solve_linear(m: &[f64], b: &[f64], n: usize) -> Option<Vec<f64>> {
+    let mut a = m.to_vec();
+    let mut x = b.to_vec();
+    for col in 0..n {
+        let mut pivot = col;
+        for row in (col + 1)..n {
+            if a[row * n + col].abs() > a[pivot * n + col].abs() {
+                pivot = row;
+            }
+        }
+        if a[pivot * n + col].abs() <= 1e-300 {
+            return None;
+        }
+        if pivot != col {
+            for k in 0..n {
+                a.swap(col * n + k, pivot * n + k);
+            }
+            x.swap(col, pivot);
+        }
+        for row in (col + 1)..n {
+            let factor = a[row * n + col] / a[col * n + col];
+            for k in col..n {
+                a[row * n + k] -= factor * a[col * n + k];
+            }
+            x[row] -= factor * x[col];
+        }
+    }
+    for row in (0..n).rev() {
+        let mut sum = x[row];
+        for k in (row + 1)..n {
+            sum -= a[row * n + k] * x[k];
+        }
+        x[row] = sum / a[row * n + row];
+    }
+    if x.iter().all(|v| v.is_finite()) {
+        Some(x)
+    } else {
+        None
+    }
+}
+
+/// Unit eigenvector of `a` (n x n, row-major) for the real eigenvalue `lambda`,
+/// by inverse iteration. Its first non-zero entry is positive.
+fn eigenvector(a: &[f64], n: usize, lambda: f64) -> Result<Vec<f64>> {
+    let mut offset = 1e-10;
+    for _attempt in 0..3 {
+        let shift = lambda + offset * lambda.abs().max(1.0);
+        let mut m = a.to_vec();
+        for i in 0..n {
+            m[i * n + i] -= shift;
+        }
+        let mut v = vec![1.0; n];
+        let mut ok = true;
+        for _ in 0..3 {
+            match solve_linear(&m, &v, n) {
+                Some(next) => v = next,
+                None => {
+                    ok = false;
+                    break;
+                }
+            }
+            let norm = v.iter().map(|x| x * x).sum::<f64>().sqrt();
+            if !(norm > 0.0 && norm.is_finite()) {
+                ok = false;
+                break;
+            }
+            for x in v.iter_mut() {
+                *x /= norm;
+            }
+        }
+        if ok {
+            if let Some(&first) = v.iter().find(|x| x.abs() > 1e-12) {
+                if first < 0.0 {
+                    for x in v.iter_mut() {
+                        *x = -*x;
+                    }
+                }
+            }
+            return Ok(v);
+        }
+        offset *= 10.0;
+    }
+    Err(ArrayError::InvalidOperation(
+        "eigenvector did not converge".into(),
+    ))
 }
 
 #[cfg(test)]
