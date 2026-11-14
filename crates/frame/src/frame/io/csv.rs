@@ -5,7 +5,7 @@ use crate::frame::error::{FrameError, Result};
 use crate::frame::series::Series;
 use crate::frame::value::Value;
 use std::fs::File;
-use std::io::{BufRead, BufReader, BufWriter, Write};
+use std::io::{BufWriter, Write};
 use std::path::Path;
 
 /// CSV parsing options.
@@ -33,33 +33,46 @@ impl Default for CsvOptions {
 }
 
 /// Read a CSV file into a DataFrame.
+///
+/// A quoted field may contain a newline. A leading UTF-8 byte order mark is
+/// removed. Blank lines are skipped, except in a file with exactly one column,
+/// where a blank line inside the data is a null row. Blank lines at the end of
+/// the file are always dropped.
 pub fn read_csv<P: AsRef<Path>>(path: P) -> Result<DataFrame> {
     read_csv_with_options(path, CsvOptions::default())
 }
 
 /// Read a CSV file with custom options.
+///
+/// A quoted field may contain a newline. A leading UTF-8 byte order mark is
+/// removed. Blank lines are skipped, except in a file with exactly one column,
+/// where a blank line inside the data is a null row. Blank lines at the end of
+/// the file are always dropped.
 pub fn read_csv_with_options<P: AsRef<Path>>(path: P, options: CsvOptions) -> Result<DataFrame> {
-    let file = File::open(path).map_err(|e| FrameError::IoError(e.to_string()))?;
-    let reader = BufReader::new(file);
+    let text = std::fs::read_to_string(path).map_err(|e| FrameError::IoError(e.to_string()))?;
+    let text = text.strip_prefix('\u{FEFF}').unwrap_or(&text);
 
-    let mut lines = reader.lines();
+    let mut records = split_records(text, options.quote);
+    while records.last().is_some_and(|r| r.trim().is_empty()) {
+        records.pop();
+    }
+    let mut records = records.into_iter();
+
     let mut columns: Vec<Vec<Value>> = Vec::new();
     let mut column_names: Vec<String> = Vec::new();
 
     // Read header
     if options.has_header {
-        if let Some(line) = lines.next() {
-            let line = line.map_err(|e| FrameError::IoError(e.to_string()))?;
+        if let Some(line) = records.next() {
             column_names = parse_csv_line(&line, options.delimiter, options.quote);
             columns = vec![Vec::new(); column_names.len()];
         }
     }
 
     // Read data rows
-    for line_result in lines {
-        let line = line_result.map_err(|e| FrameError::IoError(e.to_string()))?;
-
-        if options.skip_blank_lines && line.trim().is_empty() {
+    for line in records {
+        // A blank line is skipped, except in a one-column file (a null row).
+        if options.skip_blank_lines && line.trim().is_empty() && columns.len() != 1 {
             continue;
         }
 
@@ -137,6 +150,33 @@ pub fn write_csv_with_options<P: AsRef<Path>>(
     }
 
     Ok(())
+}
+
+/// Split CSV text into records. A newline inside a quoted field stays in the
+/// record. A `\r` before the record's line end is removed.
+fn split_records(text: &str, quote: char) -> Vec<String> {
+    let mut records = Vec::new();
+    let mut current = String::new();
+    let mut in_quotes = false;
+
+    for c in text.chars() {
+        if c == quote {
+            in_quotes = !in_quotes;
+            current.push(c);
+        } else if c == '\n' && !in_quotes {
+            if current.ends_with('\r') {
+                current.pop();
+            }
+            records.push(std::mem::take(&mut current));
+        } else {
+            current.push(c);
+        }
+    }
+
+    if !current.is_empty() {
+        records.push(current);
+    }
+    records
 }
 
 /// Parse a single CSV line into fields.
@@ -283,5 +323,98 @@ mod tests {
         // Read again and verify
         let df2 = read_csv(output.path()).unwrap();
         assert_eq!(df2.shape(), (2, 3));
+    }
+
+    fn temp_csv(text: &str) -> NamedTempFile {
+        let mut temp = NamedTempFile::new().unwrap();
+        write!(temp, "{}", text).unwrap();
+        temp.flush().unwrap();
+        temp
+    }
+
+    #[test]
+    fn quoted_newline_is_one_row() {
+        let temp = temp_csv("a,b\n\"l1\nl2\",1\n");
+        let df = read_csv(temp.path()).unwrap();
+        assert_eq!(df.shape(), (1, 2));
+        assert_eq!(
+            df.get("a").unwrap().values(),
+            &[Value::String("l1\nl2".to_string())]
+        );
+        assert_eq!(df.get("b").unwrap().values(), &[Value::Int(1)]);
+    }
+
+    #[test]
+    fn round_trip_newline_quote_comma() {
+        let df = DataFrame::from_columns(vec![
+            (
+                "a",
+                Series::new(vec!["x\"y,z\nw".to_string(), "plain".to_string()]),
+            ),
+            ("b", Series::new(vec![1i64, 2])),
+        ])
+        .unwrap();
+        let output = NamedTempFile::new().unwrap();
+        write_csv(&df, output.path()).unwrap();
+
+        let df2 = read_csv(output.path()).unwrap();
+        assert_eq!(df2.shape(), (2, 2));
+        assert_eq!(
+            df2.get("a").unwrap().values(),
+            &[
+                Value::String("x\"y,z\nw".to_string()),
+                Value::String("plain".to_string()),
+            ]
+        );
+        assert_eq!(
+            df2.get("b").unwrap().values(),
+            &[Value::Int(1), Value::Int(2)]
+        );
+    }
+
+    #[test]
+    fn one_column_blank_line_is_null() {
+        let temp = temp_csv("n\n1\n\n3\n");
+        let df = read_csv(temp.path()).unwrap();
+        assert_eq!(df.shape(), (3, 1));
+        assert_eq!(
+            df.get("n").unwrap().values(),
+            &[Value::Int(1), Value::Null, Value::Int(3)]
+        );
+    }
+
+    #[test]
+    fn two_columns_blank_line_is_skipped() {
+        let temp = temp_csv("a,b\n1,2\n\n3,4\n");
+        let df = read_csv(temp.path()).unwrap();
+        assert_eq!(df.shape(), (2, 2));
+        assert_eq!(
+            df.get("a").unwrap().values(),
+            &[Value::Int(1), Value::Int(3)]
+        );
+    }
+
+    #[test]
+    fn trailing_blank_lines_are_dropped_in_one_column_file() {
+        let temp = temp_csv("n\n1\n\n\n");
+        let df = read_csv(temp.path()).unwrap();
+        assert_eq!(df.shape(), (1, 1));
+        assert_eq!(df.get("n").unwrap().values(), &[Value::Int(1)]);
+    }
+
+    #[test]
+    fn bom_is_removed_from_header() {
+        let temp = temp_csv("\u{FEFF}a,b\n1,2\n");
+        let df = read_csv(temp.path()).unwrap();
+        assert_eq!(df.columns(), &["a", "b"]);
+        assert_eq!(df.get("a").unwrap().values(), &[Value::Int(1)]);
+    }
+
+    #[test]
+    fn crlf_line_ends() {
+        let temp = temp_csv("a,b\r\n1,2\r\n");
+        let df = read_csv(temp.path()).unwrap();
+        assert_eq!(df.shape(), (1, 2));
+        assert_eq!(df.get("b").unwrap().values(), &[Value::Int(2)]);
     }
 }
