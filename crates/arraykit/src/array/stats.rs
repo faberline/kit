@@ -42,7 +42,8 @@ impl<T: StatOps> NdArray<T> {
     /// Sum of all elements.
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// use arraykit::NdArray;
     /// let arr = NdArray::new(vec![1, 2, 3, 4], vec![2, 2]).unwrap();
     /// assert_eq!(arr.sum(), 10);
     /// ```
@@ -53,10 +54,13 @@ impl<T: StatOps> NdArray<T> {
     /// Sum along a specific axis, returning an array with that axis removed.
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// use arraykit::NdArray;
     /// let arr = NdArray::new(vec![1, 2, 3, 4], vec![2, 2]).unwrap();
-    /// let row_sums = arr.sum_axis(1).unwrap(); // [3, 7]
-    /// let col_sums = arr.sum_axis(0).unwrap(); // [4, 6]
+    /// let row_sums = arr.sum_axis(1).unwrap();
+    /// let col_sums = arr.sum_axis(0).unwrap();
+    /// assert_eq!(row_sums.data(), &[3, 7]);
+    /// assert_eq!(col_sums.data(), &[4, 6]);
     /// ```
     pub fn sum_axis(&self, axis: usize) -> Result<NdArray<T>> {
         self.reduce_axis(axis, |slice| {
@@ -199,7 +203,8 @@ impl<T: StatOps + Div<Output = T>> NdArray<T> {
     /// Mean of all elements.
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// use arraykit::NdArray;
     /// let arr = NdArray::new(vec![1.0, 2.0, 3.0, 4.0], vec![2, 2]).unwrap();
     /// assert_eq!(arr.mean(), 2.5);
     /// ```

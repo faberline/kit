@@ -68,9 +68,10 @@ impl<T: FloatOps> NdArray<T> {
     /// * `num` - Number of samples
     ///
     /// # Example
-    /// ```ignore
-    /// let arr = NdArray::linspace(0.0, 1.0, 5);
-    /// // [0.0, 0.25, 0.5, 0.75, 1.0]
+    /// ```
+    /// use arraykit::NdArray;
+    /// let arr = NdArray::<f64>::linspace(0.0, 1.0, 5);
+    /// assert_eq!(arr.data(), &[0.0, 0.25, 0.5, 0.75, 1.0]);
     /// ```
     pub fn linspace(start: T, stop: T, num: usize) -> Self {
         if num == 0 {

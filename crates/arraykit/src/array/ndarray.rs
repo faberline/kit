@@ -104,9 +104,11 @@ impl<T: ArrayElement> NdArray<T> {
     /// Create a 2D identity matrix.
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// use arraykit::NdArray;
     /// let eye = NdArray::<f64>::eye(3);
-    /// // [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+    /// assert_eq!(eye.dims(), &[3, 3]);
+    /// assert_eq!(eye.data(), &[1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]);
     /// ```
     pub fn eye(n: usize) -> Self {
         let mut data = vec![T::zero(); n * n];
