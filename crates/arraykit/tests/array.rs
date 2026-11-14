@@ -1926,6 +1926,41 @@ fn eig_identity_orthonormal() {
 }
 
 #[test]
+fn eig_full_3x3_values() {
+    // np.sort(np.linalg.eigvals(np.array([[1.,2.,3.],[0.,4.,5.],[6.,7.,8.]])))
+    //   = [-1.3810649019352468, 0.799713024641854, 13.581351877293393]
+    let data = vec![1.0, 2.0, 3.0, 0.0, 4.0, 5.0, 6.0, 7.0, 8.0];
+    let a = NdArray::new(data.clone(), vec![3, 3]).unwrap();
+    let r = a.eig().unwrap();
+    let expected = [-1.3810649019352468, 0.799713024641854, 13.581351877293393];
+    for (got, want) in r.values.iter().zip(expected.iter()) {
+        assert!((got - want).abs() <= 1e-9, "value {got} != {want}");
+    }
+    for k in 0..3 {
+        let lambda = r.values[k];
+        for i in 0..3 {
+            let av: f64 = (0..3)
+                .map(|j| data[i * 3 + j] * r.vectors.data()[j * 3 + k])
+                .sum();
+            let lv = lambda * r.vectors.data()[i * 3 + k];
+            assert!((av - lv).abs() <= 1e-9, "residual row {i} col {k}");
+        }
+    }
+}
+
+#[test]
+fn eig_hidden_complex_errors() {
+    // np.linalg.eigvals(np.array([[4.,1.,2.],[0.,3.,1.],[2.,1.,5.]]))
+    //   has the complex pair 2.5763 +/- 0.2836j
+    let a = NdArray::new(
+        vec![4.0, 1.0, 2.0, 0.0, 3.0, 1.0, 2.0, 1.0, 5.0],
+        vec![3, 3],
+    )
+    .unwrap();
+    assert!(a.eig().is_err());
+}
+
+#[test]
 fn svd_identity_reconstructs() {
     // np.linalg.svd(np.eye(2))[1] == [1.0, 1.0]
     let a = NdArray::new(vec![1.0, 0.0, 0.0, 1.0], vec![2, 2]).unwrap();

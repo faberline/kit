@@ -613,17 +613,23 @@ impl NdArray<f64> {
     }
 }
 
-/// Sets each negligible sub-diagonal entry of the n x n row-major matrix `a`
-/// to zero. Returns true when no two neighbouring sub-diagonal entries are
-/// both non-zero, so the matrix is block upper-triangular with 1x1 and 2x2 blocks.
+/// Sets each negligible entry below the diagonal of the n x n row-major matrix
+/// `a` to zero. Every entry below the diagonal counts, not only the sub-diagonal,
+/// because the matrix is not reduced to Hessenberg form. Returns true when all
+/// entries below the sub-diagonal are zero and no two neighbouring sub-diagonal
+/// entries are both non-zero, so the matrix is block upper-triangular with
+/// 1x1 and 2x2 blocks.
 fn deflate_qr(a: &mut [f64], n: usize) -> bool {
     for i in 1..n {
-        let sub = a[i * n + i - 1];
-        if sub.abs() <= 1e-12 * (a[i * n + i].abs() + a[(i - 1) * n + (i - 1)].abs()) {
-            a[i * n + i - 1] = 0.0;
+        for j in 0..i {
+            let scale = a[i * n + i].abs() + a[j * n + j].abs();
+            if a[i * n + j].abs() <= 1e-12 * scale {
+                a[i * n + j] = 0.0;
+            }
         }
     }
-    (2..n).all(|i| a[i * n + i - 1] == 0.0 || a[(i - 1) * n + i - 2] == 0.0)
+    let below_sub_zero = (0..n).all(|i| (0..i.saturating_sub(1)).all(|j| a[i * n + j] == 0.0));
+    below_sub_zero && (2..n).all(|i| a[i * n + i - 1] == 0.0 || a[(i - 1) * n + i - 2] == 0.0)
 }
 
 /// Solves `m * x = b` for an n x n row-major matrix `m` by Gaussian elimination
