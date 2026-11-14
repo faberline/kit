@@ -806,7 +806,7 @@ fn test_max_axis() {
 fn test_empty_array() {
     let arr = NdArray::<f64>::zeros(vec![0]);
     assert_eq!(arr.sum(), 0.0);
-    assert_eq!(arr.mean(), 0.0);
+    assert!(arr.mean().is_nan()); // np.mean([]) is nan
     assert_eq!(arr.min(), None);
     assert_eq!(arr.max(), None);
 }
@@ -826,6 +826,44 @@ fn test_var_pop() {
     let arr = NdArray::new(vec![1.0_f64, 2.0, 3.0, 4.0, 5.0], vec![5]).unwrap();
     let var_pop = arr.var_pop();
     assert!(f64::abs(var_pop - 2.0) < 1e-10); // Population variance = 2.0
+}
+
+#[test]
+fn test_mean_var_empty_are_nan() {
+    let a = NdArray::<f64>::new(vec![], vec![0]).unwrap();
+    assert!(a.mean().is_nan()); // np.mean([]) is nan
+    assert!(a.var().is_nan()); // np.var([]) is nan
+    assert!(a.var_pop().is_nan()); // np.var([]) is nan
+}
+
+#[test]
+fn test_var_single_element() {
+    let a = NdArray::new(vec![5.0_f64], vec![1]).unwrap();
+    assert!(a.var().is_nan()); // np.var([5.0], ddof=1) is nan
+    assert_eq!(a.var_pop(), 0.0); // np.var([5.0]) is 0.0
+}
+
+#[test]
+fn test_var_sample_four() {
+    let a = NdArray::new(vec![1.0_f64, 2.0, 3.0, 4.0], vec![4]).unwrap();
+    // np.var(a, ddof=1) is 1.6666666666666667
+    assert!(f64::abs(a.var() - 1.6666666666666667) < 1e-12);
+}
+
+#[test]
+fn test_checked_sum_i32_overflow() {
+    let a = NdArray::new(vec![i32::MAX, 1], vec![2]).unwrap();
+    assert!(a.checked_sum().is_err());
+}
+
+#[test]
+fn test_checked_sum_ok() {
+    let a = NdArray::new(vec![1_i32, 2, 3], vec![3]).unwrap();
+    assert_eq!(a.checked_sum().unwrap(), 6);
+    let f = NdArray::new(vec![0.5_f64, 0.25], vec![2]).unwrap();
+    assert_eq!(f.checked_sum().unwrap(), 0.75);
+    let big = NdArray::new(vec![i64::MAX, 1], vec![2]).unwrap();
+    assert!(big.checked_sum().is_err());
 }
 
 #[test]

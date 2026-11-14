@@ -12,11 +12,27 @@ use std::ops::{Add, Div};
 pub trait StatOps: ArrayElement + Add<Output = Self> + PartialOrd {
     /// Convert from usize (for mean calculation).
     fn from_usize(n: usize) -> Self;
+
+    /// The result of a mean of no elements.
+    ///
+    /// NaN for floats; integers have no NaN, so they return zero.
+    fn empty_value() -> Self;
+
+    /// Checked addition: `None` on overflow.
+    fn checked_add(self, rhs: Self) -> Option<Self>;
 }
 
 impl StatOps for f32 {
     fn from_usize(n: usize) -> Self {
         n as f32
+    }
+
+    fn empty_value() -> Self {
+        f32::NAN
+    }
+
+    fn checked_add(self, rhs: Self) -> Option<Self> {
+        Some(self + rhs)
     }
 }
 
@@ -24,11 +40,27 @@ impl StatOps for f64 {
     fn from_usize(n: usize) -> Self {
         n as f64
     }
+
+    fn empty_value() -> Self {
+        f64::NAN
+    }
+
+    fn checked_add(self, rhs: Self) -> Option<Self> {
+        Some(self + rhs)
+    }
 }
 
 impl StatOps for i32 {
     fn from_usize(n: usize) -> Self {
         n as i32
+    }
+
+    fn empty_value() -> Self {
+        0
+    }
+
+    fn checked_add(self, rhs: Self) -> Option<Self> {
+        i32::checked_add(self, rhs)
     }
 }
 
@@ -36,10 +68,21 @@ impl StatOps for i64 {
     fn from_usize(n: usize) -> Self {
         n as i64
     }
+
+    fn empty_value() -> Self {
+        0
+    }
+
+    fn checked_add(self, rhs: Self) -> Option<Self> {
+        i64::checked_add(self, rhs)
+    }
 }
 
 impl<T: StatOps> NdArray<T> {
     /// Sum of all elements.
+    ///
+    /// Integer sums can overflow (panic in debug builds, wrap in release builds).
+    /// Use `checked_sum` to get an error.
     ///
     /// # Example
     /// ```
@@ -49,6 +92,23 @@ impl<T: StatOps> NdArray<T> {
     /// ```
     pub fn sum(&self) -> T {
         self.data.iter().fold(T::zero(), |acc, &x| acc + x)
+    }
+
+    /// Sum of all elements, failing on integer overflow.
+    ///
+    /// # Example
+    /// ```
+    /// use arraykit::NdArray;
+    /// let arr = NdArray::new(vec![1, 2, 3], vec![3]).unwrap();
+    /// assert_eq!(arr.checked_sum().unwrap(), 6);
+    /// ```
+    pub fn checked_sum(&self) -> Result<T> {
+        let mut acc = T::zero();
+        for &x in &self.data {
+            acc = T::checked_add(acc, x)
+                .ok_or_else(|| ArrayError::InvalidOperation("integer overflow in sum".into()))?;
+        }
+        Ok(acc)
     }
 
     /// Sum along a specific axis, returning an array with that axis removed.
@@ -210,7 +270,7 @@ impl<T: StatOps + Div<Output = T>> NdArray<T> {
     /// ```
     pub fn mean(&self) -> T {
         if self.size() == 0 {
-            return T::zero();
+            return T::empty_value();
         }
         self.sum() / T::from_usize(self.size())
     }
@@ -263,9 +323,10 @@ impl<T: VarOps> NdArray<T> {
     /// Variance of all elements.
     ///
     /// Uses Bessel's correction (N-1 denominator) for sample variance.
+    /// Returns NaN for fewer than two elements.
     pub fn var(&self) -> T {
         if self.size() <= 1 {
-            return T::zero();
+            return T::empty_value();
         }
 
         let mean = self.mean();
@@ -280,7 +341,7 @@ impl<T: VarOps> NdArray<T> {
     /// Population variance (N denominator).
     pub fn var_pop(&self) -> T {
         if self.size() == 0 {
-            return T::zero();
+            return T::empty_value();
         }
 
         let mean = self.mean();
