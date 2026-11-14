@@ -286,7 +286,7 @@ impl NdArray<f64> {
 
         let mut prev: Option<f64> = None;
         for &(val, orig_idx) in &indexed {
-            if prev.map_or(true, |p| (val - p).abs() > f64::EPSILON || val != p) {
+            if prev.is_none_or(|p| (val - p).abs() > f64::EPSILON || val != p) {
                 unique_vals.push(val);
                 first_indices.push(orig_idx);
                 counts.push(1);
