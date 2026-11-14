@@ -1728,3 +1728,59 @@ fn test_kitrng_reproducible_binomial() {
         assert_eq!(rng1.binomial(500, 0.3), rng2.binomial(500, 0.3));
     }
 }
+
+// ============================================================================
+// eig tests (issue #50: real eigenvalues only, errors for complex or no convergence)
+// ============================================================================
+
+#[test]
+fn eig_rotation_errors() {
+    // np.linalg.eig(np.array([[0.,-1.],[1.,0.]]))[0] == [0+1j, 0-1j]
+    let a = NdArray::new(vec![0.0, -1.0, 1.0, 0.0], vec![2, 2]).unwrap();
+    assert!(a.eig().is_err());
+}
+
+#[test]
+fn eig_upper_triangular_vectors() {
+    // np.linalg.eig(np.array([[1.,1.],[0.,2.]])): values [1, 2]
+    // vectors [[1, 0.7071067811865475], [0, 0.7071067811865475]]
+    let a = NdArray::new(vec![1.0, 1.0, 0.0, 2.0], vec![2, 2]).unwrap();
+    let r = a.eig().unwrap();
+    assert!((r.values[0] - 1.0).abs() < 1e-9);
+    assert!((r.values[1] - 2.0).abs() < 1e-9);
+    let v = r.vectors.data();
+    let s = 0.5_f64.sqrt();
+    // column 0 = [1, 0]
+    assert!((v[0] - 1.0).abs() < 1e-9);
+    assert!(v[2].abs() < 1e-9);
+    // column 1 = [1, 1] / sqrt(2)
+    assert!((v[1] - s).abs() < 1e-9);
+    assert!((v[3] - s).abs() < 1e-9);
+}
+
+#[test]
+fn eig_residual_3x3() {
+    // lower triangular: values [2, 3, 6]
+    let data = vec![2.0, 0.0, 0.0, 1.0, 3.0, 0.0, 4.0, 5.0, 6.0];
+    let a = NdArray::new(data.clone(), vec![3, 3]).unwrap();
+    let r = a.eig().unwrap();
+    let expected = [2.0, 3.0, 6.0];
+    let n = 3;
+    let v = r.vectors.data();
+    for k in 0..n {
+        assert!((r.values[k] - expected[k]).abs() < 1e-9);
+        for row in 0..n {
+            let av: f64 = (0..n).map(|c| data[row * n + c] * v[c * n + k]).sum();
+            let lv = r.values[k] * v[row * n + k];
+            assert!((av - lv).abs() <= 1e-9, "residual at col {k} row {row}");
+        }
+    }
+}
+
+#[test]
+fn eig_nan_errors() {
+    let a = NdArray::new(vec![1.0, f64::NAN, 0.0, 2.0], vec![2, 2]).unwrap();
+    assert!(a.eig().is_err());
+    let b = NdArray::new(vec![f64::NAN], vec![1, 1]).unwrap();
+    assert!(b.eig().is_err());
+}

@@ -13,7 +13,7 @@ pub struct QrResult {
 
 /// Result of eigenvalue decomposition.
 pub struct EigResult {
-    /// Eigenvalues (may be complex — real parts stored).
+    /// Eigenvalues (real only, ascending).
     pub values: Vec<f64>,
     /// Eigenvectors as columns of an n × n matrix.
     pub vectors: NdArray<f64>,
@@ -169,10 +169,13 @@ impl NdArray<f64> {
         NdArray::new(l, vec![n, n])
     }
 
-    /// Eigenvalue decomposition using the QR algorithm with shifts.
+    /// Eigenvalue decomposition using the shifted QR algorithm.
     ///
-    /// Works on square matrices. Returns eigenvalues and eigenvectors.
-    /// For non-symmetric matrices, eigenvalues are real approximations.
+    /// Works on square matrices. Returns real eigenvalues in ascending order
+    /// and the eigenvectors as columns. Returns an error for a non-square or
+    /// non-finite matrix, when the matrix has complex eigenvalues, and when the
+    /// iteration does not converge.
+    #[allow(clippy::needless_range_loop)]
     pub fn eig(&self) -> Result<EigResult> {
         if self.ndim() != 2 {
             return Err(ArrayError::ShapeMismatch {
@@ -189,6 +192,12 @@ impl NdArray<f64> {
             });
         }
 
+        if self.data.iter().any(|x| !x.is_finite()) {
+            return Err(ArrayError::InvalidOperation(
+                "matrix contains NaN or infinity".into(),
+            ));
+        }
+
         if n == 0 {
             return Ok(EigResult {
                 values: vec![],
@@ -203,63 +212,85 @@ impl NdArray<f64> {
             });
         }
 
-        // QR iteration: repeatedly do QR decomposition and form RQ
-        let max_iter = 200;
-        let tol = 1e-10;
+        let scale = self
+            .data
+            .iter()
+            .fold(0.0_f64, |m, x| m.max(x.abs()))
+            .max(f64::MIN_POSITIVE);
 
-        let mut a_data = self.data.clone();
-        // Accumulate eigenvectors
-        let mut v_data = vec![0.0; n * n];
-        for i in 0..n {
-            v_data[i * n + i] = 1.0;
-        }
-
+        // Shifted QR iteration on the eigenvalues only.
+        let mut a = self.data.clone();
+        let max_iter = 50 * n;
         for _ in 0..max_iter {
-            // Wilkinson shift: use eigenvalue of bottom-right 2×2 closer to a[n-1][n-1]
-            let shift = if n >= 2 {
-                wilkinson_shift(
-                    a_data[(n - 2) * n + (n - 2)],
-                    a_data[(n - 2) * n + (n - 1)],
-                    a_data[(n - 1) * n + (n - 2)],
-                    a_data[(n - 1) * n + (n - 1)],
-                )
-            } else {
-                0.0
-            };
-
-            // Apply shift: A - σI
-            for i in 0..n {
-                a_data[i * n + i] -= shift;
-            }
-
-            // QR decomposition of shifted matrix
-            let a_mat = NdArray::new(a_data.clone(), vec![n, n])?;
-            let qr = a_mat.qr()?;
-
-            // A = R * Q + σI
-            let rq = qr.r.matmul(&qr.q)?;
-            a_data = rq.data.clone();
-            for i in 0..n {
-                a_data[i * n + i] += shift;
-            }
-
-            // Accumulate eigenvectors: V = V * Q
-            let v_mat = NdArray::new(v_data.clone(), vec![n, n])?;
-            let new_v = v_mat.matmul(&qr.q)?;
-            v_data = new_v.data;
-
-            // Check convergence: sub-diagonal elements should be near zero
-            let mut max_off = 0.0_f64;
-            for i in 1..n {
-                max_off = max_off.max(a_data[i * n + (i - 1)].abs());
-            }
-            if max_off < tol {
+            deflate_small_subdiagonal(&mut a, n);
+            if is_block_form(&a, n, scale) {
                 break;
             }
+
+            // Real shift from the bottom 2x2 block. A complex pair in that
+            // block gives a real shift from the corner entry instead.
+            let (p, q) = (a[(n - 2) * n + (n - 2)], a[(n - 2) * n + (n - 1)]);
+            let (r, s) = (a[(n - 1) * n + (n - 2)], a[(n - 1) * n + (n - 1)]);
+            let disc = (p - s) * (p - s) / 4.0 + q * r;
+            let shift = if disc >= 0.0 {
+                wilkinson_shift(p, q, r, s)
+            } else {
+                s
+            };
+
+            for i in 0..n {
+                a[i * n + i] -= shift;
+            }
+            let a_mat = NdArray::new(a.clone(), vec![n, n])?;
+            let qr = a_mat.qr()?;
+            let rq = qr.r.matmul(&qr.q)?;
+            a = rq.data;
+            for i in 0..n {
+                a[i * n + i] += shift;
+            }
+        }
+        deflate_small_subdiagonal(&mut a, n);
+        if !is_block_form(&a, n, scale) {
+            return Err(ArrayError::InvalidOperation("eig did not converge".into()));
         }
 
-        // Extract eigenvalues from diagonal
-        let values: Vec<f64> = (0..n).map(|i| a_data[i * n + i]).collect();
+        // Read the quasi-triangular form: 1x1 blocks are real eigenvalues,
+        // 2x2 blocks give two real roots or a complex pair (an error).
+        let mut raw: Vec<f64> = Vec::with_capacity(n);
+        let mut i = 0;
+        while i < n {
+            if i + 1 < n && a[(i + 1) * n + i] != 0.0 {
+                let (p, q) = (a[i * n + i], a[i * n + i + 1]);
+                let (r, s) = (a[(i + 1) * n + i], a[(i + 1) * n + i + 1]);
+                let mid = (p + s) / 2.0;
+                let disc = (p - s) * (p - s) / 4.0 + q * r;
+                if disc < 0.0 {
+                    return Err(ArrayError::InvalidOperation(
+                        "matrix has complex eigenvalues".into(),
+                    ));
+                }
+                let root = disc.sqrt();
+                raw.push(mid - root);
+                raw.push(mid + root);
+                i += 2;
+            } else {
+                raw.push(a[i * n + i]);
+                i += 1;
+            }
+        }
+
+        let mut order: Vec<usize> = (0..n).collect();
+        order.sort_by(|&x, &y| raw[x].total_cmp(&raw[y]));
+        let values: Vec<f64> = order.iter().map(|&k| raw[k]).collect();
+
+        // Eigenvectors by inverse iteration on the original matrix.
+        let mut v_data = vec![0.0; n * n];
+        for (col, &lambda) in values.iter().enumerate() {
+            let v = eigenvector_by_inverse_iteration(&self.data, n, lambda)?;
+            for row in 0..n {
+                v_data[row * n + col] = v[row];
+            }
+        }
 
         Ok(EigResult {
             values,
@@ -456,6 +487,127 @@ fn wilkinson_shift(a: f64, b: f64, c: f64, d: f64) -> f64 {
     } else {
         d - bc / (delta + delta.signum() * (delta * delta + bc).abs().sqrt())
     }
+}
+
+/// Sets each sub-diagonal entry to zero when it is negligible next to its
+/// two diagonal neighbours.
+fn deflate_small_subdiagonal(a: &mut [f64], n: usize) {
+    for i in 1..n {
+        let sub = a[i * n + (i - 1)];
+        let bound = 1e-12 * (a[i * n + i].abs() + a[(i - 1) * n + (i - 1)].abs());
+        if sub.abs() <= bound {
+            a[i * n + (i - 1)] = 0.0;
+        }
+    }
+}
+
+/// True when `a` is quasi-upper-triangular: every entry below the first
+/// sub-diagonal is negligible, and no two sub-diagonal entries next to each
+/// other are non-zero (each non-zero one is a 2x2 block).
+fn is_block_form(a: &[f64], n: usize, scale: f64) -> bool {
+    for i in 0..n {
+        for j in 0..i.saturating_sub(1) {
+            if a[i * n + j].abs() > 1e-12 * scale {
+                return false;
+            }
+        }
+    }
+    for i in 1..n.saturating_sub(1) {
+        if a[(i + 1) * n + i] != 0.0 && a[i * n + (i - 1)] != 0.0 {
+            return false;
+        }
+    }
+    true
+}
+
+/// Solves `m * x = b` for a row-major n x n matrix by Gaussian elimination
+/// with partial pivoting. Returns `None` for a singular or non-finite result.
+#[allow(clippy::needless_range_loop)]
+fn solve_linear(m: &[f64], b: &[f64], n: usize) -> Option<Vec<f64>> {
+    let mut a = m.to_vec();
+    let mut x = b.to_vec();
+    for col in 0..n {
+        let mut piv = col;
+        for r in (col + 1)..n {
+            if a[r * n + col].abs() > a[piv * n + col].abs() {
+                piv = r;
+            }
+        }
+        if a[piv * n + col].abs() <= 1e-300 {
+            return None;
+        }
+        if piv != col {
+            for c in 0..n {
+                a.swap(col * n + c, piv * n + c);
+            }
+            x.swap(col, piv);
+        }
+        for r in (col + 1)..n {
+            let f = a[r * n + col] / a[col * n + col];
+            for c in col..n {
+                a[r * n + c] -= f * a[col * n + c];
+            }
+            x[r] -= f * x[col];
+        }
+    }
+    for r in (0..n).rev() {
+        let mut s = x[r];
+        for c in (r + 1)..n {
+            s -= a[r * n + c] * x[c];
+        }
+        x[r] = s / a[r * n + r];
+    }
+    if x.iter().any(|v| !v.is_finite()) {
+        return None;
+    }
+    Some(x)
+}
+
+/// Unit eigenvector of the real eigenvalue `lambda` of the row-major n x n
+/// matrix `data`, by three steps of inverse iteration. Sign: the first entry
+/// with an absolute value above 1e-12 is positive.
+fn eigenvector_by_inverse_iteration(data: &[f64], n: usize, lambda: f64) -> Result<Vec<f64>> {
+    let eps = 1e-10 * lambda.abs().max(1.0);
+    let mut shift_offset = eps;
+    for _attempt in 0..3 {
+        let shift = lambda + shift_offset;
+        let mut m = data.to_vec();
+        for i in 0..n {
+            m[i * n + i] -= shift;
+        }
+        let mut v = vec![1.0; n];
+        let mut ok = true;
+        for _ in 0..3 {
+            match solve_linear(&m, &v, n) {
+                Some(x) => {
+                    let norm = x.iter().map(|t| t * t).sum::<f64>().sqrt();
+                    if norm == 0.0 || !norm.is_finite() {
+                        ok = false;
+                        break;
+                    }
+                    v = x.iter().map(|t| t / norm).collect();
+                }
+                None => {
+                    ok = false;
+                    break;
+                }
+            }
+        }
+        if ok {
+            if let Some(first) = v.iter().find(|t| t.abs() > 1e-12) {
+                if *first < 0.0 {
+                    for t in v.iter_mut() {
+                        *t = -*t;
+                    }
+                }
+            }
+            return Ok(v);
+        }
+        shift_offset *= 10.0;
+    }
+    Err(ArrayError::InvalidOperation(
+        "eigenvector did not converge".into(),
+    ))
 }
 
 #[cfg(test)]
