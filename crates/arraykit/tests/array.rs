@@ -1209,21 +1209,21 @@ fn test_roll() {
 #[test]
 fn test_pad() {
     let arr: NdArray<i32> = NdArray::new(vec![1, 2, 3], vec![3]).unwrap();
-    let padded = arr.pad(2);
+    let padded = arr.pad(2).unwrap();
     assert_eq!(padded.data(), &[0, 0, 1, 2, 3, 0, 0]);
 }
 
 #[test]
 fn test_diff() {
     let arr: NdArray<f64> = NdArray::new(vec![1.0, 2.0, 4.0, 7.0, 11.0], vec![5]).unwrap();
-    let diff1 = arr.diff(1);
+    let diff1 = arr.diff(1).unwrap();
     assert_eq!(diff1.data(), &[1.0, 2.0, 3.0, 4.0]);
 }
 
 #[test]
 fn test_gradient() {
     let arr: NdArray<f64> = NdArray::new(vec![1.0, 2.0, 4.0, 7.0, 11.0], vec![5]).unwrap();
-    let grad = arr.gradient();
+    let grad = arr.gradient().unwrap();
     assert_eq!(grad.size(), 5);
     assert_eq!(grad.data()[0], 1.0); // Forward: 2-1
     assert_eq!(grad.data()[2], 2.5); // Central: (7-2)/2
@@ -1241,9 +1241,55 @@ fn test_interp() {
 #[test]
 fn test_rot90() {
     let arr: NdArray<i32> = NdArray::new(vec![1, 2, 3, 4], vec![2, 2]).unwrap();
-    let rotated = arr.rot90(1);
+    let rotated = arr.rot90(1).unwrap();
     assert_eq!(rotated.dims(), &[2, 2]);
     assert_eq!(rotated.data(), &[2, 4, 1, 3]);
+}
+
+#[test]
+fn test_rot90_rejects_3d() {
+    let arr: NdArray<i32> = NdArray::new(vec![0, 1, 2, 3, 4, 5, 6, 7], vec![2, 2, 2]).unwrap();
+    assert!(matches!(arr.rot90(1), Err(ArrayError::InvalidOperation(_))));
+    // The dimension check comes before the k % 4 check.
+    assert!(matches!(arr.rot90(0), Err(ArrayError::InvalidOperation(_))));
+}
+
+#[test]
+fn test_pad_rejects_2d() {
+    let arr: NdArray<i32> = NdArray::new(vec![1, 2, 3, 4], vec![2, 2]).unwrap();
+    assert!(matches!(arr.pad(1), Err(ArrayError::InvalidOperation(_))));
+}
+
+#[test]
+fn test_diff_rejects_2d() {
+    let arr: NdArray<f64> = NdArray::new(vec![1.0, 2.0, 3.0, 4.0], vec![2, 2]).unwrap();
+    assert!(matches!(arr.diff(1), Err(ArrayError::InvalidOperation(_))));
+}
+
+#[test]
+fn test_diff_n_too_large() {
+    let arr: NdArray<f64> = NdArray::new(vec![1.0, 2.0, 3.0], vec![3]).unwrap();
+    assert!(matches!(arr.diff(3), Err(ArrayError::InvalidOperation(_))));
+    // n == 0 is not an error: nothing to difference.
+    assert_eq!(arr.diff(0).unwrap().data(), &[1.0, 2.0, 3.0]);
+}
+
+#[test]
+fn test_gradient_rejects_2d() {
+    let arr: NdArray<f64> = NdArray::new(vec![1.0, 2.0, 3.0, 4.0], vec![2, 2]).unwrap();
+    assert!(matches!(
+        arr.gradient(),
+        Err(ArrayError::InvalidOperation(_))
+    ));
+}
+
+#[test]
+fn test_gradient_rejects_single_element() {
+    let arr: NdArray<f64> = NdArray::new(vec![1.0], vec![1]).unwrap();
+    assert!(matches!(
+        arr.gradient(),
+        Err(ArrayError::InvalidOperation(_))
+    ));
 }
 
 #[test]
