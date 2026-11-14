@@ -16,18 +16,14 @@ pub(super) fn validate_json_schema_value(
         Some("string") => validate_string_schema(value, schema, path, errors),
         Some("integer") => validate_integer_schema(value, schema, path, errors),
         Some("number") => validate_number_schema(value, schema, path, errors),
-        Some("boolean") => {
-            if !value.is_boolean() {
-                errors.push(format!(
-                    "{path}: expected boolean, got {}",
-                    json_type(value)
-                ));
-            }
+        Some("boolean") if !value.is_boolean() => {
+            errors.push(format!(
+                "{path}: expected boolean, got {}",
+                json_type(value)
+            ));
         }
-        Some("null") => {
-            if !value.is_null() {
-                errors.push(format!("{path}: expected null, got {}", json_type(value)));
-            }
+        Some("null") if !value.is_null() => {
+            errors.push(format!("{path}: expected null, got {}", json_type(value)));
         }
         _ => {}
     }

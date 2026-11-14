@@ -387,20 +387,20 @@ fn infer_tick_info(series: &[DataSeries]) -> (Option<TickInfo>, Option<TickInfo>
         match s {
             DataSeries::Line { x, y, .. }
             | DataSeries::Scatter { x, y, .. }
-            | DataSeries::Area { x, y, .. } => {
-                if !x.is_empty() && !y.is_empty() {
-                    let x_info = nice_ticks(
-                        x.iter().copied().fold(f64::INFINITY, f64::min),
-                        x.iter().copied().fold(f64::NEG_INFINITY, f64::max),
-                        5,
-                    );
-                    let y_info = nice_ticks(
-                        y.iter().copied().fold(f64::INFINITY, f64::min),
-                        y.iter().copied().fold(f64::NEG_INFINITY, f64::max),
-                        5,
-                    );
-                    return (Some(x_info), Some(y_info));
-                }
+            | DataSeries::Area { x, y, .. }
+                if !x.is_empty() && !y.is_empty() =>
+            {
+                let x_info = nice_ticks(
+                    x.iter().copied().fold(f64::INFINITY, f64::min),
+                    x.iter().copied().fold(f64::NEG_INFINITY, f64::max),
+                    5,
+                );
+                let y_info = nice_ticks(
+                    y.iter().copied().fold(f64::INFINITY, f64::min),
+                    y.iter().copied().fold(f64::NEG_INFINITY, f64::max),
+                    5,
+                );
+                return (Some(x_info), Some(y_info));
             }
             _ => {}
         }

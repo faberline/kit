@@ -7,6 +7,8 @@
 //! Kit bindings are exposed through the sibling `kit-http-binding`
 //! crate under `kit.http`.
 
+// The public path kit_http::client::client must stay, so the lint is allowed here.
+#[allow(clippy::module_inception)]
 pub mod client;
 pub mod config;
 pub mod error;

@@ -12,12 +12,14 @@
 //!
 //! # Example
 //!
-//! ```ignore
-//! use kit_http::middleware::{Middleware, MiddlewareChain, LoggingMiddleware};
+//! ```
+//! use kit_http::client::middleware::{LoggingMiddleware, MiddlewareChain, RetryMiddleware};
 //!
 //! let chain = MiddlewareChain::new()
 //!     .with(LoggingMiddleware)
 //!     .with(RetryMiddleware::default());
+//! assert_eq!(chain.len(), 2);
+//! assert_eq!(chain.names(), vec!["LoggingMiddleware", "RetryMiddleware"]);
 //! ```
 
 use super::error::HttpError;
@@ -116,7 +118,7 @@ pub struct LoggingMiddleware;
 impl Middleware for LoggingMiddleware {
     fn handle(&self, request: ExtractedRequest, next: Next) -> MiddlewareFuture {
         Box::pin(async move {
-            let method = request.method.clone();
+            let method = request.method;
             let url = request.url.clone();
 
             // Log request
