@@ -1,6 +1,6 @@
 //! Integration tests for the array module.
 
-use arraykit::array::{ArrayError, AxisSlice, DType, NdArray, Pcg64, Shape, SliceInfo};
+use arraykit::array::{ArrayError, AxisSlice, DType, KitRng, NdArray, Shape, SliceInfo};
 
 // ============================================================================
 // DType tests (from dtype.rs)
@@ -855,13 +855,13 @@ fn test_rolling_window_one_ok() {
 
 #[test]
 fn test_choice_zero_is_error() {
-    let mut rng = Pcg64::new(42);
+    let mut rng = KitRng::new(42);
     assert!(rng.choice(0).is_err());
 }
 
 #[test]
 fn test_choice_in_range() {
-    let mut rng = Pcg64::new(42);
+    let mut rng = KitRng::new(42);
     for _ in 0..100 {
         let k = rng.choice(5).unwrap();
         assert!(k < 5);
@@ -870,7 +870,7 @@ fn test_choice_in_range() {
 
 #[test]
 fn test_shuffle_still_permutes() {
-    let mut rng = Pcg64::new(42);
+    let mut rng = KitRng::new(42);
     let mut v = vec![1, 2, 3, 4, 5];
     rng.shuffle(&mut v);
     v.sort();
@@ -1596,4 +1596,89 @@ fn test_mode_zero_and_nan() {
     // All NaN are one value.
     let b = NdArray::new(vec![f64::NAN, f64::NAN, 1.0], vec![3]).unwrap();
     assert!(b.mode().unwrap().is_nan());
+}
+
+// ============================================================================
+// KitRng binomial tests (exact for every n)
+// ============================================================================
+
+#[test]
+fn test_binomial_n100_p05_moments() {
+    let mut rng = KitRng::new(42);
+    let draws: Vec<f64> = (0..10_000).map(|_| rng.binomial(100, 0.5) as f64).collect();
+    let count = draws.len() as f64;
+    let mean = draws.iter().sum::<f64>() / count;
+    let mean_sq = draws.iter().map(|x| x * x).sum::<f64>() / count;
+    let variance = mean_sq - mean * mean;
+    assert!((mean - 50.0).abs() < 0.2, "mean was {mean}");
+    assert!((variance - 25.0).abs() < 1.5, "variance was {variance}");
+}
+
+#[test]
+fn test_binomial_small_p() {
+    let mut rng = KitRng::new(42);
+    let draws: Vec<u64> = (0..10_000).map(|_| rng.binomial(100, 0.01)).collect();
+    assert!(draws.iter().all(|&k| k <= 100));
+    let mean = draws.iter().sum::<u64>() as f64 / draws.len() as f64;
+    assert!((mean - 1.0).abs() < 0.05, "mean was {mean}");
+}
+
+#[test]
+fn test_binomial_small_p_zero_share() {
+    // Exact law: P(0) = 0.99^100 and P(3) = C(100, 3) * 0.01^3 * 0.99^97.
+    let mut rng = KitRng::new(42);
+    let draws: Vec<u64> = (0..10_000).map(|_| rng.binomial(100, 0.01)).collect();
+    let total = draws.len() as f64;
+    let share_zero = draws.iter().filter(|&&k| k == 0).count() as f64 / total;
+    let share_three = draws.iter().filter(|&&k| k == 3).count() as f64 / total;
+    let p_zero = 0.99_f64.powi(100);
+    let p_three = 161_700.0 * 0.01_f64.powi(3) * 0.99_f64.powi(97);
+    assert!(
+        (share_zero - p_zero).abs() < 0.02,
+        "share of 0 was {share_zero}, expected about {p_zero}"
+    );
+    assert!(
+        (share_three - p_three).abs() < 0.015,
+        "share of 3 was {share_three}, expected about {p_three}"
+    );
+}
+
+#[test]
+fn test_binomial_large_p() {
+    let mut rng = KitRng::new(42);
+    let draws: Vec<u64> = (0..10_000).map(|_| rng.binomial(100, 0.99)).collect();
+    assert!(draws.iter().all(|&k| k <= 100));
+    let mean = draws.iter().sum::<u64>() as f64 / draws.len() as f64;
+    assert!((mean - 99.0).abs() < 0.2, "mean was {mean}");
+}
+
+#[test]
+fn test_binomial_edges() {
+    let mut rng = KitRng::new(42);
+    assert_eq!(rng.binomial(100, 0.0), 0);
+    assert_eq!(rng.binomial(100, 1.0), 100);
+    assert_eq!(rng.binomial(0, 0.5), 0);
+    assert_eq!(rng.binomial(1_000_000, 0.0), 0);
+    assert_eq!(rng.binomial(1_000_000, 1.0), 1_000_000);
+}
+
+#[test]
+fn test_binomial_huge_n_small_p() {
+    let mut rng = KitRng::new(42);
+    assert!(rng.binomial(1_000_000, 0.000001) <= 1_000_000);
+    let draws: Vec<u64> = (0..1_000)
+        .map(|_| rng.binomial(1_000_000, 0.000001))
+        .collect();
+    assert!(draws.iter().all(|&k| k <= 1_000_000));
+    let mean = draws.iter().sum::<u64>() as f64 / draws.len() as f64;
+    assert!((mean - 1.0).abs() < 0.2, "mean was {mean}");
+}
+
+#[test]
+fn test_kitrng_reproducible_binomial() {
+    let mut rng1 = KitRng::new(7);
+    let mut rng2 = KitRng::new(7);
+    for _ in 0..100 {
+        assert_eq!(rng1.binomial(500, 0.3), rng2.binomial(500, 0.3));
+    }
 }
