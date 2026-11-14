@@ -1,7 +1,5 @@
 //! `Agent<Deps, Output>` — generic typed agent runtime with a tool-dispatch
-//! run loop. Implements the PydanticAI-style surface defined in
-//! `.aw/tech-design/projects/agentkit/specs/agent-deps-output-run-loop.md`
-//! (#2030).
+//! run loop.
 //!
 //! The agent is parameterised over a `Deps` bag (typed dependency injection,
 //! #2034) and an `Output` type (typed structured result, #2032). One call to

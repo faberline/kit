@@ -253,7 +253,7 @@ mod tests {
     async fn test_push_spec_returns_not_supported() {
         let adapter =
             GitLabSyncAdapter::new("token", "https://gitlab.com", "group/project").unwrap();
-        let spec = SpecProtocol::new("spec-1", ".aw/tech-design/foo.md", "# Spec");
+        let spec = SpecProtocol::new("spec-1", "docs/foo.md", "# Spec");
         let result = adapter.push_spec(&spec).await;
         assert!(matches!(result, Err(AgentError::NotSupported(_))));
     }

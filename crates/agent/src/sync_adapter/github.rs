@@ -14,6 +14,8 @@ use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use kit_http::client::{HttpClient, HttpMethod, RequestBuilder};
 use serde::Deserialize;
 
+const USER_AGENT: &str = "kit-agent";
+
 /// GitHub sync adapter.
 ///
 /// Supports: Issue (push + pull), Change via PR (push), Code index (pull).
@@ -62,7 +64,7 @@ impl GitHubSyncAdapter {
         let req = RequestBuilder::new(HttpMethod::Get, url)
             .header("Authorization", format!("Bearer {}", self.token))
             .header("Accept", "application/vnd.github.v3+json")
-            .header("User-Agent", "cclab-nova");
+            .header("User-Agent", USER_AGENT);
 
         let resp = self
             .client
@@ -90,7 +92,7 @@ impl GitHubSyncAdapter {
         let req = RequestBuilder::new(HttpMethod::Post, url)
             .header("Authorization", format!("Bearer {}", self.token))
             .header("Accept", "application/vnd.github.v3+json")
-            .header("User-Agent", "cclab-nova")
+            .header("User-Agent", USER_AGENT)
             .json_value(body);
 
         let resp = self
@@ -180,7 +182,7 @@ impl SyncAdapter for GitHubSyncAdapter {
         let req = RequestBuilder::new(HttpMethod::Get, &url)
             .header("Authorization", format!("Bearer {}", self.token))
             .header("Accept", "application/vnd.github.v3+json")
-            .header("User-Agent", "cclab-nova");
+            .header("User-Agent", USER_AGENT);
 
         let resp = self
             .client
@@ -248,6 +250,11 @@ mod tests {
     use super::*;
 
     #[test]
+    fn sync_adapter_user_agent_is_kit_agent() {
+        assert_eq!(USER_AGENT, "kit-agent");
+    }
+
+    #[test]
     fn test_github_sync_adapter_new() {
         let adapter = GitHubSyncAdapter::new("token", "owner", "repo");
         assert!(adapter.is_ok());
@@ -263,7 +270,7 @@ mod tests {
     #[tokio::test]
     async fn test_push_spec_returns_not_supported() {
         let adapter = GitHubSyncAdapter::new("token", "owner", "repo").unwrap();
-        let spec = SpecProtocol::new("spec-1", ".aw/tech-design/foo.md", "# Spec");
+        let spec = SpecProtocol::new("spec-1", "docs/foo.md", "# Spec");
         let result = adapter.push_spec(&spec).await;
         assert!(matches!(result, Err(AgentError::NotSupported(_))));
     }

@@ -34,7 +34,7 @@ glob = "0.3"
 regex = "1"
 tempfile = "3"
 
-# HTTP client (`mambalibs.http` core)
+# HTTP client (`kit-http` core)
 kit-http = { path = "../kit-http" }
 
 # URL encoding

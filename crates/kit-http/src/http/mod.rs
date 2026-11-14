@@ -6,8 +6,7 @@
 //!
 //! - `kit_http::request_response::{Request, Response, Cookie}` — Python-facing,
 //!   schema-driven codegen, simple primitives. Designed before kit was
-//!   strong-typed; it lifted pydantic-style validators into Rust so CPython
-//!   could call them at native speed.
+//!   strong-typed; it lifted pydantic-style validators into Rust.
 //! - `kit_http::client::{RequestBuilder, HttpResponse}` — rich client-side
 //!   builder with enum body / auth.
 //! - `kit_http::protocol::Native*Head` — internal streaming-server primitives.

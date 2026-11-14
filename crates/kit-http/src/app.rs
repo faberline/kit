@@ -37,8 +37,7 @@ impl Route {
 /// Native endpoint metadata shared by HTTP routing, DI, schema validation,
 /// OpenAPI generation, and host dispatch.
 ///
-/// This is an extension contract for `kit.http`. It intentionally does
-/// not change CPython stdlib HTTP behavior or Python syntax; later decorator
+/// This is an extension contract for `kit.http`. Later decorator
 /// lowering can populate this from ordinary `@app.post(...)`, parameter
 /// defaults, and annotations.
 /// @spec .score/tech_design/projects/httpkit/runtime-surface.md#endpoint
@@ -149,8 +148,7 @@ impl Endpoint {
 
 /// FastAPI-style non-body route parameter metadata for OpenAPI and preflight.
 ///
-/// This is an additive `kit.http` contract and does not alter CPython
-/// stdlib HTTP behavior.
+/// This is an additive `kit.http` contract.
 /// @spec .score/tech_design/projects/httpkit/runtime-surface.md#param
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RouteParameter {

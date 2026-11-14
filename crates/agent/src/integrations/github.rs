@@ -12,6 +12,8 @@ use kit_http::client::{HttpClient, HttpMethod, RequestBuilder};
 use serde::Deserialize;
 use std::sync::Arc;
 
+const USER_AGENT: &str = "kit-agent";
+
 /// GitHub integration for fetching issues and pull requests.
 pub struct GitHubIntegration {
     client: HttpClient,
@@ -51,7 +53,7 @@ impl GitHubIntegration {
         let request = RequestBuilder::new(HttpMethod::Get, url)
             .header("Authorization", format!("Bearer {}", self.token))
             .header("Accept", "application/vnd.github.v3+json")
-            .header("User-Agent", "cclab-nova");
+            .header("User-Agent", USER_AGENT);
 
         let response = self
             .client
@@ -92,7 +94,7 @@ impl GitHubIntegration {
         let request = RequestBuilder::new(HttpMethod::Post, url)
             .header("Authorization", format!("Bearer {}", self.token))
             .header("Accept", "application/vnd.github.v3+json")
-            .header("User-Agent", "cclab-nova")
+            .header("User-Agent", USER_AGENT)
             .json_value(body);
 
         let response = self
@@ -123,7 +125,7 @@ impl GitHubIntegration {
         let request = RequestBuilder::new(HttpMethod::Patch, url)
             .header("Authorization", format!("Bearer {}", self.token))
             .header("Accept", "application/vnd.github.v3+json")
-            .header("User-Agent", "cclab-nova")
+            .header("User-Agent", USER_AGENT)
             .json_value(body);
 
         let response = self
@@ -597,6 +599,11 @@ impl Tool for ListGitHubIssuesTool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn user_agent_is_kit_agent() {
+        assert_eq!(USER_AGENT, "kit-agent");
+    }
 
     #[test]
     fn test_github_integration_creation() {

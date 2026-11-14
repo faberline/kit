@@ -50,8 +50,8 @@ mod tests {
     fn test_project_protocol_roundtrip() {
         let project = ProjectProtocol {
             id: "proj-001".to_string(),
-            name: "cclab-agent".to_string(),
-            repo_url: "https://github.com/org/cclab-agent".to_string(),
+            name: "kit-agent".to_string(),
+            repo_url: "https://github.com/org/kit-agent".to_string(),
             platform: Platform::GitHub,
         };
 

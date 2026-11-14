@@ -255,7 +255,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_push_spec_returns_not_supported() {
-        let spec = SpecProtocol::new("spec-1", ".aw/tech-design/foo.md", "# Spec");
+        let spec = SpecProtocol::new("spec-1", "docs/foo.md", "# Spec");
         let result = make_adapter().push_spec(&spec).await;
         assert!(matches!(result, Err(AgentError::NotSupported(_))));
     }

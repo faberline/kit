@@ -1,8 +1,8 @@
-# Cclab Frame
+# Frame
 
 ## Brief
 
-Cclab Frame is the Rust DataFrame and Series library for cclab data workflows.
+Frame is the Rust DataFrame and Series library for kit data workflows.
 
 It owns pandas-like tabular data structures, typed values, single and
 multi-indexing, row/column selection, null handling, analytical operations,
@@ -23,7 +23,7 @@ A promise with no gate under it is not claimed.
 
 ### DataFrame Series Core
 
-Cclab Frame provides pandas-like DataFrame and Series primitives with typed
+Frame provides pandas-like DataFrame and Series primitives with typed
 values, single and multi-indexing, positional/label access, null handling,
 row/column transforms, sorting, statistics, and conversion helpers.
 
@@ -38,7 +38,7 @@ row/column transforms, sorting, statistics, and conversion helpers.
 
 ### Analytical Operations
 
-Cclab Frame exposes analytical DataFrame operations for grouped aggregation,
+Frame exposes analytical DataFrame operations for grouped aggregation,
 joins, pivoting, reshaping, rolling windows, expanding windows, and
 exponentially weighted calculations.
 
@@ -53,7 +53,7 @@ exponentially weighted calculations.
 
 ### Frame IO And Workbook
 
-Cclab Frame reads and writes tabular data through CSV, columnar, workbook, and
+Frame reads and writes tabular data through CSV, columnar, workbook, and
 optional JSON feature surfaces while preserving the DataFrame value model.
 
 - Root WI: none; this capability predates the tracker.

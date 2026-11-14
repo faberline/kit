@@ -165,7 +165,7 @@ pub enum AgentRole {
 }
 
 /// A governed agent team — an ordered set of roles that collaborate on one
-/// SDD workflow run. Used by the cue backend to invoke `cclab-agent-mamba`
+/// SDD workflow run. Used by the cue backend to invoke `kit-agent`
 /// for end-to-end Prompt-to-Governed-App execution (#1545).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AgentTeam {
