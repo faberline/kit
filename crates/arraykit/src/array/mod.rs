@@ -24,7 +24,7 @@ pub use linalg_decomp::{EigResult, LstsqResult, QrResult, SvdResult};
 pub use math::FloatOps;
 pub use ndarray::NdArray;
 pub use ops::NumericOps;
-pub use random::{Pcg64, RandomExt};
+pub use random::{KitRng, RandomExt};
 pub use shape::Shape;
 pub use slice::{AxisSlice, NormalizedSlice, SliceInfo};
 pub use stats::{StatOps, VarOps};
