@@ -8,3 +8,7 @@ name = "kit"
 paths = ["**"]
 target = "rust"
 test_cmd = "cargo test --workspace"
+
+[standards.coverage]
+line = 84.11
+target = 100
