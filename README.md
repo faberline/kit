@@ -13,6 +13,8 @@ Results are not yet checked against reference libraries (NumPy, pandas, SciPy).
 
 A quality check found wrong results. Open issues track them: #3 (frame), #4 (arraykit and scikit), #5 (agent), and #1, #7 to #11 (CI and clippy).
 
+See [docs/stability.md](docs/stability.md), [docs/limits.md](docs/limits.md) and [CHANGELOG.md](CHANGELOG.md).
+
 ## Crates
 
 | Crate | What it is |
