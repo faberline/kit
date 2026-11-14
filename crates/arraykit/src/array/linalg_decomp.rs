@@ -13,7 +13,7 @@ pub struct QrResult {
 
 /// Result of eigenvalue decomposition.
 pub struct EigResult {
-    /// Eigenvalues (may be complex — real parts stored).
+    /// Eigenvalues (real only, ascending).
     pub values: Vec<f64>,
     /// Eigenvectors as columns of an n × n matrix.
     pub vectors: NdArray<f64>,
@@ -169,10 +169,13 @@ impl NdArray<f64> {
         NdArray::new(l, vec![n, n])
     }
 
-    /// Eigenvalue decomposition using the QR algorithm with shifts.
+    /// Eigenvalue decomposition: shifted QR iteration for the eigenvalues,
+    /// inverse iteration for the eigenvectors.
     ///
-    /// Works on square matrices. Returns eigenvalues and eigenvectors.
-    /// For non-symmetric matrices, eigenvalues are real approximations.
+    /// Works on square matrices with finite entries. Returns real eigenvalues
+    /// in ascending order and the eigenvectors as columns. Real eigenvalues
+    /// only: complex eigenvalues return an error, and so does a failure to
+    /// converge.
     pub fn eig(&self) -> Result<EigResult> {
         if self.ndim() != 2 {
             return Err(ArrayError::ShapeMismatch {
@@ -189,6 +192,12 @@ impl NdArray<f64> {
             });
         }
 
+        if self.data.iter().any(|v| !v.is_finite()) {
+            return Err(ArrayError::InvalidOperation(
+                "matrix contains NaN or infinity".into(),
+            ));
+        }
+
         if n == 0 {
             return Ok(EigResult {
                 values: vec![],
@@ -203,63 +212,90 @@ impl NdArray<f64> {
             });
         }
 
-        // QR iteration: repeatedly do QR decomposition and form RQ
-        let max_iter = 200;
-        let tol = 1e-10;
-
-        let mut a_data = self.data.clone();
-        // Accumulate eigenvectors
-        let mut v_data = vec![0.0; n * n];
-        for i in 0..n {
-            v_data[i * n + i] = 1.0;
-        }
-
-        for _ in 0..max_iter {
-            // Wilkinson shift: use eigenvalue of bottom-right 2×2 closer to a[n-1][n-1]
-            let shift = if n >= 2 {
-                wilkinson_shift(
-                    a_data[(n - 2) * n + (n - 2)],
-                    a_data[(n - 2) * n + (n - 1)],
-                    a_data[(n - 1) * n + (n - 2)],
-                    a_data[(n - 1) * n + (n - 1)],
-                )
+        // Eigenvalues: shifted QR iteration on a copy of A (V is not accumulated).
+        // The loop stops when the sub-diagonal is zero, or when only isolated
+        // 2x2 blocks remain.
+        let max_iter = 50 * n;
+        let mut a = self.data.clone();
+        let mut converged = deflate_qr(&mut a, n);
+        let mut iter = 0;
+        while !converged && iter < max_iter {
+            iter += 1;
+            // Wilkinson shift; a real shift when the bottom 2x2 block is complex
+            let (p, q, r, s) = (
+                a[(n - 2) * n + (n - 2)],
+                a[(n - 2) * n + (n - 1)],
+                a[(n - 1) * n + (n - 2)],
+                a[(n - 1) * n + (n - 1)],
+            );
+            let shift = if ((p - s) / 2.0).powi(2) + q * r < 0.0 {
+                s
             } else {
-                0.0
+                wilkinson_shift(p, q, r, s)
             };
 
-            // Apply shift: A - σI
             for i in 0..n {
-                a_data[i * n + i] -= shift;
+                a[i * n + i] -= shift;
             }
-
-            // QR decomposition of shifted matrix
-            let a_mat = NdArray::new(a_data.clone(), vec![n, n])?;
+            let a_mat = NdArray::new(a.clone(), vec![n, n])?;
             let qr = a_mat.qr()?;
-
-            // A = R * Q + σI
             let rq = qr.r.matmul(&qr.q)?;
-            a_data = rq.data.clone();
+            a = rq.data.clone();
             for i in 0..n {
-                a_data[i * n + i] += shift;
+                a[i * n + i] += shift;
             }
-
-            // Accumulate eigenvectors: V = V * Q
-            let v_mat = NdArray::new(v_data.clone(), vec![n, n])?;
-            let new_v = v_mat.matmul(&qr.q)?;
-            v_data = new_v.data;
-
-            // Check convergence: sub-diagonal elements should be near zero
-            let mut max_off = 0.0_f64;
-            for i in 1..n {
-                max_off = max_off.max(a_data[i * n + (i - 1)].abs());
-            }
-            if max_off < tol {
-                break;
-            }
+            converged = deflate_qr(&mut a, n);
+        }
+        if !converged {
+            return Err(ArrayError::InvalidOperation("eig did not converge".into()));
         }
 
-        // Extract eigenvalues from diagonal
-        let values: Vec<f64> = (0..n).map(|i| a_data[i * n + i]).collect();
+        // Read the eigenvalues from the blocks. A 1x1 block is a real eigenvalue.
+        // A 2x2 block gives two real roots, or a complex pair (an error).
+        let mut values: Vec<f64> = Vec::with_capacity(n);
+        let mut i = 0;
+        while i < n {
+            if i + 1 < n && a[(i + 1) * n + i] != 0.0 {
+                let (p, q, r, s) = (
+                    a[i * n + i],
+                    a[i * n + i + 1],
+                    a[(i + 1) * n + i],
+                    a[(i + 1) * n + i + 1],
+                );
+                let disc = ((p - s) / 2.0).powi(2) + q * r;
+                if disc < 0.0 {
+                    return Err(ArrayError::InvalidOperation(
+                        "matrix has complex eigenvalues".into(),
+                    ));
+                }
+                let mid = (p + s) / 2.0;
+                values.push(mid - disc.sqrt());
+                values.push(mid + disc.sqrt());
+                i += 2;
+            } else {
+                values.push(a[i * n + i]);
+                i += 1;
+            }
+        }
+        values.sort_by(f64::total_cmp);
+
+        // Eigenvectors by inverse iteration, one per eigenvalue (the columns of V).
+        let mut v_data = vec![0.0; n * n];
+        let mut found: Vec<(f64, Vec<f64>)> = Vec::with_capacity(n);
+        for (k, &lambda) in values.iter().enumerate() {
+            let tol = 1e-8 * lambda.abs().max(1.0);
+            // Vectors already found for the same (repeated) eigenvalue
+            let cluster: Vec<Vec<f64>> = found
+                .iter()
+                .filter(|(mu, _)| (mu - lambda).abs() <= tol)
+                .map(|(_, v)| v.clone())
+                .collect();
+            let v = eigenvector_by_inverse_iteration(&self.data, n, lambda, &cluster)?;
+            for (row, &x) in v.iter().enumerate() {
+                v_data[row * n + k] = x;
+            }
+            found.push((lambda, v));
+        }
 
         Ok(EigResult {
             values,
@@ -575,6 +611,130 @@ impl NdArray<f64> {
         }
         NdArray::new(result, vec![n, m])
     }
+}
+
+/// Sets each negligible sub-diagonal entry of the n x n row-major matrix `a`
+/// to zero. Returns true when no two neighbouring sub-diagonal entries are
+/// both non-zero, so the matrix is block upper-triangular with 1x1 and 2x2 blocks.
+fn deflate_qr(a: &mut [f64], n: usize) -> bool {
+    for i in 1..n {
+        let sub = a[i * n + i - 1];
+        if sub.abs() <= 1e-12 * (a[i * n + i].abs() + a[(i - 1) * n + (i - 1)].abs()) {
+            a[i * n + i - 1] = 0.0;
+        }
+    }
+    (2..n).all(|i| a[i * n + i - 1] == 0.0 || a[(i - 1) * n + i - 2] == 0.0)
+}
+
+/// Solves `m * x = b` for an n x n row-major matrix `m` by Gaussian elimination
+/// with partial pivoting. Returns None for a singular or non-finite result.
+fn solve_linear(m: &[f64], b: &[f64], n: usize) -> Option<Vec<f64>> {
+    let mut a = m.to_vec();
+    let mut x = b.to_vec();
+    for col in 0..n {
+        let mut piv = col;
+        for row in col + 1..n {
+            if a[row * n + col].abs() > a[piv * n + col].abs() {
+                piv = row;
+            }
+        }
+        if a[piv * n + col].abs() <= 1e-300 {
+            return None;
+        }
+        if piv != col {
+            for k in 0..n {
+                a.swap(col * n + k, piv * n + k);
+            }
+            x.swap(col, piv);
+        }
+        for row in col + 1..n {
+            let factor = a[row * n + col] / a[col * n + col];
+            for k in col..n {
+                a[row * n + k] -= factor * a[col * n + k];
+            }
+            x[row] -= factor * x[col];
+        }
+    }
+    for row in (0..n).rev() {
+        let mut sum = x[row];
+        for k in row + 1..n {
+            sum -= a[row * n + k] * x[k];
+        }
+        x[row] = sum / a[row * n + row];
+    }
+    x.iter().all(|v| v.is_finite()).then_some(x)
+}
+
+/// Eigenvector of the real eigenvalue `lambda` of the n x n row-major matrix `a`,
+/// by inverse iteration. `cluster` holds the vectors already found for the same
+/// eigenvalue; the new vector is made orthogonal to them.
+fn eigenvector_by_inverse_iteration(
+    a: &[f64],
+    n: usize,
+    lambda: f64,
+    cluster: &[Vec<f64>],
+) -> Result<Vec<f64>> {
+    let scale = 1e-10 * lambda.abs().max(1.0);
+    // The first vector starts from the ones vector. A repeated eigenvalue starts
+    // from unit vectors, so that its vectors differ.
+    let starts: Vec<Vec<f64>> = if cluster.is_empty() {
+        vec![vec![1.0; n]]
+    } else {
+        (0..n)
+            .map(|k| {
+                let mut e = vec![0.0; n];
+                e[(cluster.len() + k) % n] = 1.0;
+                e
+            })
+            .collect()
+    };
+    for start in &starts {
+        // Up to three retries with the shift perturbed by a factor 10 each time
+        let mut delta = scale;
+        for _ in 0..4 {
+            let mut m = a.to_vec();
+            for i in 0..n {
+                m[i * n + i] -= lambda + delta;
+            }
+            if let Some(v) = inverse_iterate(&m, n, start.clone(), cluster) {
+                return Ok(v);
+            }
+            delta *= 10.0;
+        }
+    }
+    Err(ArrayError::InvalidOperation(
+        "eigenvector did not converge".into(),
+    ))
+}
+
+/// Three steps of inverse iteration with the matrix `m`, starting from `v`.
+/// After each step the vector is made orthogonal to `cluster` and normalized.
+/// Returns None when a solve fails or the vector collapses into `cluster`.
+fn inverse_iterate(m: &[f64], n: usize, mut v: Vec<f64>, cluster: &[Vec<f64>]) -> Option<Vec<f64>> {
+    for _ in 0..3 {
+        v = solve_linear(m, &v, n)?;
+        for c in cluster {
+            let dot: f64 = v.iter().zip(c).map(|(x, y)| x * y).sum();
+            for (x, y) in v.iter_mut().zip(c) {
+                *x -= dot * y;
+            }
+        }
+        let norm = v.iter().map(|x| x * x).sum::<f64>().sqrt();
+        if !(norm > 1e-12 && norm.is_finite()) {
+            return None;
+        }
+        for x in v.iter_mut() {
+            *x /= norm;
+        }
+    }
+    // Fix the sign: the first non-zero entry is positive
+    let flip = v.iter().find(|x| x.abs() > 1e-12).is_some_and(|x| *x < 0.0);
+    if flip {
+        for x in v.iter_mut() {
+            *x = -*x;
+        }
+    }
+    Some(v)
 }
 
 /// Wilkinson shift for QR iteration.
