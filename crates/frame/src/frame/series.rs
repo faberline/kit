@@ -2,7 +2,7 @@
 
 use super::error::{FrameError, Result};
 use super::index::Index;
-use super::value::Value;
+use super::value::{cmp_nulls_last, Value};
 
 /// A one-dimensional labeled array.
 #[derive(Debug, Clone)]
@@ -216,11 +216,7 @@ impl Series {
     /// Sort values.
     pub fn sort(&self, ascending: bool) -> Series {
         let mut indexed: Vec<(usize, &Value)> = self.data.iter().enumerate().collect();
-        if ascending {
-            indexed.sort_by(|a, b| a.1.cmp(b.1));
-        } else {
-            indexed.sort_by(|a, b| b.1.cmp(a.1));
-        }
+        indexed.sort_by(|a, b| cmp_nulls_last(a.1, b.1, ascending));
 
         let positions: Vec<usize> = indexed.iter().map(|(i, _)| *i).collect();
         // This unwrap is safe because positions come from valid indices
@@ -1394,6 +1390,19 @@ mod tests {
         let sum = (&a + &b).unwrap();
         assert_eq!(sum.iloc(0).unwrap(), &Value::Float(11.0));
         assert_eq!(sum.iloc(2).unwrap(), &Value::Float(33.0));
+    }
+
+    #[test]
+    fn sort_puts_nulls_last() {
+        let s = Series::new(vec![Value::Int(3), Value::Null, Value::Int(1)]);
+        assert_eq!(
+            s.sort(true).values(),
+            &[Value::Int(1), Value::Int(3), Value::Null]
+        );
+        assert_eq!(
+            s.sort(false).values(),
+            &[Value::Int(3), Value::Int(1), Value::Null]
+        );
     }
 
     #[test]

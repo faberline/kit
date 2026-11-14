@@ -3,7 +3,7 @@
 use super::error::{FrameError, Result};
 use super::index::Index;
 use super::series::Series;
-use super::value::Value;
+use super::value::{cmp_nulls_last, Value};
 use std::collections::HashMap;
 
 /// A two-dimensional labeled data structure.
@@ -313,11 +313,7 @@ impl DataFrame {
         let vals = col.values();
 
         let mut indices: Vec<usize> = (0..self.nrows()).collect();
-        if ascending {
-            indices.sort_by(|&a, &b| vals[a].cmp(&vals[b]));
-        } else {
-            indices.sort_by(|&a, &b| vals[b].cmp(&vals[a]));
-        }
+        indices.sort_by(|&a, &b| cmp_nulls_last(&vals[a], &vals[b], ascending));
 
         self.iloc(&indices)
     }
@@ -338,7 +334,7 @@ impl DataFrame {
             for (col, &asc) in cols.iter().zip(ascending.iter()) {
                 let va = col.iloc(a).unwrap();
                 let vb = col.iloc(b).unwrap();
-                let ord = if asc { va.cmp(vb) } else { vb.cmp(va) };
+                let ord = cmp_nulls_last(va, vb, asc);
                 if ord != std::cmp::Ordering::Equal {
                     return ord;
                 }
@@ -880,6 +876,55 @@ mod tests {
         let mask = vec![true, false, true, false, true];
         let filtered = df.filter(&mask).unwrap();
         assert_eq!(filtered.nrows(), 3);
+    }
+
+    fn nulls_df() -> DataFrame {
+        DataFrame::from_columns(vec![
+            (
+                "a",
+                Series::new(vec![Value::Int(3), Value::Null, Value::Int(1)]),
+            ),
+            (
+                "b",
+                Series::new(vec![Value::Int(10), Value::Int(20), Value::Int(30)]),
+            ),
+        ])
+        .unwrap()
+    }
+
+    #[test]
+    fn sort_values_nulls_last() {
+        let df = nulls_df();
+
+        let asc = df.sort_values("a", true).unwrap();
+        assert_eq!(
+            asc.get("a").unwrap().values(),
+            &[Value::Int(1), Value::Int(3), Value::Null]
+        );
+        assert_eq!(
+            asc.get("b").unwrap().values(),
+            &[Value::Int(30), Value::Int(10), Value::Int(20)]
+        );
+
+        let desc = df.sort_values("a", false).unwrap();
+        assert_eq!(
+            desc.get("a").unwrap().values(),
+            &[Value::Int(3), Value::Int(1), Value::Null]
+        );
+        assert_eq!(
+            desc.get("b").unwrap().values(),
+            &[Value::Int(10), Value::Int(30), Value::Int(20)]
+        );
+    }
+
+    #[test]
+    fn sort_values_by_nulls_last() {
+        let df = nulls_df();
+        let sorted = df.sort_values_by(&["a"], &[true]).unwrap();
+        assert_eq!(
+            sorted.get("a").unwrap().values(),
+            &[Value::Int(1), Value::Int(3), Value::Null]
+        );
     }
 
     #[test]

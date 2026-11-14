@@ -137,6 +137,18 @@ impl Ord for Value {
     }
 }
 
+/// Compare two values for sorting; nulls are last in both directions.
+/// Non-null values use `Ord` (ascending) or its reverse (descending).
+pub(crate) fn cmp_nulls_last(a: &Value, b: &Value, ascending: bool) -> Ordering {
+    match (a.is_null(), b.is_null()) {
+        (true, true) => Ordering::Equal,
+        (true, false) => Ordering::Greater,
+        (false, true) => Ordering::Less,
+        (false, false) if ascending => a.cmp(b),
+        (false, false) => b.cmp(a),
+    }
+}
+
 impl From<bool> for Value {
     fn from(v: bool) -> Self {
         Value::Bool(v)
