@@ -1182,3 +1182,121 @@ fn test_rolling_var() {
     // var of [1,2,3] = 1.0 (sample var)
     assert!((result.data()[2] - 1.0).abs() < 1e-10);
 }
+
+// ============================================================================
+// Issue #41: exact mean_f64, NaN-independent min/max, exact mode keys
+// ============================================================================
+
+#[test]
+fn test_mean_f64_integer() {
+    // np.mean([1, 2]) == 1.5
+    let a = NdArray::<i32>::new(vec![1, 2], vec![2]).unwrap();
+    assert_eq!(a.mean_f64(), 1.5);
+    // The integer mean() still truncates.
+    assert_eq!(a.mean(), 1);
+}
+
+#[test]
+fn test_mean_f64_empty() {
+    // np.mean([]) is nan
+    let a = NdArray::<f64>::new(vec![], vec![0]).unwrap();
+    assert!(a.mean_f64().is_nan());
+}
+
+#[test]
+fn test_mean_f64_i64_and_f32() {
+    // np.mean([1, 2, 4]) == 7/3
+    let a = NdArray::<i64>::new(vec![1, 2, 4], vec![3]).unwrap();
+    assert!(f64::abs(a.mean_f64() - 7.0 / 3.0) < 1e-12);
+    // np.mean([1.0, 2.0]) == 1.5
+    let b = NdArray::<f32>::new(vec![1.0, 2.0], vec![2]).unwrap();
+    assert_eq!(b.mean_f64(), 1.5);
+}
+
+#[test]
+fn test_min_nan_order() {
+    // np.min([1.0, nan, 0.5]) is nan; the order must not matter
+    for data in [
+        vec![1.0, f64::NAN, 0.5],
+        vec![f64::NAN, 1.0, 0.5],
+        vec![0.5, 1.0, f64::NAN],
+    ] {
+        let a = NdArray::new(data, vec![3]).unwrap();
+        assert!(a.min().unwrap().is_nan());
+    }
+}
+
+#[test]
+fn test_max_nan_order() {
+    // np.max([nan, 1.0]) is nan; the order must not matter
+    for data in [
+        vec![f64::NAN, 1.0],
+        vec![1.0, f64::NAN],
+        vec![1.0, f64::NAN, 2.0],
+    ] {
+        let n = data.len();
+        let a = NdArray::new(data, vec![n]).unwrap();
+        assert!(a.max().unwrap().is_nan());
+    }
+}
+
+#[test]
+fn test_min_max_empty_and_plain() {
+    let e = NdArray::<f64>::new(vec![], vec![0]).unwrap();
+    assert_eq!(e.min(), None);
+    assert_eq!(e.max(), None);
+    let a = NdArray::new(vec![3.0_f64, 1.0, 2.0], vec![3]).unwrap();
+    assert_eq!(a.min(), Some(1.0));
+    assert_eq!(a.max(), Some(3.0));
+}
+
+#[test]
+fn test_min_max_axis_nan() {
+    // [[1.0, NaN], [3.0, 4.0]]
+    let a = NdArray::new(vec![1.0_f64, f64::NAN, 3.0, 4.0], vec![2, 2]).unwrap();
+    let mins = a.min_axis(1).unwrap();
+    assert!(mins.data()[0].is_nan());
+    assert_eq!(mins.data()[1], 3.0);
+    let maxs = a.max_axis(0).unwrap();
+    assert_eq!(maxs.data()[0], 3.0);
+    assert!(maxs.data()[1].is_nan());
+}
+
+#[test]
+fn test_mode_large_values() {
+    // scipy.stats.mode([1e300, 2e300, 2e300]) is 2e300
+    let a = NdArray::new(vec![1e300_f64, 2e300, 2e300], vec![3]).unwrap();
+    assert_eq!(a.mode(), Some(2e300));
+}
+
+#[test]
+fn test_mode_close_values_are_different() {
+    // Values that differ by 1e-11 are different keys.
+    let a = NdArray::new(
+        vec![1.0_f64, 1.0 + 1e-11, 1.0 + 1e-11, 5.0, 5.0, 5.0],
+        vec![6],
+    )
+    .unwrap();
+    assert_eq!(a.mode(), Some(5.0));
+    let b = NdArray::new(vec![1.0_f64, 1.0 + 1e-11, 1.0 + 1e-11], vec![3]).unwrap();
+    assert_eq!(b.mode(), Some(1.0 + 1e-11));
+}
+
+#[test]
+fn test_mode_tie_smallest_wins() {
+    // scipy.stats.mode returns the smallest value on a tie.
+    let a = NdArray::new(vec![3.0_f64, 1.0, 2.0, 2.0, 3.0, 1.0], vec![6]).unwrap();
+    assert_eq!(a.mode(), Some(1.0));
+    let b = NdArray::new(vec![2.0_f64, 3.0, 1.0, 3.0, 1.0, 2.0], vec![6]).unwrap();
+    assert_eq!(b.mode(), Some(1.0));
+}
+
+#[test]
+fn test_mode_zero_and_nan() {
+    // -0.0 and 0.0 are one value.
+    let a = NdArray::new(vec![-0.0_f64, 0.0, 0.0, 1.0], vec![4]).unwrap();
+    assert_eq!(a.mode(), Some(0.0));
+    // All NaN are one value.
+    let b = NdArray::new(vec![f64::NAN, f64::NAN, 1.0], vec![3]).unwrap();
+    assert!(b.mode().unwrap().is_nan());
+}
