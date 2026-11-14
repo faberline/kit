@@ -1,13 +1,13 @@
-# Cclab Core
+# Kit Core
 
 ## Brief
 
-Cclab Core is the small shared Rust support crate for ecosystem-wide error,
+Kit Core is the small shared Rust support crate for ecosystem-wide error,
 HTTP, and utility contracts.
 
-It owns the common `DataBridgeError` / `Result` surface, production-safe error
+It owns the common `KitError` / `Result` surface, production-safe error
 sanitization helpers, and lightweight HTTP request/response abstractions used
-by higher-level cclab crates.
+by higher-level kit crates.
 
 ## Capabilities
 
@@ -17,18 +17,18 @@ A promise with no gate under it is not claimed.
 
 | Capability | Root WI | Notes |
 |---|---:|---|
-| Unified Error Contract | - | shared `DataBridgeError` and `Result` contract for cclab crates |
+| Unified Error Contract | - | shared `KitError` and `Result` contract for kit crates |
 | Sanitized Error Reporting | - | redacts connection strings, credentials, internal IPs, and tokens before production logging |
 | HTTP Helper Contracts | - | shared HTTP method, status, request, and response helper traits |
 
 ### Unified Error Contract
 
-Cclab Core gives Rust crates one shared error/result contract with stable
+Kit Core gives Rust crates one shared error/result contract with stable
 display text, serde conversion, retry classification, and constraint violation
 classification.
 
 - Root WI: none; this capability predates the tracker.
-- Surfaces: Rust API: `kit_core::DataBridgeError`, `Result`, `is_retryable`,
+- Surfaces: Rust API: `kit_core::KitError`, `Result`, `is_retryable`,
   `is_constraint_violation`
 - Gate — behavior: `cargo test -p kit-core` - shared error display,
   conversion, retry, and constraint behavior
@@ -37,7 +37,7 @@ classification.
 
 ### Sanitized Error Reporting
 
-Cclab Core provides production-safe error sanitization and categorization so
+Kit Core provides production-safe error sanitization and categorization so
 crates can log failures without leaking connection strings, credentials,
 internal IPs, or auth tokens.
 
@@ -51,7 +51,7 @@ internal IPs, or auth tokens.
 
 ### HTTP Helper Contracts
 
-Cclab Core provides lightweight HTTP helper types and traits that let ecosystem
+Kit Core provides lightweight HTTP helper types and traits that let ecosystem
 crates share method parsing, status classification, header lookup, and
 response/request behavior.
 

@@ -1,4 +1,4 @@
-//! Shared HTTP types for cclab ecosystem.
+//! Shared HTTP types for kit ecosystem.
 
 use std::collections::HashMap;
 use std::fmt;

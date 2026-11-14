@@ -4,8 +4,8 @@
 //! request building, and middleware. The native API toolkit owns both
 //! server-side route registration and client-side request execution.
 //!
-//! Mamba bindings are exposed through the sibling `kit-http-binding`
-//! crate under `mambalibs.http`.
+//! Kit bindings are exposed through the sibling `kit-http-binding`
+//! crate under `kit.http`.
 
 pub mod client;
 pub mod config;

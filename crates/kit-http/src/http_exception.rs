@@ -33,8 +33,8 @@ impl HTTPException {
     }
 }
 
-/// Minimal canonical phrase table used by core httpkit. Mamba bindings may use
-/// their own runtime-facing helpers, but core logic must not depend on Mamba.
+/// Minimal canonical phrase table used by core httpkit. Kit bindings may use
+/// their own runtime-facing helpers, but core logic must not depend on Kit.
 /// @spec .score/tech_design/projects/httpkit/http-exception.md#status-phrase
 pub fn status_phrase(status_code: u16) -> &'static str {
     match status_code {

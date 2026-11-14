@@ -37,7 +37,7 @@ impl Route {
 /// Native endpoint metadata shared by HTTP routing, DI, schema validation,
 /// OpenAPI generation, and host dispatch.
 ///
-/// This is an extension contract for `mambalibs.http`. It intentionally does
+/// This is an extension contract for `kit.http`. It intentionally does
 /// not change CPython stdlib HTTP behavior or Python syntax; later decorator
 /// lowering can populate this from ordinary `@app.post(...)`, parameter
 /// defaults, and annotations.
@@ -149,7 +149,7 @@ impl Endpoint {
 
 /// FastAPI-style non-body route parameter metadata for OpenAPI and preflight.
 ///
-/// This is an additive `mambalibs.http` contract and does not alter CPython
+/// This is an additive `kit.http` contract and does not alter CPython
 /// stdlib HTTP behavior.
 /// @spec .score/tech_design/projects/httpkit/runtime-surface.md#param
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -404,7 +404,7 @@ impl App {
             .metadata
             .get("title")
             .cloned()
-            .unwrap_or_else(|| "Mamba API".to_string());
+            .unwrap_or_else(|| "Kit API".to_string());
         let version = self
             .metadata
             .get("version")
@@ -421,7 +421,7 @@ impl App {
             }
             if !endpoint.dependency_keys.is_empty() {
                 operation.insert(
-                    "x-mamba-dependencies".to_string(),
+                    "x-kit-dependencies".to_string(),
                     json!(endpoint.dependency_keys),
                 );
             }
