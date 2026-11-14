@@ -551,6 +551,11 @@ fn svd_tall(data: &[f64], m: usize, n: usize) -> Result<(Vec<f64>, Vec<f64>, Vec
         v[i * n + i] = 1.0;
     }
 
+    // Squared Frobenius norm of A. A column whose norm is below about
+    // 1e-15 * ||A||_F is rounding noise: its pairs are skipped, so that a rank
+    // deficient input does not rotate the same noise column in every sweep.
+    let frob2: f64 = data.iter().map(|x| x * x).sum();
+
     let mut converged = false;
     for _ in 0..60 {
         let mut rotated = false;
@@ -564,6 +569,9 @@ fn svd_tall(data: &[f64], m: usize, n: usize) -> Result<(Vec<f64>, Vec<f64>, Vec
                     gamma += wp * wq;
                 }
                 if gamma == 0.0 || gamma.abs() <= 1e-15 * (alpha * beta).sqrt() {
+                    continue;
+                }
+                if alpha.min(beta) <= 1e-30 * frob2 {
                     continue;
                 }
                 let zeta = (beta - alpha) / (2.0 * gamma);

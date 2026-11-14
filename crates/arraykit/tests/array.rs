@@ -1963,3 +1963,77 @@ fn svd_zero_matrix() {
     assert_orthonormal(r.vt.data(), 2);
     assert_close_all(&svd_reconstruct(&r, 2, 2), a.data(), 1e-12);
 }
+
+#[test]
+fn svd_rank_one_square() {
+    // np.linalg.svd(np.array([[4.,1.,3.],[8.,2.,6.],[0.,0.,0.]]), compute_uv=False)
+    //   == [11.40175425099138, 1e-15, 0.0] (exact: [sqrt(130), 0, 0])
+    let a = NdArray::new(
+        vec![4.0, 1.0, 3.0, 8.0, 2.0, 6.0, 0.0, 0.0, 0.0],
+        vec![3, 3],
+    )
+    .unwrap();
+    let r = a.svd().unwrap();
+    assert!(
+        (r.s[0] - 11.40175425099138).abs() < 1e-12,
+        "s0 = {}",
+        r.s[0]
+    );
+    assert!(r.s[1].abs() < 1e-12, "s1 = {}", r.s[1]);
+    assert!(r.s[2].abs() < 1e-12, "s2 = {}", r.s[2]);
+    assert_orthonormal(r.u.data(), 3);
+    assert_orthonormal(r.vt.data(), 3);
+    assert_close_all(&svd_reconstruct(&r, 3, 3), a.data(), 1e-12);
+}
+
+#[test]
+fn svd_rank_one_tall_4x3() {
+    // np.linalg.svd(np.array([[8.,2.,6.],[-4.,-1.,-3.],[0.,0.,0.],[0.,0.,0.]]), compute_uv=False)
+    //   == [11.401754250991381, 4e-17, 0.0] (exact: [sqrt(130), 0, 0])
+    let a = NdArray::new(
+        vec![
+            8.0, 2.0, 6.0, -4.0, -1.0, -3.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+        ],
+        vec![4, 3],
+    )
+    .unwrap();
+    let r = a.svd().unwrap();
+    assert!(
+        (r.s[0] - 11.401754250991381).abs() < 1e-12,
+        "s0 = {}",
+        r.s[0]
+    );
+    assert!(r.s[1].abs() < 1e-12, "s1 = {}", r.s[1]);
+    assert!(r.s[2].abs() < 1e-12, "s2 = {}", r.s[2]);
+    assert_orthonormal(r.u.data(), 4);
+    assert_orthonormal(r.vt.data(), 3);
+    assert_close_all(&svd_reconstruct(&r, 4, 3), a.data(), 1e-12);
+}
+
+#[test]
+fn svd_wide_rank_two_3x4() {
+    // np.linalg.svd(np.array([[-2.,4.,0.,0.],[-1.,3.,0.,0.],[0.,-1.,0.,0.]]), compute_uv=False)
+    //   == [5.541381265149111, 0.5413812651491101, 0.0]
+    let a = NdArray::new(
+        vec![
+            -2.0, 4.0, 0.0, 0.0, -1.0, 3.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0,
+        ],
+        vec![3, 4],
+    )
+    .unwrap();
+    let r = a.svd().unwrap();
+    assert!(
+        (r.s[0] - 5.541381265149111).abs() < 1e-12,
+        "s0 = {}",
+        r.s[0]
+    );
+    assert!(
+        (r.s[1] - 0.5413812651491101).abs() < 1e-12,
+        "s1 = {}",
+        r.s[1]
+    );
+    assert!(r.s[2].abs() < 1e-12, "s2 = {}", r.s[2]);
+    assert_orthonormal(r.u.data(), 3);
+    assert_orthonormal(r.vt.data(), 4);
+    assert_close_all(&svd_reconstruct(&r, 3, 4), a.data(), 1e-12);
+}
