@@ -1616,3 +1616,36 @@ mod csv_tests {
         assert_eq!(df2.shape(), (2, 3));
     }
 }
+
+// ============================================================================
+// Int and Float keys (issue #23)
+// ============================================================================
+
+mod int_float_key_tests {
+    use super::*;
+
+    #[test]
+    fn series_unique_merges_int_and_float() {
+        let s = Series::new(vec![Value::Int(2), Value::Float(2.0), Value::Int(3)]);
+        assert_eq!(s.unique(), vec![Value::Int(2), Value::Int(3)]);
+    }
+
+    #[test]
+    fn series_isin_int_vs_float() {
+        let s = Series::new(vec![Value::Int(2), Value::Int(5)]);
+        assert_eq!(s.isin(&[Value::Float(2.0)]), vec![true, false]);
+    }
+
+    #[test]
+    fn groupby_merges_int_and_float_keys() {
+        let df = DataFrame::from_columns(vec![
+            (
+                "k",
+                Series::new(vec![Value::Int(2), Value::Float(2.0), Value::Int(3)]),
+            ),
+            ("v", Series::new(vec![1, 2, 3])),
+        ])
+        .unwrap();
+        assert_eq!(df.groupby(&["k"]).unwrap().ngroups(), 2);
+    }
+}

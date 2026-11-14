@@ -85,6 +85,7 @@ pub fn join(left: &DataFrame, right: &DataFrame, on: &[&str], how: JoinType) -> 
                         Some(right_i),
                         &left_cols,
                         &right_cols,
+                        on,
                     );
                 }
             }
@@ -98,6 +99,7 @@ pub fn join(left: &DataFrame, right: &DataFrame, on: &[&str], how: JoinType) -> 
                     None,
                     &left_cols,
                     &right_cols,
+                    on,
                 );
             }
             (JoinType::Left, Some(matches)) => {
@@ -111,6 +113,7 @@ pub fn join(left: &DataFrame, right: &DataFrame, on: &[&str], how: JoinType) -> 
                         Some(right_i),
                         &left_cols,
                         &right_cols,
+                        on,
                     );
                 }
             }
@@ -128,6 +131,7 @@ pub fn join(left: &DataFrame, right: &DataFrame, on: &[&str], how: JoinType) -> 
                         Some(right_i),
                         &left_cols,
                         &right_cols,
+                        on,
                     );
                 }
             }
@@ -140,6 +144,7 @@ pub fn join(left: &DataFrame, right: &DataFrame, on: &[&str], how: JoinType) -> 
                     None,
                     &left_cols,
                     &right_cols,
+                    on,
                 );
             }
             (JoinType::Outer, Some(matches)) => {
@@ -153,6 +158,7 @@ pub fn join(left: &DataFrame, right: &DataFrame, on: &[&str], how: JoinType) -> 
                         Some(right_i),
                         &left_cols,
                         &right_cols,
+                        on,
                     );
                 }
             }
@@ -171,12 +177,14 @@ pub fn join(left: &DataFrame, right: &DataFrame, on: &[&str], how: JoinType) -> 
                     Some(right_i),
                     &left_cols,
                     &right_cols,
+                    on,
                 );
             }
         }
     }
 
     // Build DataFrame
+    let right_names: Vec<String> = right_cols.iter().map(|c| format!("{}_right", c)).collect();
     let mut columns: Vec<(&str, Series)> = Vec::new();
 
     for &col in &left_cols {
@@ -184,10 +192,9 @@ pub fn join(left: &DataFrame, right: &DataFrame, on: &[&str], how: JoinType) -> 
         columns.push((col, Series::new(values)));
     }
 
-    for &col in &right_cols {
-        let key = format!("{}_right", col);
-        let values = result_data.remove(&key).unwrap();
-        columns.push((Box::leak(key.into_boxed_str()), Series::new(values)));
+    for name in &right_names {
+        let values = result_data.remove(name).unwrap();
+        columns.push((name.as_str(), Series::new(values)));
     }
 
     DataFrame::from_columns(columns)
@@ -201,11 +208,20 @@ fn add_row(
     right_i: Option<usize>,
     left_cols: &[&str],
     right_cols: &[&str],
+    on: &[&str],
 ) {
-    // Add left columns
+    // Add left columns. A key column of a right-only row takes its value
+    // from the right row, so no key cell is Null.
     for &col in left_cols {
         let value = left_i
             .and_then(|i| left.get(col).ok()?.iloc(i).ok().cloned())
+            .or_else(|| {
+                if on.contains(&col) {
+                    right_i.and_then(|i| right.get(col).ok()?.iloc(i).ok().cloned())
+                } else {
+                    None
+                }
+            })
             .unwrap_or(Value::Null);
         result.get_mut(col).unwrap().push(value);
     }
@@ -303,5 +319,115 @@ mod tests {
         let result = left.outer_join(&right, &["key"]).unwrap();
 
         assert_eq!(result.nrows(), 4); // a, b, c, d
+    }
+
+    fn key_left() -> DataFrame {
+        DataFrame::from_columns(vec![
+            ("id", Series::new(vec![1, 2, 3])),
+            ("l", Series::new(vec![10, 20, 30])),
+        ])
+        .unwrap()
+    }
+
+    fn key_right() -> DataFrame {
+        DataFrame::from_columns(vec![
+            ("id", Series::new(vec![2, 3, 3, 4])),
+            ("r", Series::new(vec![200, 300, 301, 400])),
+        ])
+        .unwrap()
+    }
+
+    #[test]
+    fn right_join_keeps_key() {
+        let result = key_left()
+            .join(&key_right(), &["id"], JoinType::Right)
+            .unwrap();
+
+        assert_eq!(
+            result.get("id").unwrap().values(),
+            &[Value::Int(2), Value::Int(3), Value::Int(3), Value::Int(4)]
+        );
+        assert_eq!(
+            result.get("l").unwrap().values(),
+            &[Value::Int(20), Value::Int(30), Value::Int(30), Value::Null]
+        );
+        assert_eq!(
+            result.get("r_right").unwrap().values(),
+            &[
+                Value::Int(200),
+                Value::Int(300),
+                Value::Int(301),
+                Value::Int(400)
+            ]
+        );
+    }
+
+    #[test]
+    fn outer_join_keeps_key() {
+        let result = key_left()
+            .join(&key_right(), &["id"], JoinType::Outer)
+            .unwrap();
+
+        assert_eq!(
+            result.get("id").unwrap().values(),
+            &[
+                Value::Int(1),
+                Value::Int(2),
+                Value::Int(3),
+                Value::Int(3),
+                Value::Int(4)
+            ]
+        );
+        assert_eq!(
+            result.get("l").unwrap().values(),
+            &[
+                Value::Int(10),
+                Value::Int(20),
+                Value::Int(30),
+                Value::Int(30),
+                Value::Null
+            ]
+        );
+        assert_eq!(
+            result.get("r_right").unwrap().values(),
+            &[
+                Value::Null,
+                Value::Int(200),
+                Value::Int(300),
+                Value::Int(301),
+                Value::Int(400)
+            ]
+        );
+    }
+
+    #[test]
+    fn inner_join_int_with_float_key() {
+        let left = key_left();
+        let right = DataFrame::from_columns(vec![
+            ("id", Series::new(vec![2.0, 3.0, 5.0])),
+            ("r", Series::new(vec![20, 30, 50])),
+        ])
+        .unwrap();
+        let result = left.join(&right, &["id"], JoinType::Inner).unwrap();
+
+        assert_eq!(result.nrows(), 2);
+        assert_eq!(
+            result.get("id").unwrap().values(),
+            &[Value::Int(2), Value::Int(3)]
+        );
+        assert_eq!(
+            result.get("r_right").unwrap().values(),
+            &[Value::Int(20), Value::Int(30)]
+        );
+    }
+
+    #[test]
+    fn join_column_names_are_owned() {
+        let result = key_left()
+            .join(&key_right(), &["id"], JoinType::Right)
+            .unwrap();
+        let names: Vec<String> = result.columns().to_vec();
+
+        assert_eq!(names, vec!["id", "l", "r_right"]);
     }
 }
