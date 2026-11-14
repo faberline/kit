@@ -812,15 +812,25 @@ impl Series {
 
     // === Advanced operations ===
 
-    /// Rank values (1-based, ascending).
+    /// Rank values, 1-based, ascending. Tied values get the average of their ranks (pandas `method='average'`).
     pub fn rank(&self) -> Series {
         let n = self.len();
         let mut indexed: Vec<(usize, &Value)> = self.data.iter().enumerate().collect();
         indexed.sort_by(|a, b| a.1.cmp(b.1));
 
         let mut ranks = vec![Value::Null; n];
-        for (rank, (original_idx, _)) in indexed.iter().enumerate() {
-            ranks[*original_idx] = Value::Float((rank + 1) as f64);
+        let mut start = 0;
+        while start < n {
+            let mut end = start + 1;
+            while end < n && indexed[end].1 == indexed[start].1 {
+                end += 1;
+            }
+            // The 1-based positions start+1 ..= end form one tie group; they share their average.
+            let rank = ((start + 1) + end) as f64 / 2.0;
+            for (original_idx, _) in &indexed[start..end] {
+                ranks[*original_idx] = Value::Float(rank);
+            }
+            start = end;
         }
 
         Series {
@@ -1565,10 +1575,36 @@ mod tests {
     fn test_series_rank() {
         let s = Series::new(vec![3, 1, 4, 1, 5]);
         let ranked = s.rank();
-        // Values: 3, 1, 4, 1, 5 -> sorted indices: 1, 3, 0, 2, 4
-        // Ranks for original positions: 3, 1, 4, 2, 5
+        // Values: 3, 1, 4, 1, 5 -> the two 1s share ranks 1 and 2 (average 1.5)
+        assert_eq!(ranked.iloc(0).unwrap(), &Value::Float(3.0));
+        assert_eq!(ranked.iloc(1).unwrap(), &Value::Float(1.5));
+        assert_eq!(ranked.iloc(2).unwrap(), &Value::Float(4.0));
+        assert_eq!(ranked.iloc(3).unwrap(), &Value::Float(1.5));
+        assert_eq!(ranked.iloc(4).unwrap(), &Value::Float(5.0));
+    }
+
+    #[test]
+    fn test_series_rank_ties_average() {
+        let ranked = Series::new(vec![1, 1, 2]).rank();
+        assert_eq!(ranked.iloc(0).unwrap(), &Value::Float(1.5));
+        assert_eq!(ranked.iloc(1).unwrap(), &Value::Float(1.5));
+        assert_eq!(ranked.iloc(2).unwrap(), &Value::Float(3.0));
+    }
+
+    #[test]
+    fn test_series_rank_no_ties() {
+        let ranked = Series::new(vec![3, 1, 2]).rank();
         assert_eq!(ranked.iloc(0).unwrap(), &Value::Float(3.0));
         assert_eq!(ranked.iloc(1).unwrap(), &Value::Float(1.0));
+        assert_eq!(ranked.iloc(2).unwrap(), &Value::Float(2.0));
+    }
+
+    #[test]
+    fn test_series_rank_all_tied() {
+        let ranked = Series::new(vec![5, 5, 5]).rank();
+        assert_eq!(ranked.iloc(0).unwrap(), &Value::Float(2.0));
+        assert_eq!(ranked.iloc(1).unwrap(), &Value::Float(2.0));
+        assert_eq!(ranked.iloc(2).unwrap(), &Value::Float(2.0));
     }
 
     #[test]
