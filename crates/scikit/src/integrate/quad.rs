@@ -148,23 +148,25 @@ pub fn simps(y: &[f64], dx: f64) -> f64 {
 
 /// Fixed-order Gaussian quadrature on [a, b].
 ///
-/// Uses `n`-point Gauss-Legendre quadrature (n = 1..5 supported).
-pub fn fixed_quad<F: Fn(f64) -> f64>(f: F, a: f64, b: f64, n: usize) -> f64 {
-    let (nodes, weights) = gauss_legendre_nodes(n);
+/// Uses `n`-point Gauss-Legendre quadrature. Supported orders are n = 1..=5.
+/// Returns `Err` with a message when `n` is 0 or above 5.
+pub fn fixed_quad<F: Fn(f64) -> f64>(f: F, a: f64, b: f64, n: usize) -> Result<f64, String> {
+    let (nodes, weights) = gauss_legendre_nodes(n)?;
     let half_width = (b - a) / 2.0;
     let mid = (a + b) / 2.0;
 
     let mut sum = 0.0;
-    for i in 0..nodes.len() {
-        let x = mid + half_width * nodes[i];
-        sum += weights[i] * f(x);
+    for (node, weight) in nodes.iter().zip(weights.iter()) {
+        let x = mid + half_width * node;
+        sum += weight * f(x);
     }
-    sum * half_width
+    Ok(sum * half_width)
 }
 
 /// Gauss-Legendre nodes and weights for n-point quadrature on [-1, 1].
-fn gauss_legendre_nodes(n: usize) -> (Vec<f64>, Vec<f64>) {
-    match n {
+/// Returns `Err` for n outside 1..=5.
+fn gauss_legendre_nodes(n: usize) -> Result<(Vec<f64>, Vec<f64>), String> {
+    Ok(match n {
         1 => (vec![0.0], vec![2.0]),
         2 => (
             vec![-1.0 / 3.0_f64.sqrt(), 1.0 / 3.0_f64.sqrt()],
@@ -189,8 +191,8 @@ fn gauss_legendre_nodes(n: usize) -> (Vec<f64>, Vec<f64>) {
             let w2 = (322.0 - 13.0 * 70.0_f64.sqrt()) / 900.0;
             (vec![-x2, -x1, 0.0, x1, x2], vec![w2, w1, w0, w1, w2])
         }
-        _ => panic!("Gauss-Legendre supports n=1..5, got {n}"),
-    }
+        _ => return Err(format!("fixed_quad supports n = 1..=5, got {n}")),
+    })
 }
 
 #[cfg(test)]
@@ -267,18 +269,36 @@ mod tests {
     #[test]
     fn test_fixed_quad_polynomial() {
         // 3-point Gauss-Legendre is exact for degree <= 5
-        let result = fixed_quad(|x| x * x * x, -1.0, 1.0, 3);
+        let result = fixed_quad(|x| x * x * x, -1.0, 1.0, 3).unwrap();
         assert!((result - 0.0).abs() < 1e-10, "got {}", result);
 
-        let result2 = fixed_quad(|x| x * x, 0.0, 1.0, 3);
+        let result2 = fixed_quad(|x| x * x, 0.0, 1.0, 3).unwrap();
         assert!((result2 - 1.0 / 3.0).abs() < 1e-10, "got {}", result2);
     }
 
     #[test]
     fn test_fixed_quad_5point() {
         // 5-point exact for degree <= 9
-        let result = fixed_quad(|x| x.powi(4), 0.0, 1.0, 5);
+        let result = fixed_quad(|x| x.powi(4), 0.0, 1.0, 5).unwrap();
         assert!((result - 0.2).abs() < 1e-10, "got {}", result);
+    }
+
+    #[test]
+    fn fixed_quad_n0_is_err() {
+        assert!(fixed_quad(|x| x, 0.0, 1.0, 0).is_err());
+    }
+
+    #[test]
+    fn fixed_quad_n6_is_err() {
+        let e = fixed_quad(|x| x, 0.0, 1.0, 6).unwrap_err();
+        assert!(e.contains("1..=5"), "message: {e}");
+    }
+
+    #[test]
+    fn fixed_quad_n5_value() {
+        // np: integral of x^4 on [0, 1] = 0.2; 5-point Gauss-Legendre is exact here
+        let result = fixed_quad(|x| x.powi(4), 0.0, 1.0, 5).unwrap();
+        assert!((result - 0.2).abs() < 1e-12, "got {result}");
     }
 
     #[test]
