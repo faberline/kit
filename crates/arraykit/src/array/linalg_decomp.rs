@@ -212,6 +212,20 @@ impl NdArray<f64> {
             });
         }
 
+        // A zero matrix has a zero shift, so the inverse iteration would always
+        // meet a singular matrix. Its eigenvectors are the unit vectors.
+        let norm_a = self.data.iter().fold(0.0_f64, |m, x| m.max(x.abs()));
+        if norm_a == 0.0 {
+            let mut identity = vec![0.0; n * n];
+            for k in 0..n {
+                identity[k * n + k] = 1.0;
+            }
+            return Ok(EigResult {
+                values: vec![0.0; n],
+                vectors: NdArray::new(identity, vec![n, n])?,
+            });
+        }
+
         // Eigenvalues: reduce a copy of A to Hessenberg form, then shifted QR
         // on its unreduced blocks. V is not accumulated.
         let mut a = self.data.clone();
@@ -223,7 +237,7 @@ impl NdArray<f64> {
         let mut v_data = vec![0.0; n * n];
         let mut found: Vec<(f64, Vec<f64>)> = Vec::with_capacity(n);
         for (k, &lambda) in values.iter().enumerate() {
-            let tol = 1e-8 * lambda.abs().max(1.0);
+            let tol = 1e-8 * lambda.abs().max(norm_a);
             // Vectors already found for the same (repeated) eigenvalue
             let cluster: Vec<Vec<f64>> = found
                 .iter()
@@ -745,8 +759,8 @@ fn eigenvector_by_inverse_iteration(
     lambda: f64,
     cluster: &[Vec<f64>],
 ) -> Result<Vec<f64>> {
-    let scale = 1e-10 * lambda.abs().max(1.0);
-    let norm_a = a.iter().fold(1.0_f64, |m, x| m.max(x.abs()));
+    let norm_a = a.iter().fold(0.0_f64, |m, x| m.max(x.abs()));
+    let scale = 1e-10 * lambda.abs().max(norm_a);
     let tol = 1e-9 * norm_a;
     // The ones vector first, then the unit vectors
     let mut starts: Vec<Vec<f64>> = vec![vec![1.0; n]];

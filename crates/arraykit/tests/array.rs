@@ -2051,6 +2051,48 @@ fn eig_symmetric_4x4_converges() {
 }
 
 #[test]
+fn eig_small_scale_vectors() {
+    // np.linalg.eig(1e-10 * np.array([[-4.,3.,1.],[1.,-2.,1.],[2.,0.,0.]]))
+    //   values sorted [-5e-10, -2e-10, 1e-10]; column for -5e-10 = [5, -1, -2] / sqrt(30)
+    let base = [-4.0, 3.0, 1.0, 1.0, -2.0, 1.0, 2.0, 0.0, 0.0];
+    let data: Vec<f64> = base.iter().map(|x| x * 1e-10).collect();
+    let a = NdArray::new(data.clone(), vec![3, 3]).unwrap();
+    let r = a.eig().unwrap();
+    let expected = [-5e-10, -2e-10, 1e-10];
+    for (got, want) in r.values.iter().zip(expected) {
+        assert!((got - want).abs() <= 1e-19, "value {got} != {want}");
+    }
+    let v = r.vectors.data();
+    let want_col0 = [
+        0.9128709291752769,
+        -0.18257418583505536,
+        -0.3651483716701107,
+    ];
+    for (i, want) in want_col0.iter().enumerate() {
+        assert!((v[i * 3] - want).abs() <= 1e-9, "column 0 row {i}");
+    }
+    // max |a_ij| = 4e-10, so the residual is checked relative to the matrix scale
+    for (k, &lambda) in r.values.iter().enumerate() {
+        for i in 0..3 {
+            let av: f64 = (0..3).map(|j| data[i * 3 + j] * v[j * 3 + k]).sum();
+            assert!(
+                (av - lambda * v[i * 3 + k]).abs() <= 1e-9 * 4e-10,
+                "residual row {i} col {k}"
+            );
+        }
+    }
+}
+
+#[test]
+fn eig_zero_matrix() {
+    // np.linalg.eig(np.zeros((2, 2))): values [0.0, 0.0], vectors identity
+    let a = NdArray::new(vec![0.0; 4], vec![2, 2]).unwrap();
+    let r = a.eig().unwrap();
+    assert_eq!(r.values, vec![0.0, 0.0]);
+    assert_eq!(r.vectors.data(), &[1.0, 0.0, 0.0, 1.0]);
+}
+
+#[test]
 fn svd_identity_reconstructs() {
     // np.linalg.svd(np.eye(2))[1] == [1.0, 1.0]
     let a = NdArray::new(vec![1.0, 0.0, 0.0, 1.0], vec![2, 2]).unwrap();
