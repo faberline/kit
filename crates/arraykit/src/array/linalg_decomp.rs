@@ -267,11 +267,142 @@ impl NdArray<f64> {
         })
     }
 
-    /// Symmetric eigenvalue decomposition (more stable for symmetric matrices).
+    /// Symmetric eigenvalue decomposition with the cyclic Jacobi method.
+    ///
+    /// Returns eigenvalues in ascending order and the eigenvectors as columns.
+    /// Returns an error for a non-square, non-symmetric or non-finite matrix,
+    /// and when it does not converge in 100 sweeps.
     pub fn eigh(&self) -> Result<EigResult> {
-        // For symmetric matrices, use the same QR algorithm
-        // but the result is guaranteed to have real eigenvalues
-        self.eig()
+        if self.ndim() != 2 {
+            return Err(ArrayError::ShapeMismatch {
+                expected: vec![2],
+                got: vec![self.ndim()],
+            });
+        }
+
+        let n = self.dims()[0];
+        if self.dims()[1] != n {
+            return Err(ArrayError::ShapeMismatch {
+                expected: vec![n, n],
+                got: self.dims().to_vec(),
+            });
+        }
+
+        if self.data.iter().any(|x| !x.is_finite()) {
+            return Err(ArrayError::InvalidOperation(
+                "matrix contains NaN or infinity".into(),
+            ));
+        }
+
+        if n == 0 {
+            return Ok(EigResult {
+                values: vec![],
+                vectors: NdArray::new(vec![], vec![0, 0])?,
+            });
+        }
+
+        if n == 1 {
+            return Ok(EigResult {
+                values: vec![self.data[0]],
+                vectors: NdArray::new(vec![1.0], vec![1, 1])?,
+            });
+        }
+
+        let scale = self.data.iter().fold(1.0_f64, |m, x| m.max(x.abs()));
+        for i in 0..n {
+            for j in (i + 1)..n {
+                if (self.data[i * n + j] - self.data[j * n + i]).abs() > 1e-12 * scale {
+                    return Err(ArrayError::InvalidOperation(
+                        "matrix is not symmetric".into(),
+                    ));
+                }
+            }
+        }
+
+        let off_diagonal = |a: &[f64]| -> f64 {
+            let mut sum = 0.0;
+            for i in 0..n {
+                for j in 0..n {
+                    if i != j {
+                        sum += a[i * n + j] * a[i * n + j];
+                    }
+                }
+            }
+            sum
+        };
+
+        let mut a = self.data.clone();
+        let mut v = vec![0.0; n * n];
+        for i in 0..n {
+            v[i * n + i] = 1.0;
+        }
+        let total: f64 = a.iter().map(|x| x * x).sum();
+
+        let mut converged = false;
+        for _sweep in 0..100 {
+            let off = off_diagonal(&a);
+            if off == 0.0 || off < 1e-30 * total {
+                converged = true;
+                break;
+            }
+            for p in 0..n {
+                for q in (p + 1)..n {
+                    let apq = a[p * n + q];
+                    if apq == 0.0 {
+                        continue;
+                    }
+                    let theta = (a[q * n + q] - a[p * n + p]) / (2.0 * apq);
+                    let t = if theta == 0.0 {
+                        1.0
+                    } else {
+                        theta.signum() / (theta.abs() + (theta * theta + 1.0).sqrt())
+                    };
+                    let c = 1.0 / (t * t + 1.0).sqrt();
+                    let s = t * c;
+
+                    // A <- J^T A J: rotate the columns, then the rows.
+                    for k in 0..n {
+                        let (akp, akq) = (a[k * n + p], a[k * n + q]);
+                        a[k * n + p] = c * akp - s * akq;
+                        a[k * n + q] = s * akp + c * akq;
+                    }
+                    for k in 0..n {
+                        let (apk, aqk) = (a[p * n + k], a[q * n + k]);
+                        a[p * n + k] = c * apk - s * aqk;
+                        a[q * n + k] = s * apk + c * aqk;
+                    }
+                    // V <- V J.
+                    for k in 0..n {
+                        let (vkp, vkq) = (v[k * n + p], v[k * n + q]);
+                        v[k * n + p] = c * vkp - s * vkq;
+                        v[k * n + q] = s * vkp + c * vkq;
+                    }
+                }
+            }
+        }
+        if !converged {
+            let off = off_diagonal(&a);
+            if !(off == 0.0 || off < 1e-30 * total) {
+                return Err(ArrayError::InvalidOperation("eigh did not converge".into()));
+            }
+        }
+
+        let diag: Vec<f64> = (0..n).map(|i| a[i * n + i]).collect();
+        let mut order: Vec<usize> = (0..n).collect();
+        order.sort_by(|&x, &y| diag[x].total_cmp(&diag[y]));
+
+        let values: Vec<f64> = order.iter().map(|&i| diag[i]).collect();
+        let mut vectors_data = vec![0.0; n * n];
+        for row in 0..n {
+            for (new_col, &old_col) in order.iter().enumerate() {
+                vectors_data[row * n + new_col] = v[row * n + old_col];
+            }
+        }
+
+        Ok(EigResult {
+            values,
+            vectors: NdArray::new(vectors_data, vec![n, n])?,
+        })
     }
 
     /// Singular Value Decomposition: A = U * diag(S) * V^T.

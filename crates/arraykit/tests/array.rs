@@ -1597,3 +1597,114 @@ fn test_mode_zero_and_nan() {
     let b = NdArray::new(vec![f64::NAN, f64::NAN, 1.0], vec![3]).unwrap();
     assert!(b.mode().unwrap().is_nan());
 }
+
+// ============================================================================
+// eigh tests (cyclic Jacobi, ascending values)
+// ============================================================================
+
+#[test]
+fn eigh_ascending_values() {
+    // np.linalg.eigh(np.array([[2., 1.], [1., 2.]]))[0] = [1.0, 3.0]
+    let a = NdArray::new(vec![2.0, 1.0, 1.0, 2.0], vec![2, 2]).unwrap();
+    let r = a.eigh().unwrap();
+    assert!((r.values[0] - 1.0).abs() < 1e-12, "values: {:?}", r.values);
+    assert!((r.values[1] - 3.0).abs() < 1e-12, "values: {:?}", r.values);
+}
+
+#[test]
+fn eigh_3x3_values() {
+    // np.linalg.eigh([[4,1,0],[1,3,1],[0,1,2]])[0]
+    // = [1.2679491924311228, 3.0, 4.732050807568877]
+    let a = NdArray::new(
+        vec![4.0, 1.0, 0.0, 1.0, 3.0, 1.0, 0.0, 1.0, 2.0],
+        vec![3, 3],
+    )
+    .unwrap();
+    let r = a.eigh().unwrap();
+    let expected = [1.2679491924311228, 3.0, 4.732050807568877];
+    for (got, want) in r.values.iter().zip(expected.iter()) {
+        assert!((got - want).abs() < 1e-10, "values: {:?}", r.values);
+    }
+}
+
+#[test]
+fn eigh_vectors_reconstruct() {
+    let data = vec![4.0, 1.0, 0.0, 1.0, 3.0, 1.0, 0.0, 1.0, 2.0];
+    let n = 3;
+    let a = NdArray::new(data.clone(), vec![n, n]).unwrap();
+    let r = a.eigh().unwrap();
+    let v = r.vectors.data();
+    // A v_i = lambda_i v_i for each column i.
+    for i in 0..n {
+        for row in 0..n {
+            let av: f64 = (0..n).map(|k| data[row * n + k] * v[k * n + i]).sum();
+            let lv = r.values[i] * v[row * n + i];
+            assert!((av - lv).abs() < 1e-10, "column {i}, row {row}");
+        }
+    }
+    // V^T V = I.
+    for i in 0..n {
+        for j in 0..n {
+            let dot: f64 = (0..n).map(|k| v[k * n + i] * v[k * n + j]).sum();
+            let want = if i == j { 1.0 } else { 0.0 };
+            assert!((dot - want).abs() < 1e-10, "V^T V at ({i}, {j})");
+        }
+    }
+}
+
+#[test]
+fn eigh_vector_sign_free() {
+    // The sign of an eigenvector is not fixed: accept either sign.
+    let a = NdArray::new(vec![2.0, 1.0, 1.0, 2.0], vec![2, 2]).unwrap();
+    let r = a.eigh().unwrap();
+    let v = r.vectors.data();
+    let s = 0.5_f64.sqrt();
+    let (x0, x1) = (v[0], v[2]);
+    let same = (x0 + s).abs() < 1e-12 && (x1 - s).abs() < 1e-12;
+    let negated = (x0 - s).abs() < 1e-12 && (x1 + s).abs() < 1e-12;
+    assert!(same || negated, "column 0: [{x0}, {x1}]");
+}
+
+#[test]
+fn eigh_not_symmetric_errors() {
+    let a = NdArray::new(vec![1.0, 2.0, 0.0, 1.0], vec![2, 2]).unwrap();
+    assert!(a.eigh().is_err());
+}
+
+#[test]
+fn eigh_nan_errors() {
+    let a = NdArray::new(vec![1.0, f64::NAN, f64::NAN, 1.0], vec![2, 2]).unwrap();
+    assert!(a.eigh().is_err());
+    let b = NdArray::new(vec![f64::INFINITY, 0.0, 0.0, 1.0], vec![2, 2]).unwrap();
+    assert!(b.eigh().is_err());
+    let c = NdArray::new(vec![5.0, f64::NAN], vec![1, 2]).unwrap();
+    assert!(c.eigh().is_err());
+}
+
+#[test]
+fn eigh_empty_and_one() {
+    let empty = NdArray::<f64>::new(vec![], vec![0, 0]).unwrap();
+    let r0 = empty.eigh().unwrap();
+    assert!(r0.values.is_empty());
+    let one = NdArray::new(vec![5.0], vec![1, 1]).unwrap();
+    let r1 = one.eigh().unwrap();
+    assert_eq!(r1.values, vec![5.0]);
+    assert_eq!(r1.vectors.data(), &[1.0]);
+}
+
+#[test]
+fn eigh_diagonal_sorted() {
+    let a = NdArray::new(
+        vec![3.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 2.0],
+        vec![3, 3],
+    )
+    .unwrap();
+    let r = a.eigh().unwrap();
+    assert_eq!(r.values, vec![1.0, 2.0, 3.0]);
+}
+
+#[test]
+fn eigh_not_square_errors() {
+    let a = NdArray::new(vec![1.0; 6], vec![2, 3]).unwrap();
+    assert!(a.eigh().is_err());
+}
