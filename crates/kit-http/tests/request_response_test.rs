@@ -52,8 +52,8 @@ fn request_defaults_have_empty_collections() {
     .unwrap();
     assert_eq!(req.method, "GET");
     assert_eq!(req.path, "/health");
-    assert!(req.query_params.as_ref().map_or(true, |m| m.is_empty()));
-    assert!(req.body.as_ref().map_or(true, |b| b.is_empty()));
+    assert!(req.query_params.as_ref().is_none_or(|m| m.is_empty()));
+    assert!(req.body.as_ref().is_none_or(|b| b.is_empty()));
 }
 
 #[test]

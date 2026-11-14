@@ -492,7 +492,7 @@ impl SvgRenderer {
         let bar_width = self.plot_width() / n as f64 * 0.7;
         let gap = self.plot_width() / n as f64 * 0.15;
 
-        for i in 0..n {
+        for (i, label) in labels.iter().enumerate().take(n) {
             let bx = self.margin.left + gap + i as f64 * (bar_width + 2.0 * gap);
             let mut cumulative = 0.0_f64;
 
@@ -517,7 +517,7 @@ impl SvgRenderer {
             self.text(
                 bx + bar_width / 2.0,
                 self.margin.top + self.plot_height() + 15.0,
-                &labels[i],
+                label,
                 &style.text_color.to_hex(),
                 style.font_size * 0.9,
                 "middle",
@@ -704,6 +704,6 @@ mod tests {
             .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
             .unwrap()
             .0;
-        assert!((peak_idx as i32 - mid_idx as i32).unsigned_abs() <= 1);
+        assert!((peak_idx as i32 - mid_idx).unsigned_abs() <= 1);
     }
 }
