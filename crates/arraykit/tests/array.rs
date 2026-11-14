@@ -1960,6 +1960,96 @@ fn eig_hidden_complex_errors() {
     assert!(a.eig().is_err());
 }
 
+/// Checks `A v = lambda v` within 1e-9 for every column `k` of `v` (row-major, n x n).
+fn assert_eig_residual(a: &[f64], n: usize, values: &[f64], v: &[f64]) {
+    for (k, &lambda) in values.iter().enumerate() {
+        for i in 0..n {
+            let av: f64 = (0..n).map(|j| a[i * n + j] * v[j * n + k]).sum();
+            assert!(
+                (av - lambda * v[i * n + k]).abs() <= 1e-9,
+                "residual row {i} col {k}"
+            );
+        }
+    }
+}
+
+#[test]
+fn eig_start_vector_is_other_eigenvector() {
+    // np.linalg.eig(np.array([[-4.,3.,1.],[1.,-2.,1.],[2.,0.,0.]]))
+    //   values sorted [-5.0, -2.0, 1.0]; column for -5 = [5, -1, -2] / sqrt(30)
+    let data = vec![-4.0, 3.0, 1.0, 1.0, -2.0, 1.0, 2.0, 0.0, 0.0];
+    let a = NdArray::new(data.clone(), vec![3, 3]).unwrap();
+    let r = a.eig().unwrap();
+    let expected = [-5.0, -2.0, 1.0];
+    for (got, want) in r.values.iter().zip(expected) {
+        assert!((got - want).abs() <= 1e-9, "value {got} != {want}");
+    }
+    let v = r.vectors.data();
+    let want_col0 = [
+        0.9128709291752769,
+        -0.18257418583505536,
+        -0.3651483716701107,
+    ];
+    for (i, want) in want_col0.iter().enumerate() {
+        assert!((v[i * 3] - want).abs() <= 1e-9, "column 0 row {i}");
+    }
+    assert_eig_residual(&data, 3, &r.values, v);
+}
+
+#[test]
+fn eig_vector_exact_3x3() {
+    // np.linalg.eig(np.array([[0.,1.,3.],[0.,3.,4.],[-2.,1.,5.]])): values [1.0, 2.0, 5.0]
+    //   column for 2.0 = [1, 8, -2] / sqrt(69)
+    let data = vec![0.0, 1.0, 3.0, 0.0, 3.0, 4.0, -2.0, 1.0, 5.0];
+    let a = NdArray::new(data.clone(), vec![3, 3]).unwrap();
+    let r = a.eig().unwrap();
+    let expected = [1.0, 2.0, 5.0];
+    for (got, want) in r.values.iter().zip(expected) {
+        assert!((got - want).abs() <= 1e-9, "value {got} != {want}");
+    }
+    let v = r.vectors.data();
+    let want_col1 = [0.1203858530857692, 0.9630868246861536, -0.2407717061715384];
+    for (i, want) in want_col1.iter().enumerate() {
+        assert!((v[i * 3 + 1] - want).abs() <= 1e-9, "column 1 row {i}");
+    }
+    assert_eig_residual(&data, 3, &r.values, v);
+}
+
+#[test]
+fn eig_defective_repeated() {
+    // np.linalg.eig(np.array([[1.,1.,0.],[0.,1.,0.],[0.,0.,2.]])): values [1.0, 1.0, 2.0]
+    //   the repeated value 1 has one eigenvector, [1, 0, 0]
+    let data = vec![1.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 2.0];
+    let a = NdArray::new(data.clone(), vec![3, 3]).unwrap();
+    let r = a.eig().unwrap();
+    let expected = [1.0, 1.0, 2.0];
+    for (got, want) in r.values.iter().zip(expected) {
+        assert!((got - want).abs() <= 1e-9, "value {got} != {want}");
+    }
+    assert_eig_residual(&data, 3, &r.values, r.vectors.data());
+}
+
+#[test]
+fn eig_symmetric_4x4_converges() {
+    // np.sort(np.linalg.eigvals(np.array([[-5.,4.,-5.,2.],[4.,0.,0.,3.],[-5.,0.,3.,2.],[2.,3.,2.,3.]])))
+    //   = [-9.052600520833918, -2.017587867267824, 5.775248907468533, 6.2949394806332135]
+    let data = vec![
+        -5.0, 4.0, -5.0, 2.0, 4.0, 0.0, 0.0, 3.0, -5.0, 0.0, 3.0, 2.0, 2.0, 3.0, 2.0, 3.0,
+    ];
+    let a = NdArray::new(data.clone(), vec![4, 4]).unwrap();
+    let r = a.eig().unwrap();
+    let expected = [
+        -9.052600520833918,
+        -2.017587867267824,
+        5.775248907468533,
+        6.2949394806332135,
+    ];
+    for (got, want) in r.values.iter().zip(expected) {
+        assert!((got - want).abs() <= 1e-9, "value {got} != {want}");
+    }
+    assert_eig_residual(&data, 4, &r.values, r.vectors.data());
+}
+
 #[test]
 fn svd_identity_reconstructs() {
     // np.linalg.svd(np.eye(2))[1] == [1.0, 1.0]
