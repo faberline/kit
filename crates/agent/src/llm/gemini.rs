@@ -63,16 +63,16 @@ impl GeminiProvider {
         &self,
         messages: &[Message],
     ) -> (Option<GeminiSystemInstruction>, Vec<GeminiContent>) {
-        let mut system_instruction = None;
+        let mut system_parts: Vec<GeminiPart> = Vec::new();
         let mut contents = Vec::new();
+        // Function name of each tool call, by call id, for functionResponse.name.
+        let mut call_names: HashMap<String, String> = HashMap::new();
 
         for msg in messages {
             match msg.role {
                 Role::System => {
-                    system_instruction = Some(GeminiSystemInstruction {
-                        parts: vec![GeminiPart::Text {
-                            text: msg.content.clone(),
-                        }],
+                    system_parts.push(GeminiPart::Text {
+                        text: msg.content.clone(),
                     });
                 }
                 Role::User => {
@@ -94,6 +94,7 @@ impl GeminiProvider {
 
                     if let Some(tool_calls) = &msg.tool_calls {
                         for tool_call in tool_calls {
+                            call_names.insert(tool_call.id.clone(), tool_call.name.clone());
                             parts.push(GeminiPart::FunctionCall {
                                 function_call: GeminiFunctionCall {
                                     name: tool_call.name.clone(),
@@ -109,11 +110,17 @@ impl GeminiProvider {
                     });
                 }
                 Role::Tool => {
+                    let id = msg.tool_call_id.clone().unwrap_or_default();
+                    let name = call_names
+                        .get(&id)
+                        .cloned()
+                        .or_else(|| msg.name.clone())
+                        .unwrap_or_else(|| id.clone());
                     contents.push(GeminiContent {
                         role: "user".to_string(),
                         parts: vec![GeminiPart::FunctionResponse {
                             function_response: GeminiFunctionResponse {
-                                name: msg.tool_call_id.clone().unwrap_or_default(),
+                                name,
                                 response: serde_json::json!({ "result": msg.content }),
                             },
                         }],
@@ -121,6 +128,14 @@ impl GeminiProvider {
                 }
             }
         }
+
+        let system_instruction = if system_parts.is_empty() {
+            None
+        } else {
+            Some(GeminiSystemInstruction {
+                parts: system_parts,
+            })
+        };
 
         (system_instruction, contents)
     }
@@ -137,32 +152,9 @@ impl GeminiProvider {
                 .collect(),
         }]
     }
-}
 
-#[async_trait]
-impl LLMProvider for GeminiProvider {
-    fn provider_name(&self) -> &str {
-        "google"
-    }
-
-    fn supported_models(&self) -> Vec<String> {
-        vec![
-            "gemini-2.0-flash".to_string(),
-            "gemini-2.0-flash-lite".to_string(),
-            "gemini-1.5-pro".to_string(),
-            "gemini-1.5-flash".to_string(),
-        ]
-    }
-
-    async fn complete(&self, request: CompletionRequest) -> AgentResult<CompletionResponse> {
-        let model = if request.model.is_empty() {
-            self.default_model.clone()
-        } else {
-            request.model.clone()
-        };
-
-        debug!("Gemini completion request: model={}", model);
-
+    /// Build the JSON body of a generateContent request.
+    fn build_body(&self, request: &CompletionRequest) -> AgentResult<serde_json::Value> {
         let (system_instruction, contents) = self.convert_messages(&request.messages);
 
         let mut body = serde_json::json!({
@@ -208,89 +200,171 @@ impl LLMProvider for GeminiProvider {
             body["tools"] = serde_json::to_value(self.convert_tools(tools))?;
         }
 
-        let url = format!(
-            "/v1beta/models/{}:generateContent?key={}",
-            model, self.api_key
-        );
+        Ok(body)
+    }
+}
+
+/// Replace every occurrence of `key` in `text` with `[redacted]`.
+fn redact_key(text: &str, key: &str) -> String {
+    if key.is_empty() {
+        text.to_string()
+    } else {
+        text.replace(key, "[redacted]")
+    }
+}
+
+/// Finish reasons that mean the candidate was blocked.
+const BLOCKED_FINISH_REASONS: [&str; 5] = [
+    "SAFETY",
+    "BLOCKLIST",
+    "PROHIBITED_CONTENT",
+    "SPII",
+    "RECITATION",
+];
+
+/// Parse a generateContent response body.
+fn parse_response(response_text: &str, model: String) -> AgentResult<CompletionResponse> {
+    let gemini_response: GeminiResponse = serde_json::from_str(response_text)?;
+
+    let candidate = match gemini_response.candidates.into_iter().next() {
+        Some(candidate) => candidate,
+        None => {
+            return Err(
+                match gemini_response
+                    .prompt_feedback
+                    .and_then(|feedback| feedback.block_reason)
+                {
+                    Some(reason) => AgentError::ApiError(format!(
+                        "Gemini blocked the prompt: blockReason={reason}"
+                    )),
+                    None => AgentError::ApiError("No candidates in response".to_string()),
+                },
+            );
+        }
+    };
+
+    if let Some(reason) = candidate.finish_reason.as_deref() {
+        if BLOCKED_FINISH_REASONS.contains(&reason) {
+            return Err(AgentError::ApiError(format!(
+                "Gemini blocked the candidate: finishReason={reason}"
+            )));
+        }
+    }
+
+    let parts = candidate
+        .content
+        .map(|content| content.parts)
+        .unwrap_or_default();
+
+    let mut content = String::new();
+    let mut tool_calls = Vec::new();
+
+    for part in parts {
+        match part {
+            GeminiPart::Text { text } => {
+                if !content.is_empty() {
+                    content.push('\n');
+                }
+                content.push_str(&text);
+            }
+            GeminiPart::FunctionCall { function_call } => {
+                tool_calls.push(ToolCall {
+                    id: format!("call_{}", tool_calls.len()),
+                    name: function_call.name,
+                    arguments: function_call.args,
+                });
+            }
+            _ => {}
+        }
+    }
+
+    let finish_reason = match candidate.finish_reason.as_deref() {
+        Some("STOP") => "stop",
+        Some("MAX_TOKENS") => "length",
+        Some("SAFETY") => "content_filter",
+        _ => "unknown",
+    }
+    .to_string();
+
+    let usage = gemini_response.usage_metadata.unwrap_or_default();
+
+    Ok(CompletionResponse {
+        content,
+        finish_reason,
+        model,
+        tool_calls: if tool_calls.is_empty() {
+            None
+        } else {
+            Some(tool_calls)
+        },
+        usage: TokenUsage {
+            prompt_tokens: usage.prompt_token_count,
+            completion_tokens: usage.candidates_token_count,
+            total_tokens: usage.total_token_count,
+        },
+        metadata: HashMap::new(),
+    })
+}
+
+#[async_trait]
+impl LLMProvider for GeminiProvider {
+    fn provider_name(&self) -> &str {
+        "google"
+    }
+
+    fn supported_models(&self) -> Vec<String> {
+        vec![
+            "gemini-2.0-flash".to_string(),
+            "gemini-2.0-flash-lite".to_string(),
+            "gemini-1.5-pro".to_string(),
+            "gemini-1.5-flash".to_string(),
+        ]
+    }
+
+    async fn complete(&self, request: CompletionRequest) -> AgentResult<CompletionResponse> {
+        let model = if request.model.is_empty() {
+            self.default_model.clone()
+        } else {
+            request.model.clone()
+        };
+
+        debug!("Gemini completion request: model={}", model);
+
+        let body = self.build_body(&request)?;
+
+        // The key goes in a header, never in the URL, so it cannot reach an error string.
+        let url = format!("/v1beta/models/{}:generateContent", model);
 
         let builder = RequestBuilder::new(HttpMethod::Post, &url)
+            .header("x-goog-api-key", self.api_key.clone())
             .header("Content-Type", "application/json")
             .json_value(body);
 
-        let response = self.client.execute_builder(builder).await?;
+        let response = self
+            .client
+            .execute_builder(builder)
+            .await
+            .map_err(|e| AgentError::HttpError(redact_key(&e.to_string(), &self.api_key)))?;
 
         if !response.is_success() {
             let error_text = response
                 .text()
                 .unwrap_or_else(|_| "Unknown error".to_string());
-            return Err(AgentError::ApiError(format!(
-                "Gemini API error ({}): {}",
-                response.status_code, error_text
+            return Err(AgentError::ApiError(redact_key(
+                &format!(
+                    "Gemini API error ({}): {}",
+                    response.status_code, error_text
+                ),
+                &self.api_key,
             )));
         }
 
-        let response_text = response.text()?;
-        let gemini_response: GeminiResponse = serde_json::from_str(&response_text)?;
-
-        let candidate = gemini_response
-            .candidates
-            .into_iter()
-            .next()
-            .ok_or_else(|| AgentError::ApiError("No candidates in response".to_string()))?;
-
-        let mut content = String::new();
-        let mut tool_calls = Vec::new();
-
-        for part in candidate.content.parts {
-            match part {
-                GeminiPart::Text { text } => {
-                    if !content.is_empty() {
-                        content.push('\n');
-                    }
-                    content.push_str(&text);
-                }
-                GeminiPart::FunctionCall { function_call } => {
-                    tool_calls.push(ToolCall {
-                        id: format!("call_{}", tool_calls.len()),
-                        name: function_call.name,
-                        arguments: function_call.args,
-                    });
-                }
-                _ => {}
-            }
-        }
-
-        let finish_reason = match candidate.finish_reason.as_deref() {
-            Some("STOP") => "stop",
-            Some("MAX_TOKENS") => "length",
-            Some("SAFETY") => "content_filter",
-            _ => "unknown",
-        }
-        .to_string();
-
-        let usage = gemini_response.usage_metadata.unwrap_or_default();
-
-        Ok(CompletionResponse {
-            content,
-            finish_reason,
-            model,
-            tool_calls: if tool_calls.is_empty() {
-                None
-            } else {
-                Some(tool_calls)
-            },
-            usage: TokenUsage {
-                prompt_tokens: usage.prompt_token_count,
-                completion_tokens: usage.candidates_token_count,
-                total_tokens: usage.total_token_count,
-            },
-            metadata: HashMap::new(),
-        })
+        parse_response(&response.text()?, model)
     }
 
     async fn complete_stream(&self, _request: CompletionRequest) -> AgentResult<StreamResponse> {
-        Err(AgentError::InvalidRequest(
-            "Streaming not yet implemented for Gemini".to_string(),
+        Err(AgentError::NotSupported(
+            "Gemini streaming is not supported yet; use complete()".to_string(),
         ))
     }
 }
@@ -320,6 +394,9 @@ enum GeminiPart {
         #[serde(rename = "functionResponse")]
         function_response: GeminiFunctionResponse,
     },
+    /// Any other part (for example `inlineData`). Skipped in responses.
+    /// Keep this variant last: untagged parsing tries variants in order.
+    Other(serde_json::Value),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -349,20 +426,31 @@ struct GeminiFunctionDeclaration {
 
 #[derive(Debug, Deserialize)]
 struct GeminiResponse {
+    #[serde(default)]
     candidates: Vec<GeminiCandidate>,
     #[serde(rename = "usageMetadata")]
     usage_metadata: Option<GeminiUsageMetadata>,
+    #[serde(rename = "promptFeedback", default)]
+    prompt_feedback: Option<GeminiPromptFeedback>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GeminiPromptFeedback {
+    #[serde(rename = "blockReason")]
+    block_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 struct GeminiCandidate {
-    content: GeminiCandidateContent,
+    #[serde(default)]
+    content: Option<GeminiCandidateContent>,
     #[serde(rename = "finishReason")]
     finish_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 struct GeminiCandidateContent {
+    #[serde(default)]
     parts: Vec<GeminiPart>,
 }
 
@@ -380,6 +468,9 @@ struct GeminiUsageMetadata {
 mod tests {
     use super::*;
 
+    /// Response with a function call, an inline image and text, used by several tests.
+    const MIXED_PARTS_RESPONSE: &str = r#"{"candidates":[{"content":{"role":"model","parts":[{"inlineData":{"mimeType":"image/png","data":"AAAA"}},{"text":"hello"},{"functionCall":{"name":"get_weather","args":{"city":"Paris"}}}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":1,"candidatesTokenCount":2,"totalTokenCount":3}}"#;
+
     #[test]
     fn test_provider_name() {
         let provider = GeminiProvider::new("test-key").unwrap();
@@ -391,5 +482,145 @@ mod tests {
         let provider = GeminiProvider::new("test-key").unwrap();
         let models = provider.supported_models();
         assert!(models.contains(&"gemini-2.0-flash".to_string()));
+    }
+
+    #[test]
+    fn tool_response_name_is_the_function_name() {
+        let provider = GeminiProvider::new("k").unwrap();
+        let messages = vec![
+            Message::user("w?"),
+            Message::assistant("").with_tool_calls(vec![ToolCall {
+                id: "call_0".into(),
+                name: "get_weather".into(),
+                arguments: serde_json::json!({"city": "Paris"}),
+            }]),
+            Message::tool("call_0", "18C"),
+        ];
+        let (_, contents) = provider.convert_messages(&messages);
+        let value = serde_json::to_value(&contents).unwrap();
+        assert_eq!(
+            value[2]["parts"][0]["functionResponse"]["name"],
+            "get_weather"
+        );
+
+        let (_, alone) =
+            provider.convert_messages(&[Message::tool("zzz", "x").with_name("lookup")]);
+        let value = serde_json::to_value(&alone).unwrap();
+        assert_eq!(value[0]["parts"][0]["functionResponse"]["name"], "lookup");
+
+        let (_, bare) = provider.convert_messages(&[Message::tool("zzz", "x")]);
+        let value = serde_json::to_value(&bare).unwrap();
+        assert_eq!(value[0]["parts"][0]["functionResponse"]["name"], "zzz");
+    }
+
+    #[test]
+    fn two_system_messages_are_both_sent() {
+        let provider = GeminiProvider::new("k").unwrap();
+        let request = CompletionRequest::new(
+            vec![
+                Message::system("A"),
+                Message::user("hi"),
+                Message::system("B"),
+            ],
+            "gemini-2.0-flash",
+        );
+        let body = provider.build_body(&request).unwrap();
+        assert_eq!(
+            body["systemInstruction"]["parts"],
+            serde_json::json!([{"text": "A"}, {"text": "B"}])
+        );
+        assert_eq!(body["contents"].as_array().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn blocked_candidate_returns_error_with_reason() {
+        match parse_response(r#"{"candidates":[{"finishReason":"SAFETY"}]}"#, "m".into()) {
+            Err(AgentError::ApiError(m)) => assert!(m.contains("SAFETY"), "message: {m}"),
+            _ => panic!("expected ApiError"),
+        }
+    }
+
+    #[test]
+    fn blocked_prompt_returns_error_with_reason() {
+        match parse_response(
+            r#"{"promptFeedback":{"blockReason":"PROHIBITED_CONTENT"}}"#,
+            "m".into(),
+        ) {
+            Err(AgentError::ApiError(m)) => {
+                assert!(m.contains("PROHIBITED_CONTENT"), "message: {m}")
+            }
+            _ => panic!("expected ApiError"),
+        }
+        match parse_response(r#"{"candidates":[]}"#, "m".into()) {
+            Err(AgentError::ApiError(m)) => assert!(m.contains("No candidates"), "message: {m}"),
+            _ => panic!("expected ApiError"),
+        }
+    }
+
+    #[test]
+    fn non_text_parts_are_skipped_and_function_calls_kept() {
+        let response = parse_response(MIXED_PARTS_RESPONSE, "gemini-2.0-flash".into())
+            .expect("mixed parts must parse");
+        assert_eq!(response.content, "hello");
+        let calls = response.tool_calls.expect("one tool call expected");
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].id, "call_0");
+        assert_eq!(calls[0].name, "get_weather");
+        assert_eq!(calls[0].arguments, serde_json::json!({"city": "Paris"}));
+        assert_eq!(response.finish_reason, "stop");
+        assert_eq!(response.usage.total_tokens, 3);
+    }
+
+    #[test]
+    fn tool_round_trip_request_and_response() {
+        let provider = GeminiProvider::new("k").unwrap();
+        let tools = vec![ToolDefinition {
+            name: "get_weather".into(),
+            description: "d".into(),
+            parameters: serde_json::json!({"type": "object"}),
+        }];
+        let request =
+            CompletionRequest::new(vec![Message::user("w?")], "gemini-2.0-flash").with_tools(tools);
+        let body = provider.build_body(&request).unwrap();
+        assert_eq!(
+            body["tools"][0]["functionDeclarations"][0]["name"],
+            "get_weather"
+        );
+
+        let response = parse_response(MIXED_PARTS_RESPONSE, "gemini-2.0-flash".into()).unwrap();
+        let call = response.tool_calls.expect("tool call expected").remove(0);
+        let call_id = call.id.clone();
+        let messages = vec![
+            Message::assistant("").with_tool_calls(vec![call]),
+            Message::tool(call_id, "18C"),
+        ];
+        let (_, contents) = provider.convert_messages(&messages);
+        let value = serde_json::to_value(&contents).unwrap();
+        assert_eq!(
+            value[1]["parts"][0]["functionResponse"]["name"],
+            "get_weather"
+        );
+        assert_eq!(
+            value[1]["parts"][0]["functionResponse"]["response"],
+            serde_json::json!({"result": "18C"})
+        );
+    }
+
+    #[test]
+    fn redact_key_replaces_every_occurrence() {
+        assert_eq!(redact_key("a K b K", "K"), "a [redacted] b [redacted]");
+        assert_eq!(redact_key("a K b", ""), "a K b");
+    }
+
+    #[tokio::test]
+    async fn complete_stream_returns_not_supported() {
+        let provider = GeminiProvider::new("k").unwrap();
+        let request = CompletionRequest::new(vec![Message::user("hi")], "gemini-2.0-flash");
+        match provider.complete_stream(request).await {
+            Err(AgentError::NotSupported(m)) => {
+                assert!(m.contains("not supported"), "message: {m}")
+            }
+            _ => panic!("expected NotSupported"),
+        }
     }
 }
