@@ -263,9 +263,13 @@ impl<T: ArrayElement> NdArray<T> {
     }
 
     /// Pad array with zeros.
-    pub fn pad(&self, pad_width: usize) -> Self {
+    /// Supports only 1-D arrays; other input returns `ArrayError::InvalidOperation`.
+    pub fn pad(&self, pad_width: usize) -> Result<Self> {
         if self.ndim() != 1 {
-            return self.clone();
+            return Err(ArrayError::InvalidOperation(format!(
+                "pad supports only 1-D arrays; got {}-D",
+                self.ndim()
+            )));
         }
 
         let n = self.size();
@@ -275,18 +279,32 @@ impl<T: ArrayElement> NdArray<T> {
             data[pad_width + i] = v;
         }
 
-        Self {
+        Ok(Self {
             data,
             shape: Shape::new(vec![new_size]),
-        }
+        })
     }
 }
 
 impl NdArray<f64> {
     /// Compute differences between consecutive elements.
-    pub fn diff(&self, n: usize) -> Self {
-        if self.ndim() != 1 || n == 0 || n >= self.size() {
-            return self.clone();
+    /// Supports only 1-D arrays; other input returns `ArrayError::InvalidOperation`.
+    pub fn diff(&self, n: usize) -> Result<Self> {
+        if self.ndim() != 1 {
+            return Err(ArrayError::InvalidOperation(format!(
+                "diff supports only 1-D arrays; got {}-D",
+                self.ndim()
+            )));
+        }
+        if n == 0 {
+            return Ok(self.clone());
+        }
+        if n >= self.size() {
+            return Err(ArrayError::InvalidOperation(format!(
+                "diff needs n < size; got n = {} and size {}",
+                n,
+                self.size()
+            )));
         }
 
         let mut result = self.data.clone();
@@ -300,10 +318,10 @@ impl NdArray<f64> {
         }
 
         let result_len = result.len();
-        Self {
+        Ok(Self {
             data: result,
             shape: Shape::new(vec![result_len]),
-        }
+        })
     }
 
     /// Linear interpolation.
@@ -338,9 +356,19 @@ impl NdArray<f64> {
     }
 
     /// Numerical gradient.
-    pub fn gradient(&self) -> Self {
-        if self.ndim() != 1 || self.size() < 2 {
-            return self.clone();
+    /// Supports only 1-D arrays with at least 2 elements; other input returns `ArrayError::InvalidOperation`.
+    pub fn gradient(&self) -> Result<Self> {
+        if self.ndim() != 1 {
+            return Err(ArrayError::InvalidOperation(format!(
+                "gradient supports only 1-D arrays; got {}-D",
+                self.ndim()
+            )));
+        }
+        if self.size() < 2 {
+            return Err(ArrayError::InvalidOperation(format!(
+                "gradient needs at least 2 elements; got {}",
+                self.size()
+            )));
         }
 
         let n = self.size();
@@ -357,24 +385,28 @@ impl NdArray<f64> {
         // Backward difference for last point
         result.push(self.data[n - 1] - self.data[n - 2]);
 
-        Self {
+        Ok(Self {
             data: result,
             shape: self.shape.clone(),
-        }
+        })
     }
 }
 
 // Rotate 90 degrees for 2D arrays
 impl<T: ArrayElement> NdArray<T> {
     /// Rotate array 90 degrees counterclockwise.
-    pub fn rot90(&self, k: usize) -> Self {
+    /// Supports only 2-D arrays; other input returns `ArrayError::InvalidOperation`.
+    pub fn rot90(&self, k: usize) -> Result<Self> {
         if self.ndim() != 2 {
-            return self.clone();
+            return Err(ArrayError::InvalidOperation(format!(
+                "rot90 supports only 2-D arrays; got {}-D",
+                self.ndim()
+            )));
         }
 
         let k = k % 4;
         if k == 0 {
-            return self.clone();
+            return Ok(self.clone());
         }
 
         let mut result = self.clone();
@@ -395,6 +427,6 @@ impl<T: ArrayElement> NdArray<T> {
             };
         }
 
-        result
+        Ok(result)
     }
 }

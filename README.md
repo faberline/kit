@@ -38,6 +38,7 @@ See [docs/stability.md](docs/stability.md), [docs/limits.md](docs/limits.md) and
 - In `agent`, only the Claude provider streams. Other providers do not.
 - No embeddings and no vector store.
 - The MCP support has no stdio transport and no SSE transport.
+- `arraykit` `pad`, `diff` and `gradient` support only 1-D arrays, and `rot90` supports only 2-D arrays. Other input returns an error.
 
 ## Origin and renames
 
