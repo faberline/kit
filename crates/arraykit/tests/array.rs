@@ -1728,3 +1728,117 @@ fn test_kitrng_reproducible_binomial() {
         assert_eq!(rng1.binomial(500, 0.3), rng2.binomial(500, 0.3));
     }
 }
+
+// ============================================================================
+// eigh tests (issue #49: cyclic Jacobi, ascending eigenvalues)
+// ============================================================================
+
+#[test]
+fn eigh_ascending_values() {
+    // np.linalg.eigh(np.array([[2.,1.],[1.,2.]]))[0] == [1.0, 3.0]
+    let a = NdArray::new(vec![2.0, 1.0, 1.0, 2.0], vec![2, 2]).unwrap();
+    let r = a.eigh().unwrap();
+    assert!((r.values[0] - 1.0).abs() < 1e-12);
+    assert!((r.values[1] - 3.0).abs() < 1e-12);
+}
+
+#[test]
+fn eigh_3x3_values() {
+    // np.linalg.eigh([[4,1,0],[1,3,1],[0,1,2]])[0]
+    // == [1.2679491924311228, 3.0, 4.732050807568877]
+    let a = NdArray::new(
+        vec![4.0, 1.0, 0.0, 1.0, 3.0, 1.0, 0.0, 1.0, 2.0],
+        vec![3, 3],
+    )
+    .unwrap();
+    let r = a.eigh().unwrap();
+    assert!((r.values[0] - 1.2679491924311228).abs() < 1e-10);
+    assert!((r.values[1] - 3.0).abs() < 1e-10);
+    assert!((r.values[2] - 4.732050807568877).abs() < 1e-10);
+}
+
+#[test]
+fn eigh_vectors_reconstruct() {
+    let data = vec![4.0, 1.0, 0.0, 1.0, 3.0, 1.0, 0.0, 1.0, 2.0];
+    let a = NdArray::new(data.clone(), vec![3, 3]).unwrap();
+    let r = a.eigh().unwrap();
+    let v = r.vectors.data();
+    let n = 3;
+    // A v_i = lambda_i v_i
+    for i in 0..n {
+        for row in 0..n {
+            let av: f64 = (0..n).map(|k| data[row * n + k] * v[k * n + i]).sum();
+            let lv = r.values[i] * v[row * n + i];
+            assert!(
+                (av - lv).abs() < 1e-10,
+                "A v_{i} != lambda v_{i} at row {row}"
+            );
+        }
+    }
+    // V^T V = I
+    for i in 0..n {
+        for j in 0..n {
+            let dot: f64 = (0..n).map(|k| v[k * n + i] * v[k * n + j]).sum();
+            let expected = if i == j { 1.0 } else { 0.0 };
+            assert!((dot - expected).abs() < 1e-10);
+        }
+    }
+}
+
+#[test]
+fn eigh_vector_sign_free() {
+    // NumPy column 0 is [-1/sqrt2, 1/sqrt2] or its negative; sign is free.
+    let a = NdArray::new(vec![2.0, 1.0, 1.0, 2.0], vec![2, 2]).unwrap();
+    let r = a.eigh().unwrap();
+    let v = r.vectors.data();
+    let s = 0.5_f64.sqrt();
+    let (x0, x1) = (v[0], v[2]);
+    let same = (x0 - (-s)).abs() < 1e-12 && (x1 - s).abs() < 1e-12;
+    let negated = (x0 - s).abs() < 1e-12 && (x1 - (-s)).abs() < 1e-12;
+    assert!(same || negated);
+}
+
+#[test]
+fn eigh_not_symmetric_errors() {
+    let a = NdArray::new(vec![1.0, 2.0, 0.0, 1.0], vec![2, 2]).unwrap();
+    assert!(a.eigh().is_err());
+}
+
+#[test]
+fn eigh_nan_errors() {
+    let a = NdArray::new(vec![1.0, f64::NAN, f64::NAN, 1.0], vec![2, 2]).unwrap();
+    assert!(a.eigh().is_err());
+    let b = NdArray::new(vec![f64::INFINITY, 0.0, 0.0, 1.0], vec![2, 2]).unwrap();
+    assert!(b.eigh().is_err());
+}
+
+#[test]
+fn eigh_empty_and_one() {
+    let e = NdArray::<f64>::new(vec![], vec![0, 0]).unwrap();
+    let r0 = e.eigh().unwrap();
+    assert!(r0.values.is_empty());
+
+    let one = NdArray::new(vec![5.0], vec![1, 1]).unwrap();
+    let r1 = one.eigh().unwrap();
+    assert_eq!(r1.values, vec![5.0]);
+    assert_eq!(r1.vectors.data(), &[1.0]);
+}
+
+#[test]
+fn eigh_diagonal_sorted() {
+    let a = NdArray::new(
+        vec![3.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 2.0],
+        vec![3, 3],
+    )
+    .unwrap();
+    let r = a.eigh().unwrap();
+    assert!((r.values[0] - 1.0).abs() < 1e-12);
+    assert!((r.values[1] - 2.0).abs() < 1e-12);
+    assert!((r.values[2] - 3.0).abs() < 1e-12);
+}
+
+#[test]
+fn eigh_not_square_errors() {
+    let a = NdArray::new(vec![1.0; 6], vec![2, 3]).unwrap();
+    assert!(a.eigh().is_err());
+}
