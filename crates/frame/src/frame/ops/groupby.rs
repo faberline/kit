@@ -1,7 +1,7 @@
 //! GroupBy operations for DataFrame.
 
 use crate::frame::dataframe::DataFrame;
-use crate::frame::error::Result;
+use crate::frame::error::{FrameError, Result};
 use crate::frame::series::Series;
 use crate::frame::value::Value;
 use std::collections::HashMap;
@@ -15,6 +15,7 @@ pub struct GroupBy<'a> {
 
 impl<'a> GroupBy<'a> {
     /// Create a new GroupBy from DataFrame and column names.
+    /// Rows with a null in any key column are dropped.
     pub fn new(df: &'a DataFrame, by: &[&str]) -> Result<Self> {
         // Validate columns exist
         for &col_name in by {
@@ -30,6 +31,9 @@ impl<'a> GroupBy<'a> {
                 .map(|&col_name| df.get(col_name).unwrap().iloc(i).unwrap().clone())
                 .collect();
 
+            if key.iter().any(|v| v.is_null()) {
+                continue;
+            }
             groups.entry(key).or_default().push(i);
         }
 
@@ -319,43 +323,33 @@ impl<'a> GroupBy<'a> {
 
     /// Compute standard deviation within each group.
     pub fn std(&self) -> Result<DataFrame> {
-        self.aggregate(|series, indices| {
-            let vals: Vec<f64> = indices
-                .iter()
-                .filter_map(|&i| series.iloc(i).ok()?.as_float())
-                .collect();
-            if vals.len() < 2 {
-                return Value::Null;
-            }
-            let mean = vals.iter().sum::<f64>() / vals.len() as f64;
-            let variance =
-                vals.iter().map(|&x| (x - mean).powi(2)).sum::<f64>() / (vals.len() - 1) as f64;
-            Value::Float(variance.sqrt())
-        })
+        self.aggregate(std_of)
     }
 
     /// Compute median within each group.
     pub fn median(&self) -> Result<DataFrame> {
-        self.aggregate(|series, indices| {
-            let mut vals: Vec<f64> = indices
-                .iter()
-                .filter_map(|&i| series.iloc(i).ok()?.as_float())
-                .collect();
-            if vals.is_empty() {
-                return Value::Null;
-            }
-            vals.sort_by(|a, b| a.total_cmp(b));
-            let mid = vals.len() / 2;
-            if vals.len().is_multiple_of(2) {
-                Value::Float((vals[mid - 1] + vals[mid]) / 2.0)
-            } else {
-                Value::Float(vals[mid])
-            }
-        })
+        self.aggregate(median_of)
     }
 
     /// Apply multiple aggregations.
     pub fn agg(&self, aggs: HashMap<&str, &str>) -> Result<DataFrame> {
+        // Validate every aggregation name before any work is done.
+        const KNOWN: [&str; 9] = [
+            "sum", "mean", "count", "min", "max", "first", "last", "std", "median",
+        ];
+        let mut unknown: Vec<&str> = aggs
+            .values()
+            .copied()
+            .filter(|a| !KNOWN.contains(a))
+            .collect();
+        unknown.sort();
+        if let Some(name) = unknown.first() {
+            return Err(FrameError::InvalidOperation(format!(
+                "unknown aggregation: {}",
+                name
+            )));
+        }
+
         let mut result_columns: Vec<(&str, Vec<Value>)> = Vec::new();
 
         // Materialize groups as a sorted vector to ensure stable, deterministic iteration order
@@ -429,7 +423,9 @@ impl<'a> GroupBy<'a> {
                         .and_then(|&i| series.iloc(i).ok())
                         .cloned()
                         .unwrap_or(Value::Null),
-                    _ => Value::Null,
+                    "std" => std_of(series, indices),
+                    "median" => median_of(series, indices),
+                    _ => unreachable!("validated above"),
                 })
                 .collect();
             result_columns.push((col_name, values));
@@ -441,6 +437,38 @@ impl<'a> GroupBy<'a> {
             .collect();
 
         DataFrame::from_columns(columns)
+    }
+}
+
+/// Sample standard deviation (ddof = 1) of the non-null values; `Null` for fewer than 2.
+fn std_of(series: &Series, indices: &[usize]) -> Value {
+    let vals: Vec<f64> = indices
+        .iter()
+        .filter_map(|&i| series.iloc(i).ok()?.as_float())
+        .collect();
+    if vals.len() < 2 {
+        return Value::Null;
+    }
+    let mean = vals.iter().sum::<f64>() / vals.len() as f64;
+    let variance = vals.iter().map(|&x| (x - mean).powi(2)).sum::<f64>() / (vals.len() - 1) as f64;
+    Value::Float(variance.sqrt())
+}
+
+/// Median of the non-null values; `Null` when there are none.
+fn median_of(series: &Series, indices: &[usize]) -> Value {
+    let mut vals: Vec<f64> = indices
+        .iter()
+        .filter_map(|&i| series.iloc(i).ok()?.as_float())
+        .collect();
+    if vals.is_empty() {
+        return Value::Null;
+    }
+    vals.sort_by(|a, b| a.total_cmp(b));
+    let mid = vals.len() / 2;
+    if vals.len().is_multiple_of(2) {
+        Value::Float((vals[mid - 1] + vals[mid]) / 2.0)
+    } else {
+        Value::Float(vals[mid])
     }
 }
 
@@ -643,6 +671,98 @@ mod tests {
             })
             .unwrap();
         assert_eq!(result.nrows(), 2);
+    }
+
+    fn std_median_df() -> DataFrame {
+        DataFrame::from_columns(vec![
+            ("g", Series::new(vec!["a", "a", "a", "a", "b"])),
+            (
+                "v",
+                Series::new(vec![
+                    Value::Int(1),
+                    Value::Null,
+                    Value::Int(2),
+                    Value::Int(3),
+                    Value::Int(7),
+                ]),
+            ),
+        ])
+        .unwrap()
+    }
+
+    #[test]
+    fn agg_unknown_name_is_error() {
+        let df = create_test_df();
+        let aggs = HashMap::from([("value", "foo")]);
+        let err = df.groupby(&["category"]).unwrap().agg(aggs).unwrap_err();
+        assert!(err.to_string().contains("foo"));
+    }
+
+    #[test]
+    fn agg_std_and_median() {
+        let df = std_median_df();
+        let std = df
+            .groupby(&["g"])
+            .unwrap()
+            .agg(HashMap::from([("v", "std")]))
+            .unwrap();
+        assert_eq!(
+            std.get("g").unwrap().values(),
+            &[Value::String("a".into()), Value::String("b".into())]
+        );
+        assert_eq!(
+            std.get("v").unwrap().values(),
+            &[Value::Float(1.0), Value::Null]
+        );
+
+        let median = df
+            .groupby(&["g"])
+            .unwrap()
+            .agg(HashMap::from([("v", "median")]))
+            .unwrap();
+        assert_eq!(
+            median.get("v").unwrap().values(),
+            &[Value::Float(2.0), Value::Float(7.0)]
+        );
+    }
+
+    #[test]
+    fn agg_mean_skips_nulls() {
+        let df = std_median_df();
+        let mean = df
+            .groupby(&["g"])
+            .unwrap()
+            .agg(HashMap::from([("v", "mean")]))
+            .unwrap();
+        assert_eq!(
+            mean.get("v").unwrap().values(),
+            &[Value::Float(2.0), Value::Float(7.0)]
+        );
+    }
+
+    #[test]
+    fn groupby_drops_null_keys() {
+        let df = DataFrame::from_columns(vec![
+            (
+                "k",
+                Series::new(vec![
+                    Value::String("a".into()),
+                    Value::Null,
+                    Value::String("a".into()),
+                ]),
+            ),
+            ("v", Series::new(vec![1.0, 2.0, 3.0])),
+        ])
+        .unwrap();
+        let gb = df.groupby(&["k"]).unwrap();
+        assert_eq!(gb.ngroups(), 1);
+        let sums = gb.sum().unwrap();
+        assert_eq!(sums.nrows(), 1);
+        assert_eq!(
+            sums.get("k").unwrap().values(),
+            &[Value::String("a".into())]
+        );
+        assert_eq!(sums.get("v").unwrap().values(), &[Value::Float(4.0)]);
     }
 
     #[test]
