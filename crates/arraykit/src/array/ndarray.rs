@@ -1,6 +1,6 @@
 //! Core N-dimensional array implementation.
 
-use super::dtype::ArrayElement;
+use super::dtype::{ArrayElement, RangeElement};
 use super::error::{ArrayError, Result};
 use super::shape::Shape;
 use super::slice::{AxisSlice, SliceInfo};
@@ -60,45 +60,32 @@ impl<T: ArrayElement> NdArray<T> {
 
     /// Create a 1D array from a range.
     ///
-    /// Supports both positive and negative steps.
-    /// Returns an empty array if step is zero or if the range is invalid
-    /// (e.g., start >= stop with positive step, or start <= stop with negative step).
-    pub fn arange(start: T, stop: T, step: T) -> Self
+    /// Returns an error if `step` is zero. Returns an empty array if the range
+    /// is empty (for example `start >= stop` with a positive step). The length
+    /// is `ceil((stop - start) / step)` and element `i` is `start + i * step`,
+    /// as in NumPy.
+    ///
+    /// # Example
+    /// ```
+    /// use arraykit::NdArray;
+    /// let a = NdArray::arange(0, 5, 2).unwrap();
+    /// assert_eq!(a.data(), &[0, 2, 4]);
+    /// ```
+    pub fn arange(start: T, stop: T, step: T) -> Result<Self>
     where
-        T: PartialOrd + std::ops::Add<Output = T> + std::ops::Sub<Output = T>,
+        T: RangeElement,
     {
-        let mut data = Vec::new();
-        let zero = T::zero();
-
-        // Handle step == 0: return empty array
-        if step == zero {
-            return Self {
-                data,
-                shape: Shape::new(vec![0]),
-            };
+        if step == T::zero() {
+            return Err(ArrayError::InvalidOperation(
+                "arange step must not be zero".into(),
+            ));
         }
-
-        let mut current = start;
-
-        if step > zero {
-            // Positive step: iterate while current < stop
-            while current < stop {
-                data.push(current);
-                current = current + step;
-            }
-        } else {
-            // Negative step: iterate while current > stop
-            while current > stop {
-                data.push(current);
-                current = current + step;
-            }
-        }
-
-        let len = data.len();
-        Self {
+        let len = T::range_len(start, stop, step);
+        let data: Vec<T> = (0..len).map(|i| T::range_nth(start, step, i)).collect();
+        Ok(Self {
             data,
             shape: Shape::new(vec![len]),
-        }
+        })
     }
 
     /// Create a 2D identity matrix.
