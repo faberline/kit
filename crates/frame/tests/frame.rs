@@ -105,6 +105,51 @@ mod series_tests {
     }
 
     #[test]
+    fn test_series_sum_skips_nulls() {
+        let s = Series::new(vec![Value::Int(1), Value::Null, Value::Int(3)]);
+        assert_eq!(s.sum().unwrap(), 4.0);
+    }
+
+    #[test]
+    fn test_series_mean_skips_nulls() {
+        let s = Series::new(vec![Value::Int(1), Value::Null, Value::Int(3)]);
+        assert_eq!(s.mean().unwrap(), 2.0);
+    }
+
+    #[test]
+    fn test_series_all_null_sum_and_mean() {
+        let s = Series::new(vec![Value::Null, Value::Null]);
+        assert_eq!(s.sum().unwrap(), 0.0);
+        assert!(matches!(
+            s.mean(),
+            Err(frame::frame::FrameError::InvalidOperation(_))
+        ));
+    }
+
+    #[test]
+    fn test_series_sum_string_is_type_mismatch() {
+        let s = Series::new(vec![Value::Int(1), Value::String("x".to_string())]);
+        assert!(matches!(
+            s.sum(),
+            Err(frame::frame::FrameError::TypeMismatch(_))
+        ));
+    }
+
+    #[test]
+    fn test_series_std_median_quantile_skip_nulls() {
+        let s = Series::new(vec![
+            Value::Float(1.0),
+            Value::Float(2.0),
+            Value::Null,
+            Value::Float(4.0),
+            Value::Float(5.0),
+        ]);
+        assert_eq!(s.median().unwrap(), 3.0);
+        assert_eq!(s.quantile(0.25).unwrap(), 1.75);
+        assert!((s.std().unwrap() - 1.8257418583505538).abs() < 1e-12);
+    }
+
+    #[test]
     fn test_series_filter() {
         let s = Series::new(vec![1, 2, 3, 4, 5]);
         let mask = vec![true, false, true, false, true];
@@ -879,6 +924,60 @@ mod dataframe_tests {
         assert!(desc.contains_key("b"));
         assert_eq!(desc.get("a").unwrap().get("count"), Some(&5.0));
         assert_eq!(desc.get("a").unwrap().get("mean"), Some(&3.0));
+    }
+
+    #[test]
+    fn test_dataframe_describe_with_null() {
+        let df = DataFrame::from_columns(vec![(
+            "a",
+            Series::new(vec![
+                Value::Float(1.0),
+                Value::Float(2.0),
+                Value::Null,
+                Value::Float(4.0),
+                Value::Float(5.0),
+            ]),
+        )])
+        .unwrap();
+
+        let desc = df.describe();
+        let a = desc.get("a").unwrap();
+        assert_eq!(a.get("count"), Some(&4.0));
+        assert_eq!(a.get("sum"), Some(&12.0));
+        assert_eq!(a.get("mean"), Some(&3.0));
+        assert!((a.get("std").unwrap() - 1.8257418583505538).abs() < 1e-12);
+        assert_eq!(a.get("min"), Some(&1.0));
+        assert_eq!(a.get("25%"), Some(&1.75));
+        assert_eq!(a.get("50%"), Some(&3.0));
+        assert_eq!(a.get("75%"), Some(&4.25));
+        assert_eq!(a.get("max"), Some(&5.0));
+    }
+
+    #[test]
+    fn test_dataframe_describe_without_null_has_new_keys() {
+        let df = DataFrame::from_columns(vec![("a", Series::new(vec![1.0, 2.0, 3.0, 4.0, 5.0]))])
+            .unwrap();
+
+        let desc = df.describe();
+        let a = desc.get("a").unwrap();
+        assert_eq!(a.get("count"), Some(&5.0));
+        assert_eq!(a.get("mean"), Some(&3.0));
+        assert!((a.get("std").unwrap() - 1.5811388300841898).abs() < 1e-12);
+        assert_eq!(a.get("25%"), Some(&2.0));
+        assert_eq!(a.get("50%"), Some(&3.0));
+        assert_eq!(a.get("75%"), Some(&4.0));
+    }
+
+    #[test]
+    fn test_dataframe_describe_all_null() {
+        let df = DataFrame::from_columns(vec![("a", Series::new(vec![Value::Null, Value::Null]))])
+            .unwrap();
+
+        let desc = df.describe();
+        let a = desc.get("a").unwrap();
+        assert_eq!(a.get("count"), Some(&0.0));
+        assert_eq!(a.get("sum"), Some(&0.0));
+        assert!(a.get("mean").is_none());
     }
 
     #[test]

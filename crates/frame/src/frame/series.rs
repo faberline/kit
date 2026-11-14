@@ -116,6 +116,18 @@ impl Series {
             .collect()
     }
 
+    /// Convert the non-null values to Vec of f64. Nulls are skipped.
+    pub(crate) fn non_null_f64(&self) -> Result<Vec<f64>> {
+        self.data
+            .iter()
+            .filter(|v| !v.is_null())
+            .map(|v| {
+                v.as_float()
+                    .ok_or_else(|| FrameError::TypeMismatch("cannot convert to f64".into()))
+            })
+            .collect()
+    }
+
     /// Convert to Vec of i64 (for integer operations).
     pub fn to_i64(&self) -> Result<Vec<i64>> {
         self.data
@@ -129,12 +141,12 @@ impl Series {
 
     /// Sum of numeric values.
     pub fn sum(&self) -> Result<f64> {
-        Ok(self.to_f64()?.into_iter().sum())
+        Ok(self.non_null_f64()?.into_iter().sum())
     }
 
     /// Mean of numeric values.
     pub fn mean(&self) -> Result<f64> {
-        let vals = self.to_f64()?;
+        let vals = self.non_null_f64()?;
         if vals.is_empty() {
             return Err(FrameError::InvalidOperation("mean of empty series".into()));
         }
@@ -759,7 +771,7 @@ impl Series {
 
     /// Standard deviation.
     pub fn std(&self) -> Result<f64> {
-        let vals = self.to_f64()?;
+        let vals = self.non_null_f64()?;
         if vals.len() <= 1 {
             return Err(FrameError::InvalidOperation(
                 "std requires at least 2 values".into(),
@@ -773,7 +785,7 @@ impl Series {
 
     /// Variance.
     pub fn var(&self) -> Result<f64> {
-        let vals = self.to_f64()?;
+        let vals = self.non_null_f64()?;
         if vals.len() <= 1 {
             return Err(FrameError::InvalidOperation(
                 "var requires at least 2 values".into(),
@@ -787,7 +799,7 @@ impl Series {
 
     /// Median value.
     pub fn median(&self) -> Result<f64> {
-        let mut vals = self.to_f64()?;
+        let mut vals = self.non_null_f64()?;
         if vals.is_empty() {
             return Err(FrameError::InvalidOperation(
                 "median of empty series".into(),
@@ -941,7 +953,7 @@ impl Series {
             ));
         }
 
-        let mut vals = self.to_f64()?;
+        let mut vals = self.non_null_f64()?;
         if vals.is_empty() {
             return Err(FrameError::InvalidOperation(
                 "quantile of empty series".into(),
