@@ -1,6 +1,6 @@
 //! Integration tests for the array module.
 
-use arraykit::array::{AxisSlice, DType, NdArray, Shape, SliceInfo};
+use arraykit::array::{ArrayError, AxisSlice, DType, NdArray, Shape, SliceInfo};
 
 // ============================================================================
 // DType tests (from dtype.rs)
@@ -894,7 +894,10 @@ fn test_var_sample_four() {
 #[test]
 fn test_checked_sum_i32_overflow() {
     let a = NdArray::new(vec![i32::MAX, 1], vec![2]).unwrap();
-    assert!(a.checked_sum().is_err());
+    match a.checked_sum() {
+        Err(ArrayError::InvalidOperation(m)) => assert_eq!(m, "integer overflow in sum"),
+        other => panic!("expected InvalidOperation, got {other:?}"),
+    }
 }
 
 #[test]
@@ -904,7 +907,10 @@ fn test_checked_sum_ok() {
     let f = NdArray::new(vec![0.5_f64, 0.25], vec![2]).unwrap();
     assert_eq!(f.checked_sum().unwrap(), 0.75);
     let big = NdArray::new(vec![i64::MAX, 1], vec![2]).unwrap();
-    assert!(big.checked_sum().is_err());
+    match big.checked_sum() {
+        Err(ArrayError::InvalidOperation(m)) => assert_eq!(m, "integer overflow in sum"),
+        other => panic!("expected InvalidOperation, got {other:?}"),
+    }
 }
 
 #[test]
