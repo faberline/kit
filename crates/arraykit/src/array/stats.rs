@@ -12,11 +12,18 @@ use std::ops::{Add, Div};
 pub trait StatOps: ArrayElement + Add<Output = Self> + PartialOrd {
     /// Convert from usize (for mean calculation).
     fn from_usize(n: usize) -> Self;
+
+    /// Convert to `f64` (exact for `i32` and `f32`; `i64` may round).
+    fn to_f64(self) -> f64;
 }
 
 impl StatOps for f32 {
     fn from_usize(n: usize) -> Self {
         n as f32
+    }
+
+    fn to_f64(self) -> f64 {
+        self as f64
     }
 }
 
@@ -24,17 +31,55 @@ impl StatOps for f64 {
     fn from_usize(n: usize) -> Self {
         n as f64
     }
+
+    fn to_f64(self) -> f64 {
+        self
+    }
 }
 
 impl StatOps for i32 {
     fn from_usize(n: usize) -> Self {
         n as i32
     }
+
+    fn to_f64(self) -> f64 {
+        self as f64
+    }
 }
 
 impl StatOps for i64 {
     fn from_usize(n: usize) -> Self {
         n as i64
+    }
+
+    fn to_f64(self) -> f64 {
+        self as f64
+    }
+}
+
+/// `true` for a NaN. Works for any `PartialOrd` type, where `x != x` only holds for NaN.
+#[allow(clippy::eq_op)]
+fn is_nan_like<T: PartialOrd + Copy>(x: T) -> bool {
+    x != x
+}
+
+/// Minimum fold step. A NaN wins over any value, in any order.
+fn pick_min<T: PartialOrd + Copy>(acc: Option<T>, x: T) -> Option<T> {
+    match acc {
+        None => Some(x),
+        Some(m) if is_nan_like(m) => Some(m),
+        Some(_) if is_nan_like(x) => Some(x),
+        Some(m) => Some(if x < m { x } else { m }),
+    }
+}
+
+/// Maximum fold step. A NaN wins over any value, in any order.
+fn pick_max<T: PartialOrd + Copy>(acc: Option<T>, x: T) -> Option<T> {
+    match acc {
+        None => Some(x),
+        Some(m) if is_nan_like(m) => Some(m),
+        Some(_) if is_nan_like(x) => Some(x),
+        Some(m) => Some(if x > m { x } else { m }),
     }
 }
 
@@ -68,44 +113,47 @@ impl<T: StatOps> NdArray<T> {
         })
     }
 
-    /// Minimum of all elements.
-    pub fn min(&self) -> Option<T> {
-        self.data.iter().fold(None, |acc, &x| match acc {
-            None => Some(x),
-            Some(m) => Some(if x < m { x } else { m }),
-        })
+    /// Mean of all elements as `f64`, exact for integer element types.
+    ///
+    /// Returns NaN for an empty array. Use this instead of `mean` when an
+    /// integer array must not truncate (`[1, 2]` gives `1.5`).
+    pub fn mean_f64(&self) -> f64 {
+        if self.size() == 0 {
+            return f64::NAN;
+        }
+        self.data.iter().map(|&x| x.to_f64()).sum::<f64>() / self.size() as f64
     }
 
-    /// Minimum along a specific axis.
+    /// Minimum of all elements.
+    ///
+    /// A NaN in the array gives `Some(NaN)`, in any position.
+    pub fn min(&self) -> Option<T> {
+        self.data.iter().fold(None, |acc, &x| pick_min(acc, x))
+    }
+
+    /// Minimum along a specific axis. A NaN in a slice gives NaN.
     pub fn min_axis(&self, axis: usize) -> Result<NdArray<T>> {
         self.reduce_axis(axis, |slice| {
             slice
                 .iter()
-                .fold(None, |acc: Option<T>, &x| match acc {
-                    None => Some(x),
-                    Some(m) => Some(if x < m { x } else { m }),
-                })
+                .fold(None, |acc: Option<T>, &x| pick_min(acc, x))
                 .unwrap_or(T::zero())
         })
     }
 
     /// Maximum of all elements.
+    ///
+    /// A NaN in the array gives `Some(NaN)`, in any position.
     pub fn max(&self) -> Option<T> {
-        self.data.iter().fold(None, |acc, &x| match acc {
-            None => Some(x),
-            Some(m) => Some(if x > m { x } else { m }),
-        })
+        self.data.iter().fold(None, |acc, &x| pick_max(acc, x))
     }
 
-    /// Maximum along a specific axis.
+    /// Maximum along a specific axis. A NaN in a slice gives NaN.
     pub fn max_axis(&self, axis: usize) -> Result<NdArray<T>> {
         self.reduce_axis(axis, |slice| {
             slice
                 .iter()
-                .fold(None, |acc: Option<T>, &x| match acc {
-                    None => Some(x),
-                    Some(m) => Some(if x > m { x } else { m }),
-                })
+                .fold(None, |acc: Option<T>, &x| pick_max(acc, x))
                 .unwrap_or(T::zero())
         })
     }
@@ -201,6 +249,9 @@ impl<T: StatOps> NdArray<T> {
 // Mean requires division, so separate impl for float types
 impl<T: StatOps + Div<Output = T>> NdArray<T> {
     /// Mean of all elements.
+    ///
+    /// For integer types the division truncates (`[1, 2]` gives `1`); use
+    /// `mean_f64` for the exact value.
     ///
     /// # Example
     /// ```
@@ -414,7 +465,9 @@ impl NdArray<f64> {
 
     /// Compute the mode (most frequent value).
     ///
-    /// For continuous data, values are discretized to 10 decimal places.
+    /// Values are compared exactly by their bit pattern: `-0.0` equals `0.0`,
+    /// all NaN are one value, and values that differ by less than 1e-10 are
+    /// different keys. On a tie the smallest value wins.
     pub fn mode(&self) -> Option<f64> {
         if self.data.is_empty() {
             return None;
@@ -422,19 +475,41 @@ impl NdArray<f64> {
 
         use std::collections::HashMap;
 
-        // Discretize by rounding to avoid floating point issues
-        let precision = 1e10;
-        let mut counts: HashMap<i64, (usize, f64)> = HashMap::new();
+        // Exact key: the bit pattern, with -0.0 mapped to 0.0 and all NaN as one key.
+        fn key(x: f64) -> u64 {
+            if x.is_nan() {
+                f64::NAN.to_bits()
+            } else if x == 0.0 {
+                0.0f64.to_bits()
+            } else {
+                x.to_bits()
+            }
+        }
 
+        let mut counts: HashMap<u64, (usize, f64)> = HashMap::new();
         for &x in &self.data {
-            let key = (x * precision).round() as i64;
-            let entry = counts.entry(key).or_insert((0, x));
+            let entry = counts.entry(key(x)).or_insert((0, x));
             entry.0 += 1;
         }
 
+        // Highest count wins; on equal counts the smallest value wins.
         counts
             .into_values()
-            .max_by_key(|(count, _)| *count)
+            .fold(
+                None,
+                |best: Option<(usize, f64)>, (count, value)| match best {
+                    None => Some((count, value)),
+                    Some((best_count, best_value)) => {
+                        if count > best_count
+                            || (count == best_count && value.total_cmp(&best_value).is_lt())
+                        {
+                            Some((count, value))
+                        } else {
+                            Some((best_count, best_value))
+                        }
+                    }
+                },
+            )
             .map(|(_, value)| value)
     }
 
