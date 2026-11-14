@@ -273,16 +273,29 @@ impl DataFrame {
         for (name, col) in self.column_names.iter().zip(self.columns.iter()) {
             let mut stats = HashMap::new();
 
-            if let Ok(vals) = col.to_f64() {
+            // Statistics skip nulls (see the `# Null policy` section of the frame module).
+            if let Ok(vals) = col.non_null_f64() {
                 stats.insert("count".to_string(), vals.len() as f64);
-                stats.insert("sum".to_string(), vals.iter().sum());
-                let mean = vals.iter().sum::<f64>() / vals.len() as f64;
-                stats.insert("mean".to_string(), mean);
-                if let Some(&min) = vals.iter().min_by(|a, b| a.total_cmp(b)) {
-                    stats.insert("min".to_string(), min);
-                }
-                if let Some(&max) = vals.iter().max_by(|a, b| a.total_cmp(b)) {
-                    stats.insert("max".to_string(), max);
+                if vals.is_empty() {
+                    stats.insert("sum".to_string(), 0.0);
+                } else {
+                    stats.insert("sum".to_string(), vals.iter().sum());
+                    let mean = vals.iter().sum::<f64>() / vals.len() as f64;
+                    stats.insert("mean".to_string(), mean);
+                    if let Ok(std) = col.std() {
+                        stats.insert("std".to_string(), std);
+                    }
+                    if let Some(&min) = vals.iter().min_by(|a, b| a.total_cmp(b)) {
+                        stats.insert("min".to_string(), min);
+                    }
+                    for (key, q) in [("25%", 0.25), ("50%", 0.5), ("75%", 0.75)] {
+                        if let Ok(value) = col.quantile(q) {
+                            stats.insert(key.to_string(), value);
+                        }
+                    }
+                    if let Some(&max) = vals.iter().max_by(|a, b| a.total_cmp(b)) {
+                        stats.insert("max".to_string(), max);
+                    }
                 }
             }
 
