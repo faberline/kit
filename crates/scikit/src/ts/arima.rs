@@ -215,15 +215,12 @@ fn undifference_forecast(forecast_diff: &[f64], original: &[f64], d: usize) -> V
 
     let mut result = forecast_diff.to_vec();
     for dd in 0..d {
-        let mut undiffed = Vec::with_capacity(result.len());
-        // Use the last value(s) of the original data as anchor
-        let anchor = if dd == 0 {
-            *original.last().unwrap()
-        } else {
-            // For higher-order differencing, use the cumsum approach
-            *original.last().unwrap()
-        };
+        // Anchor: last value of the (d - 1 - dd)-th difference of the data.
+        // The first pass integrates the last (d-1)-th difference, and the
+        // last pass integrates back to the levels.
+        let anchor = *difference(original, d - 1 - dd).last().unwrap();
         let mut prev = anchor;
+        let mut undiffed = Vec::with_capacity(result.len());
         for &r in &result {
             prev += r;
             undiffed.push(prev);
@@ -469,5 +466,36 @@ mod tests {
         // Both should be finite
         assert!(aic1.is_finite());
         assert!(aic2.is_finite());
+    }
+
+    #[test]
+    fn undifference_forecast_d2_quadratic() {
+        // Data i*i has constant second differences of 2.
+        let data: Vec<f64> = (0..30).map(|i| (i * i) as f64).collect();
+        let out = undifference_forecast(&[2.0, 2.0, 2.0], &data, 2);
+        let expected = [900.0, 961.0, 1024.0];
+        for (o, e) in out.iter().zip(expected.iter()) {
+            assert!((o - e).abs() < 1e-9, "got {o}, expected {e}");
+        }
+    }
+
+    #[test]
+    fn undifference_forecast_d1() {
+        let data = [1.0, 3.0, 6.0];
+        let out = undifference_forecast(&[1.0, 1.0], &data, 1);
+        assert!((out[0] - 7.0).abs() < 1e-9);
+        assert!((out[1] - 8.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn arima_020_forecast_continues_quadratic() {
+        let data: Vec<f64> = (0..30).map(|i| (i * i) as f64).collect();
+        let fc = ArimaModel::fit(&data, ArimaOrder::new(0, 2, 0))
+            .unwrap()
+            .forecast(&data, 3);
+        let expected = [900.0, 961.0, 1024.0];
+        for (o, e) in fc.iter().zip(expected.iter()) {
+            assert!((o - e).abs() < 1e-6, "got {o}, expected {e}");
+        }
     }
 }

@@ -243,6 +243,10 @@ where
             })
             .collect();
 
+        // Seventh stage at the new point; needed by the error estimate.
+        let k7 = f(t + dt, &y_new);
+        nfev += 1;
+
         // 4th order solution for error estimation
         let y_err: Vec<f64> = (0..n)
             .map(|i| {
@@ -250,7 +254,7 @@ where
                     * (5179.0 / 57600.0 * k1[i] + 7571.0 / 16695.0 * k3[i] + 393.0 / 640.0 * k4[i]
                         - 92097.0 / 339200.0 * k5[i]
                         + 187.0 / 2100.0 * k6[i]
-                        + 1.0 / 40.0 * k6[i]) // simplified
+                        + 1.0 / 40.0 * k7[i])
             })
             .collect();
 
@@ -393,5 +397,68 @@ mod tests {
             "got {}, expected {expected}",
             y[0]
         );
+    }
+
+    #[test]
+    fn rk45_error_estimate_uses_k7() {
+        let result = solve_ivp(
+            |_t, y| vec![-y[0]],
+            (0.0, 1.0),
+            &[1.0],
+            OdeSolver::RK45,
+            0.1,
+            1e-8,
+        );
+        assert!(result.success);
+        let y_final = result.y.last().unwrap()[0];
+        let expected = (-1.0_f64).exp();
+        assert!(
+            (y_final - expected).abs() < 1e-6,
+            "got {y_final}, expected {expected}"
+        );
+        // Dormand-Prince uses 7 stages per attempted step.
+        assert_eq!(
+            result.nfev % 7,
+            0,
+            "nfev {} is not a multiple of 7",
+            result.nfev
+        );
+        assert!(result.t.len() >= 3);
+        assert!(result.nfev >= 7 * (result.t.len() - 1));
+    }
+
+    #[test]
+    fn rk45_matches_exact_tight() {
+        let result = solve_ivp(
+            |_t, y| vec![-y[0]],
+            (0.0, 1.0),
+            &[1.0],
+            OdeSolver::RK45,
+            0.1,
+            1e-10,
+        );
+        assert!(result.success);
+        let y_final = result.y.last().unwrap()[0];
+        let expected = (-1.0_f64).exp();
+        assert!(
+            (y_final - expected).abs() < 1e-8,
+            "got {y_final}, expected {expected}"
+        );
+    }
+
+    #[test]
+    fn rk45_harmonic() {
+        let result = solve_ivp(
+            |_t, y| vec![y[1], -y[0]],
+            (0.0, 2.0 * std::f64::consts::PI),
+            &[0.0, 1.0],
+            OdeSolver::RK45,
+            0.1,
+            1e-9,
+        );
+        assert!(result.success);
+        let y_final = result.y.last().unwrap();
+        assert!(y_final[0].abs() < 1e-6, "y1 = {}", y_final[0]);
+        assert!((y_final[1] - 1.0).abs() < 1e-6, "y2 = {}", y_final[1]);
     }
 }
