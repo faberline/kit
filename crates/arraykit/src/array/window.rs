@@ -1,6 +1,7 @@
 //! Rolling window operations for N-dimensional arrays.
 
 use super::dtype::ArrayElement;
+use super::error::{ArrayError, Result};
 use super::ndarray::NdArray;
 use super::shape::Shape;
 use super::stats::StatOps;
@@ -15,12 +16,17 @@ pub struct Rolling<'a, T: ArrayElement> {
 
 impl<'a, T: ArrayElement> Rolling<'a, T> {
     /// Create a new rolling window.
-    pub fn new(array: &'a NdArray<T>, window: usize) -> Self {
-        Self {
+    pub fn new(array: &'a NdArray<T>, window: usize) -> Result<Self> {
+        if window == 0 {
+            return Err(ArrayError::InvalidOperation(
+                "rolling window must be at least 1".into(),
+            ));
+        }
+        Ok(Self {
             array,
             window,
             min_periods: window,
-        }
+        })
     }
 
     /// Set minimum number of observations required.
@@ -192,7 +198,7 @@ impl<'a> Rolling<'a, f64> {
 
 impl<T: ArrayElement> NdArray<T> {
     /// Create a rolling window view.
-    pub fn rolling(&self, window: usize) -> Rolling<'_, T> {
+    pub fn rolling(&self, window: usize) -> Result<Rolling<'_, T>> {
         Rolling::new(self, window)
     }
 }

@@ -113,6 +113,13 @@ impl<T: ArrayElement> NdArray<T> {
             }
         }
 
+        if axis > first.ndim() {
+            return Err(ArrayError::InvalidAxis {
+                axis,
+                ndim: first.ndim() + 1,
+            });
+        }
+
         // Insert new axis
         let mut new_dims = first.dims().to_vec();
         new_dims.insert(axis, arrays.len());

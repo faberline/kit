@@ -3,6 +3,7 @@
 //! Provides NumPy-compatible random distributions: uniform, normal,
 //! binomial, poisson. Supports seed-based reproducibility.
 
+use super::error::{ArrayError, Result};
 use super::ndarray::NdArray;
 use super::shape::Shape;
 use std::f64::consts::PI;
@@ -163,15 +164,20 @@ impl Pcg64 {
     }
 
     /// Choose a random element index from 0..n.
-    pub fn choice(&mut self, n: usize) -> usize {
-        (self.next_u64() % n as u64) as usize
+    pub fn choice(&mut self, n: usize) -> Result<usize> {
+        if n == 0 {
+            return Err(ArrayError::InvalidOperation(
+                "choice from an empty range".into(),
+            ));
+        }
+        Ok((self.next_u64() % n as u64) as usize)
     }
 
     /// Shuffle a mutable slice in-place (Fisher-Yates).
     pub fn shuffle<T>(&mut self, data: &mut [T]) {
         let n = data.len();
         for i in (1..n).rev() {
-            let j = self.choice(i + 1);
+            let j = self.choice(i + 1).expect("i + 1 is never 0");
             data.swap(i, j);
         }
     }
