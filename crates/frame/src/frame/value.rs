@@ -83,13 +83,27 @@ impl Eq for Value {}
 
 impl Hash for Value {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        std::mem::discriminant(self).hash(state);
+        // Must agree with `PartialEq`: `Int(a) == Float(b)` when
+        // `(a as f64).to_bits() == b.to_bits()`, so Int and Float share a tag
+        // and hash the same f64 bits.
         match self {
-            Value::Null => {}
-            Value::Bool(v) => v.hash(state),
-            Value::Int(v) => v.hash(state),
-            Value::Float(v) => v.to_bits().hash(state),
-            Value::String(v) => v.hash(state),
+            Value::Null => 0u8.hash(state),
+            Value::Bool(v) => {
+                1u8.hash(state);
+                v.hash(state);
+            }
+            Value::Int(v) => {
+                2u8.hash(state);
+                (*v as f64).to_bits().hash(state);
+            }
+            Value::Float(v) => {
+                2u8.hash(state);
+                v.to_bits().hash(state);
+            }
+            Value::String(v) => {
+                3u8.hash(state);
+                v.hash(state);
+            }
         }
     }
 }
@@ -208,5 +222,35 @@ mod tests {
         assert!(null < int);
         assert!(int < float);
         assert!(float < string);
+    }
+}
+
+#[cfg(test)]
+mod hash_tests {
+    use super::*;
+    use std::collections::hash_map::DefaultHasher;
+
+    fn h(v: &Value) -> u64 {
+        let mut s = DefaultHasher::new();
+        v.hash(&mut s);
+        s.finish()
+    }
+
+    #[test]
+    fn int_and_float_hash_equal() {
+        assert_eq!(Value::Int(2), Value::Float(2.0));
+        assert_eq!(h(&Value::Int(2)), h(&Value::Float(2.0)));
+    }
+
+    #[test]
+    fn different_values_hash_differently_in_practice() {
+        assert_ne!(h(&Value::Int(2)), h(&Value::Int(3)));
+        assert_ne!(h(&Value::String("a".into())), h(&Value::String("b".into())));
+    }
+
+    #[test]
+    fn float_nan_is_unchanged() {
+        assert_eq!(Value::Float(f64::NAN), Value::Float(f64::NAN));
+        assert_eq!(h(&Value::Float(f64::NAN)), h(&Value::Float(f64::NAN)));
     }
 }
