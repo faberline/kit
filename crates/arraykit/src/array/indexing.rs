@@ -38,10 +38,11 @@ impl<T: ArrayElement> NdArray<T> {
     /// For N-D arrays, selects along axis 0.
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// use arraykit::NdArray;
     /// let arr = NdArray::new(vec![10, 20, 30, 40, 50], vec![5]).unwrap();
     /// let result = arr.fancy_index(&[1, 3, 4]).unwrap();
-    /// // result = [20, 40, 50]
+    /// assert_eq!(result.data(), &[20, 40, 50]);
     /// ```
     pub fn fancy_index(&self, indices: &[usize]) -> Result<NdArray<T>> {
         if self.ndim() == 0 {
@@ -94,11 +95,12 @@ impl<T: ArrayElement> NdArray<T> {
     /// Mask must have the same total size as the array.
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// use arraykit::NdArray;
     /// let arr = NdArray::new(vec![1.0, 2.0, 3.0, 4.0, 5.0], vec![5]).unwrap();
     /// let mask = vec![true, false, true, false, true];
     /// let result = arr.bool_index(&mask).unwrap();
-    /// // result = [1.0, 3.0, 5.0]
+    /// assert_eq!(result.data(), &[1.0, 3.0, 5.0]);
     /// ```
     pub fn bool_index(&self, mask: &[bool]) -> Result<NdArray<T>> {
         if mask.len() != self.size() {

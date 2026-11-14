@@ -19,11 +19,13 @@ impl<T: LinalgOps> NdArray<T> {
     /// Matrix multiplication for 2D arrays.
     ///
     /// # Example
-    /// ```ignore
+    /// ```
+    /// use arraykit::NdArray;
     /// let a = NdArray::new(vec![1, 2, 3, 4], vec![2, 2]).unwrap();
     /// let b = NdArray::new(vec![5, 6, 7, 8], vec![2, 2]).unwrap();
     /// let c = a.matmul(&b).unwrap();
-    /// // [[19, 22], [43, 50]]
+    /// assert_eq!(c.data(), &[19, 22, 43, 50]);
+    /// assert_eq!(c.dims(), &[2, 2]);
     /// ```
     pub fn matmul(&self, other: &NdArray<T>) -> Result<NdArray<T>> {
         if self.ndim() != 2 || other.ndim() != 2 {
