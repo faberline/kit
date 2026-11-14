@@ -210,20 +210,61 @@ fn test_ndarray_slice_reverse() {
 
 #[test]
 fn test_arange_positive_step() {
-    let arr = NdArray::arange(0, 5, 1);
+    let arr = NdArray::arange(0, 5, 1).unwrap();
     assert_eq!(arr.data(), &[0, 1, 2, 3, 4]);
 }
 
 #[test]
 fn test_arange_negative_step() {
-    let arr = NdArray::arange(5, 0, -1);
+    let arr = NdArray::arange(5, 0, -1).unwrap();
     assert_eq!(arr.data(), &[5, 4, 3, 2, 1]);
 }
 
 #[test]
 fn test_arange_zero_step() {
-    let arr = NdArray::arange(0, 5, 0);
-    assert_eq!(arr.size(), 0); // Empty array for step=0
+    assert!(NdArray::arange(0, 5, 0).is_err()); // step must not be zero
+    assert!(NdArray::arange(0.0_f64, 1.0, 0.0).is_err());
+}
+
+#[test]
+fn test_arange_basic() {
+    // np.arange(0, 5, 1) is [0, 1, 2, 3, 4]
+    assert_eq!(NdArray::arange(0, 5, 1).unwrap().data(), &[0, 1, 2, 3, 4]);
+    // np.arange(5, 0, -2) is [5, 3, 1]
+    assert_eq!(NdArray::arange(5, 0, -2).unwrap().data(), &[5, 3, 1]);
+    // np.arange(3, 3, 1) is empty
+    assert_eq!(NdArray::arange(3, 3, 1).unwrap().size(), 0);
+    // np.arange(0, 5, -1) is empty
+    assert_eq!(NdArray::arange(0, 5, -1).unwrap().size(), 0);
+}
+
+#[test]
+fn test_arange_float_len_matches_numpy() {
+    // np.arange(0.0, 1.0, 0.1) has 10 elements, the last one is 0.9
+    let a = NdArray::arange(0.0_f64, 1.0, 0.1).unwrap();
+    assert_eq!(a.size(), 10);
+    assert!(f64::abs(a.data()[9] - 0.9) < 1e-12);
+}
+
+#[test]
+fn test_arange_float_negative_step() {
+    // np.arange(1.0, 0.0, -0.25) is [1.0, 0.75, 0.5, 0.25]
+    let a = NdArray::arange(1.0_f64, 0.0, -0.25).unwrap();
+    assert_eq!(a.data(), &[1.0, 0.75, 0.5, 0.25]);
+}
+
+#[test]
+fn test_arange_f32() {
+    // np.arange(0.0, 1.0, 0.5) is [0.0, 0.5]
+    let a = NdArray::arange(0.0_f32, 1.0, 0.5).unwrap();
+    assert_eq!(a.data(), &[0.0, 0.5]);
+}
+
+#[test]
+fn test_arange_i64_large() {
+    // The length is computed without overflow: two elements, 0 and i64::MAX / 2 + 1
+    let a = NdArray::arange(0_i64, i64::MAX, i64::MAX / 2 + 1).unwrap();
+    assert_eq!(a.size(), 2);
 }
 
 #[test]

@@ -16,7 +16,7 @@ mod slice;
 mod stats;
 mod window;
 
-pub use dtype::{ArrayElement, DType};
+pub use dtype::{ArrayElement, DType, RangeElement};
 pub use error::{ArrayError, Result};
 pub use indexing::IndexMode;
 pub use linalg::LinalgOps;
