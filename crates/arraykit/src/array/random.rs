@@ -1,31 +1,29 @@
-//! Random number generation with PCG64 algorithm.
+//! Random number generation with a small PCG-style generator.
 //!
-//! Provides NumPy-compatible random distributions: uniform, normal,
-//! binomial, poisson. Supports seed-based reproducibility.
+//! Provides random distributions: uniform, normal, binomial, poisson.
+//! Its streams are not the same as NumPy's. Supports seed-based reproducibility.
 
 use super::ndarray::NdArray;
 use super::shape::Shape;
 use std::f64::consts::PI;
 
-/// PCG64 pseudo-random number generator.
+/// A small PCG-style generator. Its streams are not the same as NumPy `PCG64`.
 ///
 /// Implements the PCG-XSH-RR variant with 64-bit state and 32-bit output,
 /// extended to 64-bit output via two calls.
-///
-/// This is the same algorithm family used by NumPy's default RNG.
 #[derive(Debug, Clone)]
-pub struct Pcg64 {
+pub struct KitRng {
     state: u128,
     inc: u128,
 }
 
-impl Pcg64 {
+impl KitRng {
     /// Default multiplier for PCG.
     const MULTIPLIER: u128 = 6364136223846793005;
 
-    /// Create a new PCG64 generator with the given seed.
+    /// Create a new generator with the given seed.
     pub fn new(seed: u64) -> Self {
-        let mut rng = Pcg64 { state: 0, inc: 1 };
+        let mut rng = KitRng { state: 0, inc: 1 };
         // Initialize state
         rng.state = rng.state.wrapping_add(seed as u128);
         rng.advance();
@@ -35,7 +33,7 @@ impl Pcg64 {
     /// Create with both seed and stream (increment).
     pub fn with_stream(seed: u64, stream: u64) -> Self {
         let inc = (stream as u128) << 1 | 1; // Must be odd
-        let mut rng = Pcg64 { state: 0, inc };
+        let mut rng = KitRng { state: 0, inc };
         rng.state = rng.state.wrapping_add(seed as u128);
         rng.advance();
         rng
@@ -130,11 +128,31 @@ impl Pcg64 {
             return count;
         }
 
-        // For larger n, use the BTPE algorithm (normal approximation + correction)
-        let np = n as f64 * p;
-        let std = (np * (1.0 - p)).sqrt();
-        let val = self.normal(np, std).round().max(0.0).min(n as f64);
-        val as u64
+        // For larger n, use the waiting-time method: count successes by summing
+        // geometric gaps. It is exact for every n and costs O(n * min(p, 1 - p)).
+        // Work with q = min(p, 1 - p) so that the loop is short.
+        let flip = p > 0.5;
+        let q = if flip { 1.0 - p } else { p };
+        let log_fail = (-q).ln_1p(); // ln(1 - q), negative
+        let n_f = n as f64;
+        let mut position = 0.0_f64;
+        let mut successes = 0u64;
+        loop {
+            let mut u = self.next_f64();
+            while u <= 0.0 {
+                u = self.next_f64();
+            }
+            position += (u.ln() / log_fail).floor() + 1.0;
+            if position > n_f {
+                break;
+            }
+            successes += 1;
+        }
+        if flip {
+            n - successes
+        } else {
+            successes
+        }
     }
 
     /// Generate a Poisson random variable with given mean (lambda).
@@ -180,51 +198,51 @@ impl Pcg64 {
 /// Extension trait for generating random arrays.
 pub trait RandomExt {
     /// Create an array of uniform random values in [0, 1).
-    fn rand_uniform(rng: &mut Pcg64, shape: impl Into<Shape>) -> NdArray<f64>;
+    fn rand_uniform(rng: &mut KitRng, shape: impl Into<Shape>) -> NdArray<f64>;
 
     /// Create an array of normal random values.
-    fn rand_normal(rng: &mut Pcg64, mean: f64, std: f64, shape: impl Into<Shape>) -> NdArray<f64>;
+    fn rand_normal(rng: &mut KitRng, mean: f64, std: f64, shape: impl Into<Shape>) -> NdArray<f64>;
 
     /// Create an array of random integers in [low, high).
-    fn rand_int(rng: &mut Pcg64, low: i64, high: i64, shape: impl Into<Shape>) -> NdArray<f64>;
+    fn rand_int(rng: &mut KitRng, low: i64, high: i64, shape: impl Into<Shape>) -> NdArray<f64>;
 
     /// Create an array of random binomial samples.
-    fn rand_binomial(rng: &mut Pcg64, n: u64, p: f64, shape: impl Into<Shape>) -> NdArray<f64>;
+    fn rand_binomial(rng: &mut KitRng, n: u64, p: f64, shape: impl Into<Shape>) -> NdArray<f64>;
 
     /// Create an array of random Poisson samples.
-    fn rand_poisson(rng: &mut Pcg64, lambda: f64, shape: impl Into<Shape>) -> NdArray<f64>;
+    fn rand_poisson(rng: &mut KitRng, lambda: f64, shape: impl Into<Shape>) -> NdArray<f64>;
 }
 
 impl RandomExt for NdArray<f64> {
-    fn rand_uniform(rng: &mut Pcg64, shape: impl Into<Shape>) -> NdArray<f64> {
+    fn rand_uniform(rng: &mut KitRng, shape: impl Into<Shape>) -> NdArray<f64> {
         let shape = shape.into();
         let size = shape.size();
         let data: Vec<f64> = (0..size).map(|_| rng.next_f64()).collect();
         NdArray { data, shape }
     }
 
-    fn rand_normal(rng: &mut Pcg64, mean: f64, std: f64, shape: impl Into<Shape>) -> NdArray<f64> {
+    fn rand_normal(rng: &mut KitRng, mean: f64, std: f64, shape: impl Into<Shape>) -> NdArray<f64> {
         let shape = shape.into();
         let size = shape.size();
         let data: Vec<f64> = (0..size).map(|_| rng.normal(mean, std)).collect();
         NdArray { data, shape }
     }
 
-    fn rand_int(rng: &mut Pcg64, low: i64, high: i64, shape: impl Into<Shape>) -> NdArray<f64> {
+    fn rand_int(rng: &mut KitRng, low: i64, high: i64, shape: impl Into<Shape>) -> NdArray<f64> {
         let shape = shape.into();
         let size = shape.size();
         let data: Vec<f64> = (0..size).map(|_| rng.randint(low, high) as f64).collect();
         NdArray { data, shape }
     }
 
-    fn rand_binomial(rng: &mut Pcg64, n: u64, p: f64, shape: impl Into<Shape>) -> NdArray<f64> {
+    fn rand_binomial(rng: &mut KitRng, n: u64, p: f64, shape: impl Into<Shape>) -> NdArray<f64> {
         let shape = shape.into();
         let size = shape.size();
         let data: Vec<f64> = (0..size).map(|_| rng.binomial(n, p) as f64).collect();
         NdArray { data, shape }
     }
 
-    fn rand_poisson(rng: &mut Pcg64, lambda: f64, shape: impl Into<Shape>) -> NdArray<f64> {
+    fn rand_poisson(rng: &mut KitRng, lambda: f64, shape: impl Into<Shape>) -> NdArray<f64> {
         let shape = shape.into();
         let size = shape.size();
         let data: Vec<f64> = (0..size).map(|_| rng.poisson(lambda) as f64).collect();
@@ -237,9 +255,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_pcg64_reproducibility() {
-        let mut rng1 = Pcg64::new(42);
-        let mut rng2 = Pcg64::new(42);
+    fn test_kitrng_reproducibility() {
+        let mut rng1 = KitRng::new(42);
+        let mut rng2 = KitRng::new(42);
 
         for _ in 0..100 {
             assert_eq!(rng1.next_u64(), rng2.next_u64());
@@ -247,9 +265,9 @@ mod tests {
     }
 
     #[test]
-    fn test_pcg64_different_seeds() {
-        let mut rng1 = Pcg64::new(42);
-        let mut rng2 = Pcg64::new(123);
+    fn test_kitrng_different_seeds() {
+        let mut rng1 = KitRng::new(42);
+        let mut rng2 = KitRng::new(123);
 
         let mut same = true;
         for _ in 0..10 {
@@ -263,7 +281,7 @@ mod tests {
 
     #[test]
     fn test_uniform_range() {
-        let mut rng = Pcg64::new(42);
+        let mut rng = KitRng::new(42);
         for _ in 0..1000 {
             let val = rng.next_f64();
             assert!((0.0..1.0).contains(&val), "out of range: {}", val);
@@ -272,7 +290,7 @@ mod tests {
 
     #[test]
     fn test_uniform_custom_range() {
-        let mut rng = Pcg64::new(42);
+        let mut rng = KitRng::new(42);
         for _ in 0..1000 {
             let val = rng.uniform(5.0, 10.0);
             assert!((5.0..10.0).contains(&val), "out of range: {}", val);
@@ -281,7 +299,7 @@ mod tests {
 
     #[test]
     fn test_normal_distribution() {
-        let mut rng = Pcg64::new(42);
+        let mut rng = KitRng::new(42);
         let n = 10000;
         let mut sum = 0.0;
         let mut sum_sq = 0.0;
@@ -305,7 +323,7 @@ mod tests {
 
     #[test]
     fn test_randint() {
-        let mut rng = Pcg64::new(42);
+        let mut rng = KitRng::new(42);
         for _ in 0..1000 {
             let val = rng.randint(0, 10);
             assert!((0..10).contains(&val), "out of range: {}", val);
@@ -314,7 +332,7 @@ mod tests {
 
     #[test]
     fn test_binomial() {
-        let mut rng = Pcg64::new(42);
+        let mut rng = KitRng::new(42);
         let n = 10u64;
         for _ in 0..100 {
             let val = rng.binomial(n, 0.5);
@@ -324,7 +342,7 @@ mod tests {
 
     #[test]
     fn test_poisson() {
-        let mut rng = Pcg64::new(42);
+        let mut rng = KitRng::new(42);
         let n = 10000;
         let lambda = 5.0;
         let mut sum = 0u64;
@@ -344,7 +362,7 @@ mod tests {
 
     #[test]
     fn test_rand_uniform_array() {
-        let mut rng = Pcg64::new(42);
+        let mut rng = KitRng::new(42);
         let arr = NdArray::rand_uniform(&mut rng, vec![3, 4]);
         assert_eq!(arr.dims(), &[3, 4]);
         assert_eq!(arr.size(), 12);
@@ -355,14 +373,14 @@ mod tests {
 
     #[test]
     fn test_rand_normal_array() {
-        let mut rng = Pcg64::new(42);
+        let mut rng = KitRng::new(42);
         let arr = NdArray::rand_normal(&mut rng, 0.0, 1.0, vec![100]);
         assert_eq!(arr.size(), 100);
     }
 
     #[test]
     fn test_shuffle() {
-        let mut rng = Pcg64::new(42);
+        let mut rng = KitRng::new(42);
         let mut data = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
         let original = data.clone();
         rng.shuffle(&mut data);

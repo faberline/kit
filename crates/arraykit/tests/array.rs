@@ -1,6 +1,6 @@
 //! Integration tests for the array module.
 
-use arraykit::array::{AxisSlice, DType, NdArray, Shape, SliceInfo};
+use arraykit::array::{AxisSlice, DType, KitRng, NdArray, Shape, SliceInfo};
 
 // ============================================================================
 // DType tests (from dtype.rs)
@@ -1340,4 +1340,115 @@ fn test_mode_zero_and_nan() {
     // All NaN are one value.
     let b = NdArray::new(vec![f64::NAN, f64::NAN, 1.0], vec![3]).unwrap();
     assert!(b.mode().unwrap().is_nan());
+}
+
+/// Mean and variance of `count` draws of `binomial(n, p)`.
+fn binomial_moments(rng: &mut KitRng, n: u64, p: f64, count: usize) -> (f64, f64) {
+    let draws: Vec<f64> = (0..count).map(|_| rng.binomial(n, p) as f64).collect();
+    let mean = draws.iter().sum::<f64>() / count as f64;
+    let mean_sq = draws.iter().map(|x| x * x).sum::<f64>() / count as f64;
+    (mean, mean_sq - mean * mean)
+}
+
+#[test]
+fn test_binomial_n100_p05_moments() {
+    // NumPy: np.random.binomial(100, 0.5, 10000) has mean 50 and variance 25
+    let mut rng = KitRng::new(42);
+    let (mean, var) = binomial_moments(&mut rng, 100, 0.5, 10_000);
+    assert!((mean - 50.0).abs() < 0.2, "mean {mean}");
+    assert!((var - 25.0).abs() < 1.5, "variance {var}");
+}
+
+#[test]
+fn test_binomial_small_p() {
+    // NumPy: binomial(100, 0.01) has mean 1.0 and every draw is at most 100
+    let mut rng = KitRng::new(42);
+    let mut max_draw = 0u64;
+    let mut sum = 0u64;
+    for _ in 0..10_000 {
+        let k = rng.binomial(100, 0.01);
+        max_draw = max_draw.max(k);
+        sum += k;
+    }
+    assert!(max_draw <= 100);
+    let mean = sum as f64 / 10_000.0;
+    assert!((mean - 1.0).abs() < 0.05, "mean {mean}");
+}
+
+#[test]
+fn test_binomial_small_p_zero_and_three_share() {
+    // Exact pmf of binomial(100, 0.01): P(0) = 0.99^100, P(3) = C(100,3) 0.01^3 0.99^97
+    let mut rng = KitRng::new(42);
+    let draws = 10_000;
+    let mut zeros = 0usize;
+    let mut threes = 0usize;
+    for _ in 0..draws {
+        match rng.binomial(100, 0.01) {
+            0 => zeros += 1,
+            3 => threes += 1,
+            _ => {}
+        }
+    }
+    let p0 = 0.99_f64.powi(100);
+    let p3 = 161_700.0 * 0.01_f64.powi(3) * 0.99_f64.powi(97);
+    let share0 = zeros as f64 / draws as f64;
+    let share3 = threes as f64 / draws as f64;
+    assert!(
+        (share0 - p0).abs() < 0.02,
+        "share of 0 {share0}, expected {p0}"
+    );
+    assert!(
+        (share3 - p3).abs() < 0.015,
+        "share of 3 {share3}, expected {p3}"
+    );
+}
+
+#[test]
+fn test_binomial_large_p() {
+    // NumPy: binomial(100, 0.99) has mean 99.0 and every draw is at most 100
+    let mut rng = KitRng::new(42);
+    let mut max_draw = 0u64;
+    let mut sum = 0u64;
+    for _ in 0..10_000 {
+        let k = rng.binomial(100, 0.99);
+        max_draw = max_draw.max(k);
+        sum += k;
+    }
+    assert!(max_draw <= 100);
+    let mean = sum as f64 / 10_000.0;
+    assert!((mean - 99.0).abs() < 0.2, "mean {mean}");
+}
+
+#[test]
+fn test_binomial_edges() {
+    let mut rng = KitRng::new(42);
+    assert_eq!(rng.binomial(100, 0.0), 0);
+    assert_eq!(rng.binomial(100, 1.0), 100);
+    assert_eq!(rng.binomial(0, 0.5), 0);
+    assert_eq!(rng.binomial(1_000_000, 0.0), 0);
+    assert_eq!(rng.binomial(1_000_000, 1.0), 1_000_000);
+}
+
+#[test]
+fn test_binomial_huge_n_small_p() {
+    let mut rng = KitRng::new(42);
+    let first = rng.binomial(1_000_000, 0.000001);
+    assert!(first <= 1_000_000);
+    let mut sum = first;
+    for _ in 1..1000 {
+        let k = rng.binomial(1_000_000, 0.000001);
+        assert!(k <= 1_000_000);
+        sum += k;
+    }
+    let mean = sum as f64 / 1000.0;
+    assert!((mean - 1.0).abs() < 0.2, "mean {mean}");
+}
+
+#[test]
+fn test_kitrng_reproducible_binomial() {
+    let mut a = KitRng::new(7);
+    let mut b = KitRng::new(7);
+    for _ in 0..100 {
+        assert_eq!(a.binomial(500, 0.3), b.binomial(500, 0.3));
+    }
 }
