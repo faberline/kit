@@ -6,5 +6,5 @@ fn agent_error_is_public() {
     let e: agent::AgentError = agent::AgentError::ToolError("x".to_string());
     assert_eq!(e.to_string(), "Tool execution failed: x");
     let r: agent::AgentResult<u32> = Ok(1);
-    assert_eq!(r.unwrap(), 1);
+    assert!(matches!(r, Ok(1)));
 }
