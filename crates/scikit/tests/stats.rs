@@ -32,7 +32,6 @@ use scikit::stats::{
     percentile,
     raw_moment,
     sem,
-    shapiro,
     // Descriptive statistics
     skew,
     spearmanr,
@@ -279,15 +278,6 @@ mod hypothesis_tests {
     }
 
     #[test]
-    fn test_shapiro() {
-        // Normal-ish data
-        let x = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0];
-        let result = shapiro(&x);
-        assert!(result.statistic > 0.0);
-        assert!(result.pvalue >= 0.0 && result.pvalue <= 1.0);
-    }
-
-    #[test]
     fn test_kstest_normal() {
         // Approximately normal data
         let x = vec![-2.0, -1.0, 0.0, 1.0, 2.0];
@@ -445,5 +435,62 @@ mod distribution_tests {
         let x: f64 = 1.0;
         let expected = 1.0 - (-x).exp();
         assert!((lower_incomplete_gamma(1.0, x) - expected).abs() < 1e-8);
+    }
+}
+
+// ============================================================================
+// Ranks, bad input and placeholder removal (issue #55)
+// ============================================================================
+
+#[test]
+fn spearmanr_ties_average_ranks() {
+    // scipy.stats.spearmanr([1,1,1,2], [1,2,3,4]) = 0.7745966692414834 (= 3 / sqrt(15))
+    // Ranks of x with tie averaging: [2, 2, 2, 4]; ranks of y: [1, 2, 3, 4].
+    let r = spearmanr(&[1.0, 1.0, 1.0, 2.0], &[1.0, 2.0, 3.0, 4.0]);
+    assert!((r.statistic - 0.7745966692414834).abs() < 1e-12);
+}
+
+#[test]
+fn mannwhitneyu_ties() {
+    // Combined sorted: 1,2,2,2,3,4. The three 2s share the rank (2+3+4)/3 = 3,
+    // so the ranks are 1,3,3,3,5,6. R1 = 1+3+3 = 7; U1 = 3*3 + 3*4/2 - 7 = 8;
+    // U2 = 9 - 8 = 1; U = min(U1, U2) = 1.
+    let r = mannwhitneyu(&[1.0, 2.0, 2.0], &[2.0, 3.0, 4.0]);
+    assert!((r.statistic - 1.0).abs() < 1e-12);
+    assert!(r.pvalue.is_finite());
+}
+
+#[test]
+fn mannwhitneyu_empty_is_nan() {
+    assert!(mannwhitneyu(&[], &[1.0, 2.0]).statistic.is_nan());
+}
+
+#[test]
+fn chisquare_bad_input_is_nan() {
+    let cases: [(&[f64], &[f64]); 4] = [
+        (&[], &[]),
+        (&[5.0], &[5.0]),
+        (&[1.0, 2.0], &[1.0, 2.0, 3.0]),
+        (&[1.0, 2.0], &[0.0, 2.0]),
+    ];
+    for (observed, expected) in cases {
+        assert!(chisquare(observed, expected).statistic.is_nan());
+    }
+}
+
+#[test]
+fn ttest_tiny_input_is_nan() {
+    // Each result must have a NaN statistic or p-value, and must not panic.
+    let results = [
+        ttest_ind(&[], &[], true),
+        ttest_ind(&[1.0], &[1.0, 2.0], false),
+        ttest_ind(&[2.0, 2.0, 2.0], &[2.0, 2.0, 2.0], true),
+        ttest_ind(&[2.0, 2.0, 2.0], &[2.0, 2.0, 2.0], false),
+        ttest_rel(&[], &[]),
+        ttest_rel(&[1.0, 2.0], &[1.0]),
+        ttest_rel(&[3.0, 3.0, 3.0], &[3.0, 3.0, 3.0]),
+    ];
+    for r in results {
+        assert!(r.statistic.is_nan() || r.pvalue.is_nan());
     }
 }
