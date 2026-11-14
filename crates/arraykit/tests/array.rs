@@ -1,6 +1,6 @@
 //! Integration tests for the array module.
 
-use arraykit::array::{AxisSlice, DType, NdArray, Shape, SliceInfo};
+use arraykit::array::{ArrayError, AxisSlice, DType, NdArray, Shape, SliceInfo};
 
 // ============================================================================
 // DType tests (from dtype.rs)
@@ -1222,4 +1222,131 @@ fn test_rolling_var() {
     assert!(result.data()[1].is_nan());
     // var of [1,2,3] = 1.0 (sample var)
     assert!((result.data()[2] - 1.0).abs() < 1e-10);
+}
+
+// ============================================================================
+// Linear algebra: 2-D solve, LU solve and a pivot threshold that scales
+// ============================================================================
+
+#[test]
+fn test_solve_2d_rhs() {
+    // np.linalg.solve([[3, 1], [1, 2]], [[9, 1], [8, 3]])
+    let a: NdArray<f64> = NdArray::new(vec![3.0, 1.0, 1.0, 2.0], vec![2, 2]).unwrap();
+    let b: NdArray<f64> = NdArray::new(vec![9.0, 1.0, 8.0, 3.0], vec![2, 2]).unwrap();
+    let x = a.solve(&b).unwrap();
+    assert_eq!(x.dims(), &[2, 2]);
+    let expected = [2.0, -0.2, 3.0, 1.6];
+    for (got, want) in x.data().iter().zip(expected.iter()) {
+        assert!((got - want).abs() < 1e-12);
+    }
+}
+
+#[test]
+fn test_solve_1d_rhs_unchanged() {
+    // np.linalg.solve([[3, 1], [1, 2]], [9, 8]) = [2, 3]
+    let a: NdArray<f64> = NdArray::new(vec![3.0, 1.0, 1.0, 2.0], vec![2, 2]).unwrap();
+    let b: NdArray<f64> = NdArray::new(vec![9.0, 8.0], vec![2]).unwrap();
+    let x = a.solve(&b).unwrap();
+    assert_eq!(x.dims(), &[2]);
+    assert!((x.data()[0] - 2.0).abs() < 1e-12);
+    assert!((x.data()[1] - 3.0).abs() < 1e-12);
+}
+
+#[test]
+fn test_solve_needs_pivoting() {
+    // A zero on the diagonal forces a row swap. Solution: [3, 2].
+    let a: NdArray<f64> = NdArray::new(vec![0.0, 1.0, 1.0, 0.0], vec![2, 2]).unwrap();
+    let b: NdArray<f64> = NdArray::new(vec![2.0, 3.0], vec![2]).unwrap();
+    let x = a.solve(&b).unwrap();
+    assert!((x.data()[0] - 3.0).abs() < 1e-12);
+    assert!((x.data()[1] - 2.0).abs() < 1e-12);
+}
+
+#[test]
+fn test_solve_3x3_2d_residual() {
+    let a_data = [2.0, 1.0, 1.0, 1.0, 3.0, 2.0, 1.0, 0.0, 0.0];
+    let a: NdArray<f64> = NdArray::new(a_data.to_vec(), vec![3, 3]).unwrap();
+    let b_data = [4.0, 5.0, 6.0];
+    let b: NdArray<f64> = NdArray::new(b_data.to_vec(), vec![3, 1]).unwrap();
+    let x = a.solve(&b).unwrap();
+    assert_eq!(x.dims(), &[3, 1]);
+    // Residual A x - b must be (close to) zero.
+    for i in 0..3 {
+        let ax: f64 = (0..3).map(|j| a_data[i * 3 + j] * x.data()[j]).sum();
+        assert!((ax - b_data[i]).abs() < 1e-10);
+    }
+}
+
+#[test]
+fn test_solve_singular_is_error() {
+    let a: NdArray<f64> = NdArray::new(vec![1.0, 2.0, 2.0, 4.0], vec![2, 2]).unwrap();
+    let b: NdArray<f64> = NdArray::new(vec![1.0, 2.0], vec![2]).unwrap();
+    assert!(a.solve(&b).is_err());
+}
+
+#[test]
+fn test_solve_bad_shapes() {
+    let a: NdArray<f64> = NdArray::new(vec![2.0, 1.0, 1.0, 3.0], vec![2, 2]).unwrap();
+    let b_len3: NdArray<f64> = NdArray::new(vec![1.0, 2.0, 3.0], vec![3]).unwrap();
+    assert!(a.solve(&b_len3).is_err());
+    let b_3d: NdArray<f64> = NdArray::new(vec![1.0, 2.0, 3.0, 4.0], vec![2, 2, 1]).unwrap();
+    assert!(a.solve(&b_3d).is_err());
+}
+
+#[test]
+fn test_inv_small_scale() {
+    // np.linalg.inv([[1e-13]]) = [[1e13]]
+    let a: NdArray<f64> = NdArray::new(vec![1e-13], vec![1, 1]).unwrap();
+    let inv = a.inv().unwrap();
+    let want = 1e13;
+    assert!(((inv.data()[0] - want) / want).abs() < 1e-9);
+}
+
+#[test]
+fn test_inv_small_scale_2x2() {
+    // inv(1e-7 * I) = 1e7 * I
+    let a: NdArray<f64> = NdArray::new(vec![1e-7, 0.0, 0.0, 1e-7], vec![2, 2]).unwrap();
+    let inv = a.inv().unwrap();
+    assert!(((inv.data()[0] - 1e7) / 1e7).abs() < 1e-9);
+    assert!(((inv.data()[3] - 1e7) / 1e7).abs() < 1e-9);
+    assert_eq!(inv.data()[1], 0.0);
+    assert_eq!(inv.data()[2], 0.0);
+}
+
+#[test]
+fn test_det_small_scale() {
+    // np.linalg.det(1e-7 * np.eye(2)) = 1e-14
+    let a2: NdArray<f64> = NdArray::new(vec![1e-7, 0.0, 0.0, 1e-7], vec![2, 2]).unwrap();
+    let d2 = a2.det().unwrap();
+    assert!(((d2 - 1e-14) / 1e-14).abs() < 1e-9);
+    // 3x3: np.linalg.det(1e-7 * np.eye(3)) = 1e-21
+    let a3: NdArray<f64> = NdArray::new(
+        vec![1e-7, 0.0, 0.0, 0.0, 1e-7, 0.0, 0.0, 0.0, 1e-7],
+        vec![3, 3],
+    )
+    .unwrap();
+    let d3 = a3.det().unwrap();
+    assert!(((d3 - 1e-21) / 1e-21).abs() < 1e-9);
+}
+
+#[test]
+fn test_inv_det_singular() {
+    let a: NdArray<f64> = NdArray::new(vec![1.0, 2.0, 2.0, 4.0], vec![2, 2]).unwrap();
+    assert!(matches!(a.inv(), Err(ArrayError::InvalidOperation(_))));
+    assert_eq!(a.det().unwrap(), 0.0);
+
+    let b: NdArray<f64> = NdArray::new(
+        vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0],
+        vec![3, 3],
+    )
+    .unwrap();
+    assert!(b.det().unwrap().abs() < 1e-12);
+    assert!(matches!(b.inv(), Err(ArrayError::InvalidOperation(_))));
+}
+
+#[test]
+fn test_det_zero_matrix() {
+    let z: NdArray<f64> = NdArray::new(vec![0.0; 9], vec![3, 3]).unwrap();
+    assert_eq!(z.det().unwrap(), 0.0);
+    assert!(matches!(z.inv(), Err(ArrayError::InvalidOperation(_))));
 }

@@ -191,8 +191,12 @@ impl NdArray<f64> {
             return Ok(self.data[0] * self.data[3] - self.data[1] * self.data[2]);
         }
 
-        // LU decomposition for larger matrices
-        let (lu, _piv, sign) = self.lu_decompose()?;
+        // LU decomposition for larger matrices. A singular matrix has determinant 0.
+        let (lu, _piv, sign) = match self.lu_decompose() {
+            Ok(t) => t,
+            Err(ArrayError::InvalidOperation(_)) => return Ok(0.0),
+            Err(e) => return Err(e),
+        };
         let mut det = sign as f64;
         for i in 0..n {
             det *= lu.data[i * n + i];
@@ -200,10 +204,21 @@ impl NdArray<f64> {
         Ok(det)
     }
 
+    /// Pivot threshold for a square matrix: `f64::EPSILON * n * max_abs`,
+    /// where `max_abs` is the largest absolute entry. A pivot whose absolute
+    /// value is not larger than this is singular.
+    fn singular_tol(&self) -> f64 {
+        let n = self.dims()[0] as f64;
+        let max_abs = self.data.iter().fold(0.0_f64, |a, &x| a.max(x.abs()));
+        f64::EPSILON * n * max_abs
+    }
+
     /// LU decomposition with partial pivoting.
     /// Returns (LU matrix, pivot indices, sign of permutation).
+    /// Returns an error when a pivot is not larger than `singular_tol`.
     fn lu_decompose(&self) -> Result<(NdArray<f64>, Vec<usize>, i32)> {
         let n = self.dims()[0];
+        let tol = self.singular_tol();
         let mut lu = self.data.clone();
         let mut piv: Vec<usize> = (0..n).collect();
         let mut sign = 1i32;
@@ -229,8 +244,8 @@ impl NdArray<f64> {
                 sign = -sign;
             }
 
-            if lu[k * n + k].abs() < 1e-12 {
-                continue; // Singular matrix
+            if lu[k * n + k].abs() <= tol {
+                return Err(ArrayError::InvalidOperation("matrix is singular".into()));
             }
 
             // Eliminate
@@ -272,6 +287,7 @@ impl NdArray<f64> {
         }
 
         // Gaussian elimination with partial pivoting
+        let tol = self.singular_tol();
         for k in 0..n {
             // Find pivot
             let mut max_idx = k;
@@ -284,7 +300,7 @@ impl NdArray<f64> {
                 }
             }
 
-            if max_val < 1e-12 {
+            if max_val <= tol {
                 return Err(ArrayError::InvalidOperation("matrix is singular".into()));
             }
 
@@ -323,9 +339,10 @@ impl NdArray<f64> {
         NdArray::new(result, vec![n, n])
     }
 
-    /// Solve linear system Ax = b.
+    /// Solve `A x = b` by LU decomposition with partial pivoting.
+    /// `b` is 1-D (length n) or 2-D (n x k). The result has the same shape as `b`.
     pub fn solve(&self, b: &NdArray<f64>) -> Result<NdArray<f64>> {
-        if self.ndim() != 2 || b.ndim() != 1 {
+        if self.ndim() != 2 || (b.ndim() != 1 && b.ndim() != 2) {
             return Err(ArrayError::ShapeMismatch {
                 expected: vec![2, 1],
                 got: vec![self.ndim(), b.ndim()],
@@ -333,16 +350,50 @@ impl NdArray<f64> {
         }
 
         let n = self.dims()[0];
-        if self.dims()[1] != n || b.size() != n {
+        if self.dims()[1] != n {
             return Err(ArrayError::ShapeMismatch {
                 expected: vec![n, n],
                 got: self.dims().to_vec(),
             });
         }
+        if b.dims()[0] != n {
+            return Err(ArrayError::ShapeMismatch {
+                expected: vec![n],
+                got: vec![b.dims()[0]],
+            });
+        }
 
-        // Compute inverse and multiply
-        let inv = self.inv()?;
-        inv.dot(b)
+        let ncols = if b.ndim() == 2 { b.dims()[1] } else { 1 };
+        let (lu, piv, _sign) = self.lu_decompose()?;
+        let mut out = vec![0.0; n * ncols];
+
+        for c in 0..ncols {
+            // Apply the row permutation to column c of b.
+            let mut y: Vec<f64> = (0..n).map(|i| b.data[piv[i] * ncols + c]).collect();
+            // Forward substitution (L has a unit diagonal).
+            for i in 0..n {
+                for j in 0..i {
+                    y[i] -= lu.data[i * n + j] * y[j];
+                }
+            }
+            // Back substitution.
+            for i in (0..n).rev() {
+                for j in i + 1..n {
+                    y[i] -= lu.data[i * n + j] * y[j];
+                }
+                y[i] /= lu.data[i * n + i];
+            }
+            for i in 0..n {
+                out[i * ncols + c] = y[i];
+            }
+        }
+
+        let dims = if b.ndim() == 2 {
+            vec![n, ncols]
+        } else {
+            vec![n]
+        };
+        NdArray::new(out, dims)
     }
 
     /// Compute norm of array.
