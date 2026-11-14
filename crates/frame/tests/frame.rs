@@ -329,10 +329,12 @@ mod series_tests {
     fn test_series_rank() {
         let s = Series::new(vec![3, 1, 4, 1, 5]);
         let ranked = s.rank();
-        // Values: 3, 1, 4, 1, 5 -> sorted indices: 1, 3, 0, 2, 4
-        // Ranks for original positions: 3, 1, 4, 2, 5
+        // Values: 3, 1, 4, 1, 5 -> the two 1s share ranks 1 and 2 (average 1.5)
         assert_eq!(ranked.iloc(0).unwrap(), &Value::Float(3.0));
-        assert_eq!(ranked.iloc(1).unwrap(), &Value::Float(1.0));
+        assert_eq!(ranked.iloc(1).unwrap(), &Value::Float(1.5));
+        assert_eq!(ranked.iloc(2).unwrap(), &Value::Float(4.0));
+        assert_eq!(ranked.iloc(3).unwrap(), &Value::Float(1.5));
+        assert_eq!(ranked.iloc(4).unwrap(), &Value::Float(5.0));
     }
 
     #[test]

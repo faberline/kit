@@ -740,13 +740,11 @@ impl DataFrame {
             }
         }
 
-        // Create columns
+        // Create columns. The names live in `names` until from_columns has copied them.
+        let names: Vec<String> = unique_cols.iter().map(|v| v.to_string()).collect();
         let mut columns_vec: Vec<(&str, Series)> = vec![(index, Series::new(unique_idx))];
-        for (i, col_val) in unique_cols.iter().enumerate() {
-            let col_name = col_val.to_string();
-            // Leak to get &'static str (acceptable for DataFrame column names)
-            let name_ref: &str = Box::leak(col_name.into_boxed_str());
-            columns_vec.push((name_ref, Series::new(result_data[i].clone())));
+        for (i, name) in names.iter().enumerate() {
+            columns_vec.push((name.as_str(), Series::new(result_data[i].clone())));
         }
 
         DataFrame::from_columns(columns_vec)
@@ -796,25 +794,35 @@ impl DataFrame {
         DataFrame::from_columns(columns_vec)
     }
 
-    /// Sample n random rows.
+    /// Sample n distinct rows with the fixed seed 42, so the result is the same on every call.
+    /// Use `sample_seeded` to choose the seed.
     pub fn sample(&self, n: usize) -> Result<DataFrame> {
+        self.sample_seeded(n, 42)
+    }
+
+    /// Sample n distinct rows. The same seed gives the same rows in the same order.
+    /// If n is larger than the row count, all rows are returned.
+    pub fn sample_seeded(&self, n: usize, seed: u64) -> Result<DataFrame> {
         use std::collections::HashSet;
 
-        let n = n.min(self.nrows());
+        let nrows = self.nrows();
+        let n = n.min(nrows);
         if n == 0 {
             return Ok(DataFrame::new());
         }
 
-        // Simple deterministic "random" selection based on row properties
-        let mut selected = HashSet::new();
-        let mut seed = 42usize;
-        while selected.len() < n {
-            seed = seed.wrapping_mul(1103515245).wrapping_add(12345);
-            let idx = seed % self.nrows();
-            selected.insert(idx);
+        let mut state = seed;
+        let mut seen: HashSet<usize> = HashSet::new();
+        let mut indices: Vec<usize> = Vec::with_capacity(n);
+        while indices.len() < n {
+            state = state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            let idx = ((state >> 33) as usize) % nrows;
+            if seen.insert(idx) {
+                indices.push(idx);
+            }
         }
-
-        let indices: Vec<usize> = selected.into_iter().collect();
         self.iloc(&indices)
     }
 
@@ -1171,6 +1179,71 @@ mod tests {
 
         let sample = df.sample(3).unwrap();
         assert_eq!(sample.nrows(), 3);
+    }
+
+    /// Reads an integer column as a Vec, for exact comparisons.
+    fn int_col(df: &DataFrame, name: &str) -> Vec<i64> {
+        let s = df.get(name).unwrap();
+        (0..s.len())
+            .map(|i| match s.iloc(i).unwrap() {
+                Value::Int(v) => *v,
+                other => panic!("expected an integer, got {other:?}"),
+            })
+            .collect()
+    }
+
+    #[test]
+    fn test_dataframe_sample_seeded() {
+        let df =
+            DataFrame::from_columns(vec![("a", Series::new((0..10i64).collect::<Vec<i64>>()))])
+                .unwrap();
+
+        assert_eq!(
+            int_col(&df.sample_seeded(3, 1).unwrap(), "a"),
+            vec![4, 3, 6]
+        );
+        assert_eq!(
+            int_col(&df.sample_seeded(3, 2).unwrap(), "a"),
+            vec![0, 2, 6]
+        );
+        assert_eq!(
+            int_col(&df.sample_seeded(3, 1).unwrap(), "a"),
+            int_col(&df.sample_seeded(3, 1).unwrap(), "a")
+        );
+        assert_eq!(
+            int_col(&df.sample(3).unwrap(), "a"),
+            int_col(&df.sample_seeded(3, 42).unwrap(), "a")
+        );
+        assert_eq!(int_col(&df.sample(3).unwrap(), "a"), vec![4, 6, 8]);
+        assert_eq!(
+            int_col(&df.sample_seeded(10, 7).unwrap(), "a"),
+            vec![8, 1, 3, 5, 9, 4, 6, 2, 0, 7]
+        );
+        assert_eq!(df.sample_seeded(0, 1).unwrap().nrows(), 0);
+        assert_eq!(df.sample_seeded(99, 1).unwrap().nrows(), 10);
+    }
+
+    #[test]
+    fn test_dataframe_pivot_column_names() {
+        let df = DataFrame::from_columns(vec![
+            ("row", Series::new(vec!["a", "a", "b", "b"])),
+            ("col", Series::new(vec!["x", "y", "x", "y"])),
+            ("val", Series::new(vec![1.0, 2.0, 3.0, 4.0])),
+        ])
+        .unwrap();
+
+        let pivoted = df.pivot("row", "col", "val").unwrap();
+        let expected: Vec<String> = vec!["row".into(), "x".into(), "y".into()];
+        assert_eq!(pivoted.columns(), expected.as_slice());
+        assert_eq!(pivoted.nrows(), 2);
+        assert_eq!(
+            pivoted.get("x").unwrap().iloc(0).unwrap(),
+            &Value::Float(1.0)
+        );
+        assert_eq!(
+            pivoted.get("x").unwrap().iloc(1).unwrap(),
+            &Value::Float(3.0)
+        );
     }
 
     #[test]

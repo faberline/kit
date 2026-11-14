@@ -82,11 +82,11 @@ pub fn pivot_table(
         result_data[ci][ri] = Value::Float(agg_val);
     }
 
-    // Build result DataFrame
+    // Build result DataFrame. The names live in `names` until from_columns has copied them.
+    let names: Vec<String> = unique_cols.iter().map(|v| v.to_string()).collect();
     let mut cols_vec: Vec<(&str, Series)> = vec![(index, Series::new(unique_idx))];
-    for (i, col_val) in unique_cols.iter().enumerate() {
-        let col_name: &str = Box::leak(col_val.to_string().into_boxed_str());
-        cols_vec.push((col_name, Series::new(result_data[i].clone())));
+    for (i, name) in names.iter().enumerate() {
+        cols_vec.push((name.as_str(), Series::new(result_data[i].clone())));
     }
 
     DataFrame::from_columns(cols_vec)
@@ -234,11 +234,12 @@ pub fn cross_tab(df: &DataFrame, index: &str, columns: &str) -> Result<DataFrame
             }
         }
 
+        // The names live in `names` until from_columns has copied them.
+        let names: Vec<String> = unique_cols.iter().map(|v| v.to_string()).collect();
         let mut result_cols: Vec<(&str, Series)> = vec![(index, Series::new(unique_idx))];
-        for (ci, col_val) in unique_cols.iter().enumerate() {
-            let col_name: &str = Box::leak(col_val.to_string().into_boxed_str());
+        for (ci, name) in names.iter().enumerate() {
             let data: Vec<Value> = counts[ci].iter().map(|&c| Value::Int(c)).collect();
-            result_cols.push((col_name, Series::new(data)));
+            result_cols.push((name.as_str(), Series::new(data)));
         }
 
         DataFrame::from_columns(result_cols)
@@ -303,6 +304,30 @@ mod tests {
             .unwrap();
         assert_eq!(result.nrows(), 2);
         assert!(result.ncols() >= 3); // region + a + b
+    }
+
+    #[test]
+    fn test_pivot_table_column_names() {
+        let df = DataFrame::from_columns(vec![
+            ("region", Series::new(vec!["east", "east", "west", "west"])),
+            ("product", Series::new(vec!["a", "b", "a", "b"])),
+            ("sales", Series::new(vec![10.0, 20.0, 30.0, 40.0])),
+        ])
+        .unwrap();
+
+        let result = df
+            .pivot_table("sales", "region", "product", AggFunc::Sum)
+            .unwrap();
+        let expected: Vec<String> = vec!["region".into(), "a".into(), "b".into()];
+        assert_eq!(result.columns(), expected.as_slice());
+        assert_eq!(
+            result.get("a").unwrap().iloc(0).unwrap(),
+            &Value::Float(10.0)
+        );
+        assert_eq!(
+            result.get("a").unwrap().iloc(1).unwrap(),
+            &Value::Float(30.0)
+        );
     }
 
     #[test]
