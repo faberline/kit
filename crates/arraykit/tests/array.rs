@@ -1,6 +1,6 @@
 //! Integration tests for the array module.
 
-use arraykit::array::{AxisSlice, DType, NdArray, Shape, SliceInfo};
+use arraykit::array::{ArrayError, AxisSlice, DType, NdArray, Pcg64, Shape, SliceInfo};
 
 // ============================================================================
 // DType tests (from dtype.rs)
@@ -1093,7 +1093,7 @@ fn test_std_pop() {
 #[test]
 fn test_rolling_sum() {
     let arr: NdArray<f64> = NdArray::new(vec![1.0, 2.0, 3.0, 4.0, 5.0], vec![5]).unwrap();
-    let result = arr.rolling(3).sum();
+    let result = arr.rolling(3).unwrap().sum();
     // First 2 elements are partial windows
     assert_eq!(result.data()[2], 6.0); // 1+2+3
     assert_eq!(result.data()[3], 9.0); // 2+3+4
@@ -1103,7 +1103,7 @@ fn test_rolling_sum() {
 #[test]
 fn test_rolling_mean() {
     let arr: NdArray<f64> = NdArray::new(vec![1.0, 2.0, 3.0, 4.0, 5.0], vec![5]).unwrap();
-    let result = arr.rolling(3).mean();
+    let result = arr.rolling(3).unwrap().mean();
     assert_eq!(result.data()[2], 2.0); // (1+2+3)/3
     assert_eq!(result.data()[4], 4.0); // (3+4+5)/3
 }
@@ -1111,8 +1111,8 @@ fn test_rolling_mean() {
 #[test]
 fn test_rolling_min_max() {
     let arr: NdArray<f64> = NdArray::new(vec![3.0, 1.0, 4.0, 1.0, 5.0], vec![5]).unwrap();
-    let min_result = arr.rolling(3).min();
-    let max_result = arr.rolling(3).max();
+    let min_result = arr.rolling(3).unwrap().min();
+    let max_result = arr.rolling(3).unwrap().max();
     assert_eq!(min_result.data()[2], 1.0);
     assert_eq!(max_result.data()[2], 4.0);
 }
@@ -1189,7 +1189,7 @@ fn test_rot90() {
 fn test_rolling_min_periods() {
     let arr: NdArray<f64> = NdArray::new(vec![1.0, 2.0, 3.0, 4.0, 5.0], vec![5]).unwrap();
     // With min_periods=1, we get values even for partial windows
-    let result = arr.rolling(3).min_periods(1).sum();
+    let result = arr.rolling(3).unwrap().min_periods(1).sum();
     assert_eq!(result.data()[0], 1.0); // just first element
     assert_eq!(result.data()[1], 3.0); // 1+2
     assert_eq!(result.data()[2], 6.0); // 1+2+3
@@ -1198,14 +1198,14 @@ fn test_rolling_min_periods() {
 #[test]
 fn test_rolling_count() {
     let arr: NdArray<f64> = NdArray::new(vec![1.0, 2.0, 3.0, 4.0, 5.0], vec![5]).unwrap();
-    let counts = arr.rolling(3).count();
+    let counts = arr.rolling(3).unwrap().count();
     assert_eq!(counts, vec![1, 2, 3, 3, 3]);
 }
 
 #[test]
 fn test_rolling_std() {
     let arr: NdArray<f64> = NdArray::new(vec![1.0, 2.0, 3.0, 4.0, 5.0], vec![5]).unwrap();
-    let result = arr.rolling(3).std();
+    let result = arr.rolling(3).unwrap().std();
     // First two are NaN (min_periods=3 by default)
     assert!(result.data()[0].is_nan());
     assert!(result.data()[1].is_nan());
@@ -1216,10 +1216,84 @@ fn test_rolling_std() {
 #[test]
 fn test_rolling_var() {
     let arr: NdArray<f64> = NdArray::new(vec![1.0, 2.0, 3.0, 4.0, 5.0], vec![5]).unwrap();
-    let result = arr.rolling(3).var();
+    let result = arr.rolling(3).unwrap().var();
     // First two are NaN
     assert!(result.data()[0].is_nan());
     assert!(result.data()[1].is_nan());
     // var of [1,2,3] = 1.0 (sample var)
     assert!((result.data()[2] - 1.0).abs() < 1e-10);
+}
+
+#[test]
+fn test_rolling_zero_window_is_error() {
+    let arr: NdArray<f64> = NdArray::new(vec![1.0, 2.0, 3.0], vec![3]).unwrap();
+    assert!(matches!(
+        arr.rolling(0).err(),
+        Some(ArrayError::InvalidOperation(_))
+    ));
+}
+
+#[test]
+fn test_rolling_window_one_ok() {
+    let arr: NdArray<f64> = NdArray::new(vec![1.0, 2.0, 3.0], vec![3]).unwrap();
+    assert!(arr.rolling(1).is_ok());
+    let result = arr.rolling(1).unwrap().sum();
+    assert_eq!(result.data(), &[1.0, 2.0, 3.0]);
+}
+
+#[test]
+fn test_choice_zero_is_error() {
+    let mut rng = Pcg64::new(42);
+    assert!(rng.choice(0).is_err());
+}
+
+#[test]
+fn test_choice_in_range() {
+    let mut rng = Pcg64::new(42);
+    for _ in 0..100 {
+        let k = rng.choice(5).unwrap();
+        assert!(k < 5);
+    }
+}
+
+#[test]
+fn test_shuffle_still_permutes() {
+    let mut rng = Pcg64::new(7);
+    let mut v = vec![1, 2, 3, 4, 5];
+    rng.shuffle(&mut v);
+    v.sort();
+    assert_eq!(v, vec![1, 2, 3, 4, 5]);
+
+    let mut empty: Vec<i32> = vec![];
+    rng.shuffle(&mut empty);
+    assert!(empty.is_empty());
+
+    let mut one = vec![9];
+    rng.shuffle(&mut one);
+    assert_eq!(one, vec![9]);
+}
+
+#[test]
+fn test_stack_axis_too_large() {
+    let a: NdArray<f64> = NdArray::new(vec![1.0, 2.0], vec![2]).unwrap();
+    let b: NdArray<f64> = NdArray::new(vec![3.0, 4.0], vec![2]).unwrap();
+    assert!(matches!(
+        NdArray::stack(&[&a, &b], 3),
+        Err(ArrayError::InvalidAxis { axis: 3, ndim: 2 })
+    ));
+    assert!(matches!(
+        NdArray::stack(&[&a, &b], 2),
+        Err(ArrayError::InvalidAxis { .. })
+    ));
+}
+
+#[test]
+fn test_stack_last_axis_ok() {
+    let a: NdArray<f64> = NdArray::new(vec![1.0, 2.0], vec![2]).unwrap();
+    let b: NdArray<f64> = NdArray::new(vec![3.0, 4.0], vec![2]).unwrap();
+    let c = NdArray::stack(&[&a, &b], 1).unwrap();
+    assert_eq!(c.dims(), &[2, 2]);
+    assert_eq!(c.data(), &[1.0, 3.0, 2.0, 4.0]);
+    let r = NdArray::stack(&[&a, &b], 0).unwrap();
+    assert_eq!(r.data(), &[1.0, 2.0, 3.0, 4.0]);
 }
