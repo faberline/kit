@@ -24,5 +24,7 @@ Kit is a Cargo workspace of pure Rust libraries for data analysis, machine learn
 ## Rust
 
 - Layout: [Rust layout standard](https://github.com/faberline/aw/blob/main/docs/standards/rust-layout.md).
-- Before a commit: `cargo fmt --all -- --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`.
+- Before a commit, run what CI runs: `cargo fmt --all -- --check`,
+  `cargo clippy --workspace --all-targets --all-features -- -D warnings`,
+  `cargo test --workspace --all-features`.
 - Do not delete or weaken a test to make it pass.
