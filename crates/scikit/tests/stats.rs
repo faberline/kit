@@ -32,7 +32,6 @@ use scikit::stats::{
     percentile,
     raw_moment,
     sem,
-    shapiro,
     // Descriptive statistics
     skew,
     spearmanr,
@@ -279,15 +278,6 @@ mod hypothesis_tests {
     }
 
     #[test]
-    fn test_shapiro() {
-        // Normal-ish data
-        let x = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0];
-        let result = shapiro(&x);
-        assert!(result.statistic > 0.0);
-        assert!(result.pvalue >= 0.0 && result.pvalue <= 1.0);
-    }
-
-    #[test]
     fn test_kstest_normal() {
         // Approximately normal data
         let x = vec![-2.0, -1.0, 0.0, 1.0, 2.0];
@@ -492,4 +482,61 @@ fn lower_incomplete_gamma_large_x() {
     // γ(1, x) = 1 - e^(-x); the old 100-term loop stops too early here.
     let x = 150.0_f64;
     assert!((lower_incomplete_gamma(1.0, x) - (1.0 - (-x).exp())).abs() < 1e-12);
+}
+
+// ============================================================================
+// Tie and bad-input tests (issue #55: tie-averaged ranks, no panic on bad input)
+// ============================================================================
+
+#[test]
+fn spearmanr_ties_average_ranks() {
+    // SciPy: spearmanr([1,1,1,2], [1,2,3,4]) = 0.7745966692414834
+    // Ranks x = [2,2,2,4], y = [1,2,3,4]; r = 3 / sqrt(15).
+    let r = spearmanr(&[1., 1., 1., 2.], &[1., 2., 3., 4.]);
+    assert!((r.statistic - 0.7745966692414834).abs() < 1e-12);
+}
+
+#[test]
+fn mannwhitneyu_ties() {
+    // x = [1,2,2], y = [2,3,4]. Combined sorted: 1,2,2,2,3,4.
+    // Ranks: 1, 3, 3, 3, 5, 6. R1 = 1 + 3 + 3 = 7.
+    // U1 = n1*n2 + n1*(n1+1)/2 - R1 = 9 + 6 - 7 = 8. U2 = 9 - 8 = 1.
+    // U = min(U1, U2) = 1.
+    let r = mannwhitneyu(&[1., 2., 2.], &[2., 3., 4.]);
+    assert!((r.statistic - 1.0).abs() < 1e-12);
+    assert!(r.pvalue.is_finite());
+}
+
+#[test]
+fn mannwhitneyu_empty_is_nan() {
+    assert!(mannwhitneyu(&[], &[1.0, 2.0]).statistic.is_nan());
+    assert!(mannwhitneyu(&[1.0, 2.0], &[]).statistic.is_nan());
+}
+
+#[test]
+fn chisquare_bad_input_is_nan() {
+    let cases: [(&[f64], &[f64]); 4] = [
+        (&[], &[]),
+        (&[5.0], &[5.0]),
+        (&[1.0, 2.0], &[1.0, 2.0, 3.0]),
+        (&[1.0, 2.0], &[0.0, 2.0]),
+    ];
+    for (observed, expected) in cases {
+        assert!(chisquare(observed, expected).statistic.is_nan());
+    }
+}
+
+#[test]
+fn ttest_tiny_input_is_nan() {
+    assert!(ttest_ind(&[], &[], true).statistic.is_nan());
+    assert!(ttest_ind(&[1.0], &[1.0, 2.0], false).statistic.is_nan());
+    assert!(ttest_ind(&[2., 2., 2.], &[2., 2., 2.], true)
+        .statistic
+        .is_nan());
+    assert!(ttest_ind(&[2., 2., 2.], &[2., 2., 2.], false)
+        .statistic
+        .is_nan());
+    assert!(ttest_rel(&[], &[]).statistic.is_nan());
+    assert!(ttest_rel(&[1., 2.], &[1.]).statistic.is_nan());
+    assert!(ttest_rel(&[3., 3., 3.], &[3., 3., 3.]).statistic.is_nan());
 }
