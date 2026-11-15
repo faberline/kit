@@ -58,6 +58,10 @@ impl Tool for ListFolderSummaryTool {
          budget estimation without reading full file contents."
     }
 
+    fn is_idempotent(&self) -> bool {
+        true
+    }
+
     fn parameters(&self) -> Vec<ToolParameter> {
         vec![
             ToolParameter {

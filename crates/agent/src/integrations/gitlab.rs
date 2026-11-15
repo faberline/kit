@@ -415,6 +415,10 @@ impl Tool for GetGitLabIssueTool {
         "Get details of a GitLab issue including comments."
     }
 
+    fn is_idempotent(&self) -> bool {
+        true
+    }
+
     fn parameters(&self) -> Vec<ToolParameter> {
         vec![ToolParameter {
             name: "issue_iid".to_string(),
@@ -449,6 +453,10 @@ impl Tool for ListGitLabIssuesTool {
 
     fn description(&self) -> &str {
         "List GitLab issues with optional filters."
+    }
+
+    fn is_idempotent(&self) -> bool {
+        true
     }
 
     fn parameters(&self) -> Vec<ToolParameter> {

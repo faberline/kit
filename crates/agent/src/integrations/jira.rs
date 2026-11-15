@@ -456,6 +456,10 @@ impl Tool for GetJiraIssueTool {
         "Get details of a Jira issue including comments."
     }
 
+    fn is_idempotent(&self) -> bool {
+        true
+    }
+
     fn parameters(&self) -> Vec<ToolParameter> {
         vec![ToolParameter {
             name: "issue_key".to_string(),
@@ -490,6 +494,10 @@ impl Tool for ListJiraIssuesTool {
 
     fn description(&self) -> &str {
         "List Jira issues with optional filters."
+    }
+
+    fn is_idempotent(&self) -> bool {
+        true
     }
 
     fn parameters(&self) -> Vec<ToolParameter> {
@@ -576,6 +584,10 @@ impl Tool for SearchJiraIssuesTool {
 
     fn description(&self) -> &str {
         "Search Jira issues using text search."
+    }
+
+    fn is_idempotent(&self) -> bool {
+        true
     }
 
     fn parameters(&self) -> Vec<ToolParameter> {

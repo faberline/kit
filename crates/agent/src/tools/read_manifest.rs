@@ -44,6 +44,10 @@ impl Tool for ReadManifestTool {
          information to identify top-level codebase components."
     }
 
+    fn is_idempotent(&self) -> bool {
+        true
+    }
+
     fn parameters(&self) -> Vec<ToolParameter> {
         vec![ToolParameter {
             name: "path".to_string(),

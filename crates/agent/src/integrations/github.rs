@@ -489,6 +489,10 @@ impl Tool for GetGitHubIssueTool {
         "Get details of a GitHub issue including comments."
     }
 
+    fn is_idempotent(&self) -> bool {
+        true
+    }
+
     fn parameters(&self) -> Vec<ToolParameter> {
         vec![ToolParameter {
             name: "issue_number".to_string(),
@@ -523,6 +527,10 @@ impl Tool for ListGitHubIssuesTool {
 
     fn description(&self) -> &str {
         "List GitHub issues with optional filters."
+    }
+
+    fn is_idempotent(&self) -> bool {
+        true
     }
 
     fn parameters(&self) -> Vec<ToolParameter> {

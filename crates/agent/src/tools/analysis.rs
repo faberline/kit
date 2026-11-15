@@ -295,6 +295,10 @@ impl Tool for WebSearchTool {
         "Search the web for information. Returns a list of relevant results."
     }
 
+    fn is_idempotent(&self) -> bool {
+        true
+    }
+
     fn parameters(&self) -> Vec<ToolParameter> {
         vec![
             ToolParameter {
@@ -427,6 +431,10 @@ impl Tool for WebFetchTool {
 
     fn description(&self) -> &str {
         "Fetch content from a URL. Can extract text from HTML pages."
+    }
+
+    fn is_idempotent(&self) -> bool {
+        true
     }
 
     fn parameters(&self) -> Vec<ToolParameter> {
