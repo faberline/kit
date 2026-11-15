@@ -3,6 +3,7 @@
 //! Implements t-tests, ANOVA, chi-square tests, and correlation tests.
 
 use super::distributions::{ChiSquared, ContinuousDistribution, FDistribution, Normal, StudentT};
+use std::cmp::Ordering;
 
 /// Result of a statistical test.
 #[derive(Debug, Clone, Copy)]
@@ -95,17 +96,27 @@ pub fn ttest_ind(a: &[f64], b: &[f64], equal_var: bool) -> TestResult {
         // Pooled variance
         let sp = ((n1 - 1.0) * var1 + (n2 - 1.0) * var2) / (n1 + n2 - 2.0);
         let se = (sp * (1.0 / n1 + 1.0 / n2)).sqrt();
+        // Zero variance: the statistic is undefined
+        if se == 0.0 || se.is_nan() {
+            return TestResult::new(f64::NAN, f64::NAN);
+        }
         let t = (mean1 - mean2) / se;
         let df = n1 + n2 - 2.0;
         (t, df)
     } else {
         // Welch's t-test
         let se = (var1 / n1 + var2 / n2).sqrt();
+        if se == 0.0 || se.is_nan() {
+            return TestResult::new(f64::NAN, f64::NAN);
+        }
         let t = (mean1 - mean2) / se;
 
         // Welch-Satterthwaite degrees of freedom
         let num = (var1 / n1 + var2 / n2).powi(2);
         let den = (var1 / n1).powi(2) / (n1 - 1.0) + (var2 / n2).powi(2) / (n2 - 1.0);
+        if den == 0.0 || den.is_nan() {
+            return TestResult::new(f64::NAN, f64::NAN);
+        }
         let df = num / den;
         (t, df)
     };
@@ -127,7 +138,9 @@ pub fn ttest_ind(a: &[f64], b: &[f64], equal_var: bool) -> TestResult {
 /// # Returns
 /// Test statistic and p-value
 pub fn ttest_rel(a: &[f64], b: &[f64]) -> TestResult {
-    assert_eq!(a.len(), b.len(), "samples must have same length");
+    if a.len() != b.len() {
+        return TestResult::new(f64::NAN, f64::NAN);
+    }
 
     let diffs: Vec<f64> = a.iter().zip(b.iter()).map(|(&x, &y)| x - y).collect();
     ttest_1samp(&diffs, 0.0)
@@ -253,14 +266,20 @@ pub fn chi2_contingency(observed: &[f64], rows: usize, cols: usize) -> TestResul
 /// * `expected` - Expected frequencies
 ///
 /// # Returns
-/// Chi-square statistic and p-value
+/// Chi-square statistic and p-value. Returns NaN for both if the lengths differ,
+/// if there are fewer than 2 values, or if any expected value is NaN or `<= 0`.
 pub fn chisquare(observed: &[f64], expected: &[f64]) -> TestResult {
-    assert_eq!(observed.len(), expected.len());
+    if observed.len() != expected.len()
+        || observed.len() < 2
+        || expected.iter().any(|&e| e.is_nan() || e <= 0.0)
+    {
+        return TestResult::new(f64::NAN, f64::NAN);
+    }
 
     let chi2: f64 = observed
         .iter()
         .zip(expected.iter())
-        .map(|(&o, &e)| if e > 0.0 { (o - e).powi(2) / e } else { 0.0 })
+        .map(|(&o, &e)| (o - e).powi(2) / e)
         .sum();
 
     let df = (observed.len() - 1) as f64;
@@ -349,15 +368,25 @@ pub fn spearmanr(x: &[f64], y: &[f64]) -> TestResult {
     pearsonr(&rank_x, &rank_y)
 }
 
-/// Convert values to ranks.
+/// Convert values to ranks. Tied values get the average of their ranks.
 fn to_ranks(values: &[f64]) -> Vec<f64> {
     let n = values.len();
     let mut indexed: Vec<(usize, f64)> = values.iter().enumerate().map(|(i, &v)| (i, v)).collect();
     indexed.sort_by(|a, b| a.1.total_cmp(&b.1));
 
     let mut ranks = vec![0.0; n];
-    for (rank, &(orig_idx, _)) in indexed.iter().enumerate() {
-        ranks[orig_idx] = (rank + 1) as f64;
+    let mut i = 0;
+    while i < n {
+        // Group i..j holds equal values; their 1-based positions are i+1..=j
+        let mut j = i;
+        while j < n && indexed[j].1.total_cmp(&indexed[i].1) == Ordering::Equal {
+            j += 1;
+        }
+        let avg = ((i + 1) + j) as f64 / 2.0;
+        for &(orig_idx, _) in &indexed[i..j] {
+            ranks[orig_idx] = avg;
+        }
+        i = j;
     }
     ranks
 }
@@ -365,106 +394,6 @@ fn to_ranks(values: &[f64]) -> Vec<f64> {
 // ============================================================================
 // Normality Tests
 // ============================================================================
-
-/// Shapiro-Wilk test for normality.
-///
-/// Note: This is a simplified approximation. Most accurate for n <= 50.
-///
-/// # Arguments
-/// * `x` - Sample data (must have 3-5000 elements)
-///
-/// # Returns
-/// W statistic and p-value. Returns NaN if sample size out of range.
-pub fn shapiro(x: &[f64]) -> TestResult {
-    let n = x.len();
-
-    // Validate sample size
-    if !(3..=5000).contains(&n) {
-        return TestResult::new(f64::NAN, f64::NAN);
-    }
-
-    // Sort the data
-    let mut sorted = x.to_vec();
-    sorted.sort_by(|a, b| a.total_cmp(b));
-
-    // Calculate mean
-    let mean: f64 = sorted.iter().sum::<f64>() / n as f64;
-
-    // Calculate SS
-    let ss: f64 = sorted.iter().map(|&x| (x - mean).powi(2)).sum();
-
-    // Calculate W statistic (simplified)
-    let mut b = 0.0;
-    let m = n / 2;
-    for i in 0..m {
-        let a = shapiro_coef(n, i);
-        b += a * (sorted[n - 1 - i] - sorted[i]);
-    }
-
-    let w = (b * b) / ss;
-
-    // Approximate p-value using normal distribution
-    // This is a rough approximation
-    let ln_n = (n as f64).ln();
-    let mu = -1.2725 + 1.0521 * ln_n;
-    let sigma = 1.0308 - 0.26758 * ln_n;
-
-    let z = ((w).ln() - mu) / sigma;
-    let normal = Normal::standard();
-    let pvalue = 1.0 - normal.cdf(z);
-
-    TestResult::new(w, pvalue)
-}
-
-/// Approximate Shapiro-Wilk coefficients.
-fn shapiro_coef(n: usize, i: usize) -> f64 {
-    // Very simplified approximation
-    let mi = (i + 1) as f64;
-
-    // Expected value of order statistic
-    let p = (mi - 0.375) / (n as f64 + 0.25);
-    let expected = normal_quantile(p);
-
-    // Normalize
-    let sum_sq: f64 = (1..=n)
-        .map(|j| {
-            let pj = (j as f64 - 0.375) / (n as f64 + 0.25);
-            let ej = normal_quantile(pj);
-            ej * ej
-        })
-        .sum();
-
-    expected / sum_sq.sqrt()
-}
-
-/// Normal quantile (inverse CDF) approximation.
-fn normal_quantile(p: f64) -> f64 {
-    // Approximation using rational function
-    if p <= 0.0 {
-        return f64::NEG_INFINITY;
-    }
-    if p >= 1.0 {
-        return f64::INFINITY;
-    }
-
-    let p = if p > 0.5 { 1.0 - p } else { p };
-    let t = (-2.0 * p.ln()).sqrt();
-
-    let c0 = 2.515517;
-    let c1 = 0.802853;
-    let c2 = 0.010328;
-    let d1 = 1.432788;
-    let d2 = 0.189269;
-    let d3 = 0.001308;
-
-    let x = t - (c0 + c1 * t + c2 * t * t) / (1.0 + d1 * t + d2 * t * t + d3 * t * t * t);
-
-    if p > 0.5 {
-        -x
-    } else {
-        x
-    }
-}
 
 /// Kolmogorov-Smirnov test for normality.
 ///
@@ -518,24 +447,16 @@ pub fn kstest_normal(x: &[f64]) -> TestResult {
 /// # Returns
 /// U statistic and p-value
 pub fn mannwhitneyu(x: &[f64], y: &[f64]) -> TestResult {
+    if x.is_empty() || y.is_empty() {
+        return TestResult::new(f64::NAN, f64::NAN);
+    }
+
     let n1 = x.len() as f64;
     let n2 = y.len() as f64;
 
-    // Combine and rank
-    let mut combined: Vec<(f64, usize)> = x
-        .iter()
-        .enumerate()
-        .map(|(i, &v)| (v, i))
-        .chain(y.iter().enumerate().map(|(i, &v)| (v, i + x.len())))
-        .collect();
-
-    combined.sort_by(|a, b| a.0.total_cmp(&b.0));
-
-    // Assign ranks
-    let mut ranks = vec![0.0; combined.len()];
-    for (rank, &(_, orig_idx)) in combined.iter().enumerate() {
-        ranks[orig_idx] = (rank + 1) as f64;
-    }
+    // Combine (x first) and rank with tie averaging
+    let all: Vec<f64> = x.iter().chain(y.iter()).copied().collect();
+    let ranks = to_ranks(&all);
 
     // Sum of ranks for first sample
     let r1: f64 = ranks[..x.len()].iter().sum();
@@ -638,15 +559,6 @@ mod tests {
         let result = chisquare(&observed, &expected);
         assert_eq!(result.statistic, 0.0); // Exactly as expected
         assert!(result.pvalue > 0.99);
-    }
-
-    #[test]
-    fn test_shapiro() {
-        // Normal-ish data
-        let x = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0];
-        let result = shapiro(&x);
-        assert!(result.statistic > 0.0);
-        assert!(result.pvalue >= 0.0 && result.pvalue <= 1.0);
     }
 
     #[test]
