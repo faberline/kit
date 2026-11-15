@@ -9,6 +9,29 @@ A pandas name of `none` means a kit helper with no pandas name; its state is `ha
 
 ## Table 1: public items
 
+## Types
+
+| Function | pandas name | State | Evidence |
+|---|---|---|---|
+| DataFrame | pandas.DataFrame | partial | crates/frame/src/frame/dataframe.rs; see the rows below |
+| Series | pandas.Series | partial | crates/frame/src/frame/series.rs; see the rows below |
+| Index | pandas.Index | partial | crates/frame/src/frame/index.rs; see the rows below |
+| MultiIndex | pandas.MultiIndex | partial | crates/frame/src/frame/multi_index.rs; see the rows below |
+| Value | none (kit value enum) | has | crates/frame/src/frame/value.rs |
+| FrameError | none (kit error enum) | has | crates/frame/src/frame/error.rs |
+| Result | none (alias of Result<T, FrameError>) | has | crates/frame/src/frame/error.rs |
+| AggFunc | pivot_table(aggfunc=) | partial | crates/frame/src/frame/ops/reshape.rs; one aggregate function per call |
+| JoinType | merge(how=) | partial | crates/frame/src/frame/ops/join.rs; on only |
+| GroupBy | DataFrameGroupBy | partial | crates/frame/src/frame/ops/groupby.rs; see the rows below |
+| SeriesRolling | Rolling | partial | crates/frame/src/frame/series.rs; no center or closed argument |
+| Expanding | Expanding | partial | crates/frame/src/frame/ops/window.rs; result loses the name and the index |
+| Ewm | ExponentialMovingWindow | partial | crates/frame/src/frame/ops/window.rs; with Null, acts as ignore_na=True and gives Null at the Null |
+| CsvOptions | read_csv arguments | partial | crates/frame/src/frame/io/csv.rs; options are delimiter, header and quote only |
+| JsonOrient | to_json(orient=) | partial, feature io-extra | crates/frame/src/frame/io/json.rs; orient records, columns or values |
+| JsonOptions | read_json and to_json arguments | partial, feature io-extra | crates/frame/src/frame/io/json.rs; see the JSON rows |
+| Workbook | pandas.ExcelWriter | partial | crates/frame/src/frame/io/sheets.rs; kit text format, not xlsx |
+
+
 ## DataFrame
 
 | Function | pandas name | State | Evidence |
@@ -134,9 +157,9 @@ A pandas name of `none` means a kit helper with no pandas name; its state is `ha
 | Series::to_f64 | Series.astype(float) | partial | crates/frame/src/frame/series.rs; fails on Null and on text |
 | Series::to_i64 | Series.astype(int) | partial | crates/frame/src/frame/series.rs; fails on Null and on text |
 | Series::sum | Series.sum | partial | crates/frame/src/frame/series.rs; always returns a float; skips nulls |
-| Series::mean | Series.mean | has | crates/frame/src/frame/series.rs |
-| Series::min | Series.min | has | crates/frame/src/frame/series.rs |
-| Series::max | Series.max | has | crates/frame/src/frame/series.rs |
+| Series::mean | Series.mean | partial | crates/frame/src/frame/series.rs; error on empty or all-Null input; pandas gives NaN |
+| Series::min | Series.min | partial | crates/frame/src/frame/series.rs; error on empty or all-Null input; pandas gives NaN |
+| Series::max | Series.max | partial | crates/frame/src/frame/series.rs; error on empty or all-Null input; pandas gives NaN |
 | Series::count | Series.count | has | crates/frame/src/frame/series.rs |
 | Series::filter | Series[bool mask] | has | crates/frame/src/frame/series.rs |
 | Series::map | Series.map(func) | has | crates/frame/src/frame/series.rs |
@@ -155,10 +178,10 @@ A pandas name of `none` means a kit helper with no pandas name; its state is `ha
 | Series::null_count | Series.isna().sum() | has | crates/frame/src/frame/series.rs |
 | Series::has_nulls | Series.isna().any() | has | crates/frame/src/frame/series.rs |
 | Series::apply | Series.apply | has | crates/frame/src/frame/series.rs |
-| Series::cumsum | Series.cumsum | has | crates/frame/src/frame/series.rs |
-| Series::cumprod | Series.cumprod | has | crates/frame/src/frame/series.rs |
-| Series::cummax | Series.cummax | has | crates/frame/src/frame/series.rs |
-| Series::cummin | Series.cummin | has | crates/frame/src/frame/series.rs |
+| Series::cumsum | Series.cumsum | partial | crates/frame/src/frame/series.rs; always returns floats; non-numeric values become Null |
+| Series::cumprod | Series.cumprod | partial | crates/frame/src/frame/series.rs; always returns floats; non-numeric values become Null |
+| Series::cummax | Series.cummax | partial | crates/frame/src/frame/series.rs; always returns floats; non-numeric values become Null |
+| Series::cummin | Series.cummin | partial | crates/frame/src/frame/series.rs; always returns floats; non-numeric values become Null |
 | Series::shift | Series.shift | has | crates/frame/src/frame/series.rs |
 | Series::diff | Series.diff | partial | crates/frame/src/frame/series.rs; periods must be 0 or more |
 | Series::pct_change | Series.pct_change | partial | crates/frame/src/frame/series.rs; periods must be 0 or more; a zero previous value gives Null |
@@ -167,8 +190,8 @@ A pandas name of `none` means a kit helper with no pandas name; its state is `ha
 | Series::clip | Series.clip | partial | crates/frame/src/frame/series.rs; numeric values only; other values and Null are kept |
 | Series::std | Series.std | partial | crates/frame/src/frame/series.rs; returns an error below 2 values; pandas gives NaN |
 | Series::var | Series.var | partial | crates/frame/src/frame/series.rs; returns an error below 2 values; pandas gives NaN |
-| Series::median | Series.median | has | crates/frame/src/frame/series.rs |
-| Series::rank | Series.rank | partial | crates/frame/src/frame/series.rs; average method and ascending order only; no na_option |
+| Series::median | Series.median | partial | crates/frame/src/frame/series.rs; error on empty or all-Null input; pandas gives NaN |
+| Series::rank | Series.rank | partial | crates/frame/src/frame/series.rs; average method, ascending only; Null gets the lowest rank, pandas gives NaN |
 | Series::duplicated | Series.duplicated | partial | crates/frame/src/frame/series.rs; keep is a string; any value other than first or last marks every copy |
 | Series::drop_duplicates | Series.drop_duplicates | partial | crates/frame/src/frame/series.rs; keep is a string; any value other than first or last drops every copy |
 | Series::isin | Series.isin | has | crates/frame/src/frame/series.rs |
@@ -176,14 +199,14 @@ A pandas name of `none` means a kit helper with no pandas name; its state is `ha
 | Series::replace | Series.replace(a, b) | has | crates/frame/src/frame/series.rs |
 | Series::replace_map | Series.replace(dict) | has | crates/frame/src/frame/series.rs |
 | Series::to_dict | Series.to_dict | has | crates/frame/src/frame/series.rs |
-| Series::quantile | Series.quantile | partial | crates/frame/src/frame/series.rs; linear interpolation only |
+| Series::quantile | Series.quantile | partial | crates/frame/src/frame/series.rs; linear interpolation only; error on empty or all-Null input; pandas gives NaN |
 | Series::corr | Series.corr | partial | crates/frame/src/frame/series.rs; returns 0.0 when a series has no variance; pandas gives NaN |
 | Series::rolling | Series.rolling | partial | crates/frame/src/frame/series.rs; no center or closed argument |
 | Series::astype | Series.astype | partial | crates/frame/src/frame/series.rs; dtype names int, float, str and bool only; another name keeps the data |
 | Series::where_cond | Series.where | partial | crates/frame/src/frame/series.rs; scalar other only; no callable |
 | Series::mask | Series.mask | partial | crates/frame/src/frame/series.rs; scalar other only; no callable |
 | Series::abs | Series.abs | has | crates/frame/src/frame/series.rs |
-| Series::round | Series.round | has | crates/frame/src/frame/series.rs |
+| Series::round | Series.round | partial | crates/frame/src/frame/series.rs; rounds half away from zero; pandas rounds half to even |
 
 ## SeriesRolling
 
@@ -252,24 +275,24 @@ A pandas name of `none` means a kit helper with no pandas name; its state is `ha
 |---|---|---|---|
 | Expanding::new | Series.expanding | has | crates/frame/src/frame/ops/window.rs |
 | Expanding::min_periods | Series.expanding(min_periods=) | has | crates/frame/src/frame/ops/window.rs |
-| Expanding::sum | Series.expanding().sum | has | crates/frame/src/frame/ops/window.rs |
-| Expanding::mean | Series.expanding().mean | has | crates/frame/src/frame/ops/window.rs |
-| Expanding::min | Series.expanding().min | has | crates/frame/src/frame/ops/window.rs |
-| Expanding::max | Series.expanding().max | has | crates/frame/src/frame/ops/window.rs |
-| Expanding::std | Series.expanding().std | has | crates/frame/src/frame/ops/window.rs |
-| Expanding::var | Series.expanding().var | has | crates/frame/src/frame/ops/window.rs |
+| Expanding::sum | Series.expanding().sum | partial | crates/frame/src/frame/ops/window.rs; result loses the name and the index |
+| Expanding::mean | Series.expanding().mean | partial | crates/frame/src/frame/ops/window.rs; result loses the name and the index |
+| Expanding::min | Series.expanding().min | partial | crates/frame/src/frame/ops/window.rs; result loses the name and the index |
+| Expanding::max | Series.expanding().max | partial | crates/frame/src/frame/ops/window.rs; result loses the name and the index |
+| Expanding::std | Series.expanding().std | partial | crates/frame/src/frame/ops/window.rs; result loses the name and the index |
+| Expanding::var | Series.expanding().var | partial | crates/frame/src/frame/ops/window.rs; result loses the name and the index |
 | Ewm::with_span | Series.ewm(span=) | has | crates/frame/src/frame/ops/window.rs |
 | Ewm::with_alpha | Series.ewm(alpha=) | has | crates/frame/src/frame/ops/window.rs |
 | Ewm::with_halflife | Series.ewm(halflife=) | has | crates/frame/src/frame/ops/window.rs |
 | Ewm::min_periods | Series.ewm(min_periods=) | has | crates/frame/src/frame/ops/window.rs |
 | Ewm::adjust | Series.ewm(adjust=) | has | crates/frame/src/frame/ops/window.rs |
-| Ewm::mean | Series.ewm().mean | has | crates/frame/src/frame/ops/window.rs |
-| Ewm::std | Series.ewm().std | partial | crates/frame/src/frame/ops/window.rs; no bias argument |
-| Ewm::var | Series.ewm().var | partial | crates/frame/src/frame/ops/window.rs; no bias argument |
+| Ewm::mean | Series.ewm().mean | partial | crates/frame/src/frame/ops/window.rs; with Null, acts as ignore_na=True and gives Null at the Null; result loses the name and the index |
+| Ewm::std | Series.ewm().std | partial | crates/frame/src/frame/ops/window.rs; result differs from pandas (bias=False); for [1,2] span 3 kit gives 0.2222, pandas 0.5; result loses the name and the index |
+| Ewm::var | Series.ewm().var | partial | crates/frame/src/frame/ops/window.rs; result differs from pandas (bias=False); for [1,2] span 3 kit gives 0.2222, pandas 0.5; result loses the name and the index |
 | Series::expanding | Series.expanding | has | crates/frame/src/frame/ops/window.rs |
-| Series::ewm_span | Series.ewm(span=) | has | crates/frame/src/frame/ops/window.rs |
-| Series::ewm_alpha | Series.ewm(alpha=) | has | crates/frame/src/frame/ops/window.rs |
-| Series::ewm_halflife | Series.ewm(halflife=) | has | crates/frame/src/frame/ops/window.rs |
+| Series::ewm_span | Series.ewm(span=) | partial | crates/frame/src/frame/ops/window.rs; with Null, acts as ignore_na=True and gives Null at the Null |
+| Series::ewm_alpha | Series.ewm(alpha=) | partial | crates/frame/src/frame/ops/window.rs; with Null, acts as ignore_na=True and gives Null at the Null |
+| Series::ewm_halflife | Series.ewm(halflife=) | partial | crates/frame/src/frame/ops/window.rs; with Null, acts as ignore_na=True and gives Null at the Null |
 
 ## CSV
 
