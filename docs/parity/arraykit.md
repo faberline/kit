@@ -54,7 +54,7 @@ Names marked `(SciPy)` are SciPy functions, not NumPy functions.
 | `sum` | `numpy.sum` | has | crates/arraykit/src/array/stats.rs |
 | `checked_sum` | `numpy.sum` (overflow checked) | has | crates/arraykit/src/array/stats.rs |
 | `sum_axis` | `numpy.sum` (axis) | has | crates/arraykit/src/array/stats.rs |
-| `mean` | `numpy.mean` | has | crates/arraykit/src/array/stats.rs |
+| `mean` | `numpy.mean` | partial; integer division for `Int32` and `Int64` (use `mean_f64`) | crates/arraykit/src/array/stats.rs |
 | `mean_f64` | `numpy.mean` (float result) | has | crates/arraykit/src/array/stats.rs |
 | `mean_axis` | `numpy.mean` (axis) | has | crates/arraykit/src/array/stats.rs |
 | `min` | `numpy.min` | has | crates/arraykit/src/array/stats.rs |
@@ -71,23 +71,23 @@ Names marked `(SciPy)` are SciPy functions, not NumPy functions.
 | `argmax` | `numpy.argmax` | has | crates/arraykit/src/array/stats.rs |
 | `cumsum` | `numpy.cumsum` | has | crates/arraykit/src/array/stats.rs |
 | `cumprod` | `numpy.cumprod` | has | crates/arraykit/src/array/stats.rs |
-| `median` | `numpy.median` | has | crates/arraykit/src/array/stats.rs |
-| `mode` | `scipy.stats.mode` (SciPy) | has | crates/arraykit/src/array/stats.rs |
-| `skew` | `scipy.stats.skew` (SciPy) | has | crates/arraykit/src/array/stats.rs |
-| `kurtosis` | `scipy.stats.kurtosis` (SciPy) | has | crates/arraykit/src/array/stats.rs |
-| `zscore` | `scipy.stats.zscore` (SciPy) | has | crates/arraykit/src/array/stats.rs |
-| `moment` | `scipy.stats.moment` (SciPy) | has | crates/arraykit/src/array/stats.rs |
-| `iqr` | `scipy.stats.iqr` (SciPy) | has | crates/arraykit/src/array/stats.rs |
-| `geometric_mean` | `scipy.stats.gmean` (SciPy) | has | crates/arraykit/src/array/stats.rs |
-| `harmonic_mean` | `scipy.stats.hmean` (SciPy) | has | crates/arraykit/src/array/stats.rs |
-| `trim_mean` | `scipy.stats.trim_mean` (SciPy) | has | crates/arraykit/src/array/stats.rs |
-| `sem` | `scipy.stats.sem` (SciPy) | has | crates/arraykit/src/array/stats.rs |
-| `coefficient_of_variation` | `scipy.stats.variation` (SciPy) | has | crates/arraykit/src/array/stats.rs |
-| `percentile` | `numpy.percentile` | has | crates/arraykit/src/array/stats.rs |
-| `quantile` | `numpy.quantile` | has | crates/arraykit/src/array/stats.rs |
-| `corrcoef` | `numpy.corrcoef` | has | crates/arraykit/src/array/stats.rs |
-| `cov` | `numpy.cov` | has | crates/arraykit/src/array/stats.rs |
-| `histogram` | `numpy.histogram` | has | crates/arraykit/src/array/stats.rs |
+| `median` | `numpy.median` | partial; `f64` only | crates/arraykit/src/array/stats.rs |
+| `mode` | `scipy.stats.mode` (SciPy) | partial; `f64` only | crates/arraykit/src/array/stats.rs |
+| `skew` | `scipy.stats.skew` (SciPy) | partial; `f64` only; bias-corrected only (SciPy default is `bias=True`) | crates/arraykit/src/array/stats.rs |
+| `kurtosis` | `scipy.stats.kurtosis` (SciPy) | partial; `f64` only; bias-corrected only (SciPy default is `bias=True`) | crates/arraykit/src/array/stats.rs |
+| `zscore` | `scipy.stats.zscore` (SciPy) | partial; `f64` only; `ddof=1` only (SciPy default is `ddof=0`) | crates/arraykit/src/array/stats.rs |
+| `moment` | `scipy.stats.moment` (SciPy) | partial; `f64` only | crates/arraykit/src/array/stats.rs |
+| `iqr` | `scipy.stats.iqr` (SciPy) | partial; `f64` only | crates/arraykit/src/array/stats.rs |
+| `geometric_mean` | `scipy.stats.gmean` (SciPy) | partial; `f64` only | crates/arraykit/src/array/stats.rs |
+| `harmonic_mean` | `scipy.stats.hmean` (SciPy) | partial; `f64` only | crates/arraykit/src/array/stats.rs |
+| `trim_mean` | `scipy.stats.trim_mean` (SciPy) | partial; `f64` only; over-trim returns the median (SciPy raises) | crates/arraykit/src/array/stats.rs |
+| `sem` | `scipy.stats.sem` (SciPy) | partial; `f64` only | crates/arraykit/src/array/stats.rs |
+| `coefficient_of_variation` | `scipy.stats.variation` (SciPy) | partial; `f64` only; `ddof=1` and divides by `abs(mean)` (SciPy default is `ddof=0`, divides by `mean`) | crates/arraykit/src/array/stats.rs |
+| `percentile` | `numpy.percentile` | partial; `f64` only | crates/arraykit/src/array/stats.rs |
+| `quantile` | `numpy.quantile` | partial; `f64` only | crates/arraykit/src/array/stats.rs |
+| `corrcoef` | `numpy.corrcoef` | partial; `f64` only | crates/arraykit/src/array/stats.rs |
+| `cov` | `numpy.cov` | partial; `f64` only | crates/arraykit/src/array/stats.rs |
+| `histogram` | `numpy.histogram` | partial; `f64` only; constant input gives one bin (NumPy gives `bins` bins) | crates/arraykit/src/array/stats.rs |
 | `matmul` | `numpy.matmul` | has | crates/arraykit/src/array/linalg.rs |
 | `dot` | `numpy.dot` | has | crates/arraykit/src/array/linalg.rs |
 | `outer` | `numpy.outer` | has | crates/arraykit/src/array/linalg.rs |
@@ -195,6 +195,16 @@ Names marked `(SciPy)` are SciPy functions, not NumPy functions.
 | `RangeElement` | element trait for `arange` | has | crates/arraykit/src/array/dtype.rs |
 | `ArrayError` | `numpy` exceptions | has | crates/arraykit/src/array/error.rs |
 | `Result` | result alias | has | crates/arraykit/src/array/error.rs |
+| `NdArray` | `numpy.ndarray` | has | crates/arraykit/src/array/ndarray.rs |
+| `Shape` | `numpy.ndarray.shape` | has | crates/arraykit/src/array/shape.rs |
+| `KitRng` | `numpy.random.Generator` | has | crates/arraykit/src/array/random.rs |
+| `StatOps` | - (element trait for statistics) | has | crates/arraykit/src/array/stats.rs |
+| `VarOps` | - (element trait for variance) | has | crates/arraykit/src/array/stats.rs |
+| `NumericOps` | - (element trait for arithmetic) | has | crates/arraykit/src/array/ops.rs |
+| `LinalgOps` | - (element trait for linear algebra) | has | crates/arraykit/src/array/linalg.rs |
+| `FloatOps` | - (element trait for float math) | has | crates/arraykit/src/array/math.rs |
+
+Random functions match NumPy in distribution, not in the drawn values for a seed.
 
 ## Table 2: NumPy functions that arraykit lacks
 
