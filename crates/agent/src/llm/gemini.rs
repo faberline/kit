@@ -42,7 +42,10 @@ impl GeminiProvider {
         base_url: impl Into<String>,
     ) -> AgentResult<Self> {
         let base = base_url.into();
-        let config = HttpClientConfig::new().base_url(&base).timeout_secs(60.0);
+        let config = HttpClientConfig::new()
+            .base_url(&base)
+            .timeout_secs(60.0)
+            .retry(kit_http::client::config::RetryConfig::default());
 
         let client = HttpClient::new(config)?;
 
