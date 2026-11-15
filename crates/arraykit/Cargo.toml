@@ -9,6 +9,7 @@ description = "N-dimensional arrays (inspired by NumPy)."
 [lib]
 name = "arraykit"
 crate-type = ["rlib"]
+bench = false
 
 [dependencies]
 thiserror.workspace = true
