@@ -943,3 +943,54 @@ mod tests {
         assert_eq!(redact("abc", ""), "abc");
     }
 }
+
+#[cfg(test)]
+mod prop_tests {
+    use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(256))]
+
+        /// The parser never panics on any text of up to 2000 characters.
+        #[test]
+        fn parse_sse_event_never_panics_on_arbitrary_text(s in ".{0,2000}") {
+            let _ = SseParser::new().handle_event(&s);
+        }
+
+        /// A well-formed text delta keeps its text, with no control characters.
+        #[test]
+        fn content_block_delta_keeps_random_text(text in "\\PC{1,100}") {
+            let data = serde_json::json!({
+                "type": "content_block_delta",
+                "index": 0,
+                "delta": {"type": "text_delta", "text": text}
+            })
+            .to_string();
+            let event = format!("event: content_block_delta\ndata: {data}");
+            let out = SseParser::new().handle_event(&event);
+            prop_assert_eq!(out.len(), 1);
+            let chunk = out[0].as_ref().expect("chunk");
+            prop_assert_eq!(&chunk.content, &text);
+            prop_assert!(!chunk.is_final);
+            prop_assert!(chunk.tool_calls.is_none());
+        }
+
+        /// Garbage after `data: ` never panics, whatever the event name.
+        #[test]
+        fn parse_sse_event_garbage_data_never_panics(
+            garbage in ".{0,500}",
+            kind in prop::sample::select(vec![
+                "content_block_delta",
+                "message_delta",
+                "message_stop",
+                "content_block_start",
+                "ping",
+                "error",
+            ]),
+        ) {
+            let event = format!("event: {kind}\ndata: {garbage}");
+            let _ = SseParser::new().handle_event(&event);
+        }
+    }
+}

@@ -25,6 +25,7 @@ dependencies = [
  "jsonschema",
  "kit-http",
  "once_cell",
+ "proptest",
  "regex",
  "serde",
  "serde_json",
