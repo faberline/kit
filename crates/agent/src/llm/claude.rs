@@ -14,8 +14,11 @@ use tracing::debug;
 /// Anthropic Claude LLM provider
 pub struct ClaudeProvider {
     client: Arc<HttpClient>,
+    /// Client for streams: a long ceiling, because the idle timeout is the real limit.
+    stream_client: Arc<HttpClient>,
     api_key: String,
     default_model: String,
+    stream_idle_timeout: std::time::Duration,
 }
 
 impl ClaudeProvider {
@@ -30,20 +33,32 @@ impl ClaudeProvider {
     ) -> AgentResult<Self> {
         let base_url: String = base_url.into();
         let config = HttpClientConfig::new()
-            .base_url(base_url)
+            .base_url(base_url.clone())
             .timeout_secs(120.0);
+        let stream_config = HttpClientConfig::new()
+            .base_url(base_url)
+            .timeout_secs(3600.0);
 
         let client = HttpClient::new(config)?;
+        let stream_client = HttpClient::new(stream_config)?;
 
         Ok(Self {
             client: Arc::new(client),
+            stream_client: Arc::new(stream_client),
             api_key: api_key.into(),
             default_model: "claude-sonnet-4-20250514".to_string(),
+            stream_idle_timeout: std::time::Duration::from_secs(60),
         })
     }
 
     pub fn with_default_model(mut self, model: impl Into<String>) -> Self {
         self.default_model = model.into();
+        self
+    }
+
+    /// Set the longest silence allowed between two chunks of a stream.
+    pub fn with_stream_idle_timeout(mut self, d: std::time::Duration) -> Self {
+        self.stream_idle_timeout = d;
         self
     }
 
@@ -286,9 +301,10 @@ impl LLMProvider for ClaudeProvider {
         }
 
         let builder = self.build_request("/v1/messages", body);
-        let byte_stream = self.client.execute_builder_stream(builder).await?;
+        let byte_stream = self.stream_client.execute_builder_stream(builder).await?;
 
-        let chunk_stream = parse_claude_sse_stream(byte_stream);
+        let chunk_stream = Box::pin(parse_claude_sse_stream(byte_stream));
+        let chunk_stream = with_idle_timeout(chunk_stream, self.stream_idle_timeout);
 
         Ok(Box::pin(chunk_stream))
     }
@@ -356,6 +372,32 @@ fn redact(text: &str, secret: &str) -> String {
         return text.to_string();
     }
     text.replace(secret, "[redacted]")
+}
+
+/// Wrap a stream so that silence longer than `idle` ends it with one error.
+fn with_idle_timeout<S>(
+    stream: S,
+    idle: std::time::Duration,
+) -> impl futures::Stream<Item = AgentResult<StreamChunk>> + Send
+where
+    S: futures::Stream<Item = AgentResult<StreamChunk>> + Send + Unpin + 'static,
+{
+    futures::stream::unfold((stream, false), move |(mut stream, done)| async move {
+        if done {
+            return None;
+        }
+        match tokio::time::timeout(idle, stream.next()).await {
+            Ok(Some(item)) => Some((item, (stream, false))),
+            Ok(None) => None,
+            Err(_) => Some((
+                Err(AgentError::StreamingError(format!(
+                    "stream idle for {} s",
+                    idle.as_secs()
+                ))),
+                (stream, true),
+            )),
+        }
+    })
 }
 
 fn parse_claude_sse_stream(
@@ -799,6 +841,64 @@ mod tests {
         assert_eq!(out.content, "hi");
         assert_eq!(out.finish_reason, "stop");
         assert_eq!(out.usage.total_tokens, 3);
+    }
+
+    fn text_chunk(content: &str) -> StreamChunk {
+        StreamChunk {
+            content: content.to_string(),
+            tool_calls: None,
+            finish_reason: None,
+            is_final: false,
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn idle_timeout_ends_stream_with_error() {
+        use futures::StreamExt;
+
+        let inner = Box::pin(futures::stream::unfold(0u8, |state| async move {
+            if state == 0 {
+                Some((Ok(text_chunk("a")), 1u8))
+            } else {
+                tokio::time::sleep(std::time::Duration::from_secs(3600)).await;
+                None
+            }
+        }));
+        let mut stream = Box::pin(with_idle_timeout(inner, std::time::Duration::from_secs(5)));
+
+        assert!(matches!(stream.next().await, Some(Ok(_))));
+        match stream.next().await {
+            Some(Err(e)) => assert!(e.to_string().contains("idle")),
+            _ => panic!("expected an idle error"),
+        }
+        assert!(stream.next().await.is_none());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn fast_stream_passes_through() {
+        use futures::StreamExt;
+
+        let inner = futures::stream::iter(vec![Ok(text_chunk("a")), Ok(text_chunk("b"))]);
+        let stream = with_idle_timeout(inner, std::time::Duration::from_secs(5));
+
+        let items: Vec<AgentResult<StreamChunk>> = stream.collect().await;
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].as_ref().unwrap().content, "a");
+        assert_eq!(items[1].as_ref().unwrap().content, "b");
+    }
+
+    #[test]
+    fn stream_idle_timeout_default_and_builder() {
+        let provider = ClaudeProvider::new("test-key").unwrap();
+        assert_eq!(
+            provider.stream_idle_timeout,
+            std::time::Duration::from_secs(60)
+        );
+        let provider = provider.with_stream_idle_timeout(std::time::Duration::from_secs(7));
+        assert_eq!(
+            provider.stream_idle_timeout,
+            std::time::Duration::from_secs(7)
+        );
     }
 
     #[test]

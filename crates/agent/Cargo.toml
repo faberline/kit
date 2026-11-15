@@ -63,3 +63,5 @@ agent-derive = { path = "../agent-derive" }
 
 [dev-dependencies]
 tokio-test = "0.4"
+# `start_paused` in the stream tests needs the test-util feature.
+tokio = { version = "1", features = ["test-util"] }
