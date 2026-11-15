@@ -958,8 +958,7 @@ mod web_fetch_tests {
             .unwrap();
 
         assert_eq!(result["truncated"], true);
-        let content = result["content"].as_str().unwrap();
-        assert!(content.starts_with("éé"));
-        assert!(content.ends_with("... [truncated, 20 bytes total]"));
+        assert_eq!(result["content"], "éé... [truncated, 20 bytes total]");
+        assert_eq!(result["length"], "éé... [truncated, 20 bytes total]".len());
     }
 }
