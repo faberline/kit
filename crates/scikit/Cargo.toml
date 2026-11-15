@@ -5,6 +5,8 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 description = "Scientific computing (inspired by SciPy)."
+repository.workspace = true
+readme = "README.md"
 
 [lib]
 name = "scikit"

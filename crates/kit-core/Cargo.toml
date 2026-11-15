@@ -4,6 +4,9 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
+description = "Small shared error, error-sanitizing and HTTP scalar types."
+repository.workspace = true
+readme = "README.md"
 
 [dependencies]
 tokio.workspace = true
