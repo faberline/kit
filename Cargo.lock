@@ -2360,6 +2360,7 @@ name = "scikit"
 version = "0.1.0"
 dependencies = [
  "arraykit",
+ "criterion",
  "frame",
  "rayon",
  "serde",

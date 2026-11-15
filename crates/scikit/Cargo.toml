@@ -9,6 +9,7 @@ description = "Scientific computing (inspired by SciPy)."
 [lib]
 name = "scikit"
 crate-type = ["rlib"]
+bench = false
 
 [dependencies]
 thiserror.workspace = true
@@ -19,6 +20,7 @@ frame = { path = "../frame", optional = true }
 
 [dev-dependencies]
 tempfile = "3"
+criterion = "=0.5.1"
 
 [features]
 default = ["stats"]
@@ -34,3 +36,8 @@ sparse = []
 integrate = []
 serde = ["dep:serde"]
 parallel = ["dep:rayon"]
+
+[[bench]]
+name = "scikit"
+harness = false
+required-features = ["fft", "stats"]
