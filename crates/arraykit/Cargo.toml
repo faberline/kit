@@ -17,6 +17,11 @@ rayon = { workspace = true, optional = true }
 
 [dev-dependencies]
 tempfile = "3"
+criterion = "=0.5.1"
+
+[[bench]]
+name = "arraykit"
+harness = false
 
 [features]
 default = []
