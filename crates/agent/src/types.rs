@@ -149,6 +149,17 @@ pub struct TokenUsage {
     pub total_tokens: u32,
 }
 
+impl TokenUsage {
+    /// Add `other` into `self`, field by field. Saturates at `u32::MAX`.
+    pub fn add(&mut self, other: &TokenUsage) {
+        self.prompt_tokens = self.prompt_tokens.saturating_add(other.prompt_tokens);
+        self.completion_tokens = self
+            .completion_tokens
+            .saturating_add(other.completion_tokens);
+        self.total_tokens = self.total_tokens.saturating_add(other.total_tokens);
+    }
+}
+
 /// Role within a governed agent team (#1545). Distinct from the chat-level
 /// `Role` enum above, which models message authorship in a single
 /// conversation. `AgentRole` models which functional seat in a multi-agent
@@ -208,5 +219,35 @@ mod tests {
         }]);
         assert!(msg.tool_calls.is_some());
         assert_eq!(msg.tool_calls.unwrap().len(), 1);
+    }
+
+    #[test]
+    fn token_usage_add_sums_fields() {
+        let mut a = TokenUsage {
+            prompt_tokens: 1,
+            completion_tokens: 2,
+            total_tokens: 3,
+        };
+        a.add(&TokenUsage {
+            prompt_tokens: 10,
+            completion_tokens: 20,
+            total_tokens: 30,
+        });
+        assert_eq!(
+            (a.prompt_tokens, a.completion_tokens, a.total_tokens),
+            (11, 22, 33)
+        );
+
+        let mut max = TokenUsage {
+            prompt_tokens: u32::MAX,
+            completion_tokens: 0,
+            total_tokens: 0,
+        };
+        max.add(&TokenUsage {
+            prompt_tokens: 1,
+            completion_tokens: 0,
+            total_tokens: 0,
+        });
+        assert_eq!(max.prompt_tokens, u32::MAX);
     }
 }
