@@ -48,6 +48,10 @@ impl Tool for EstimateTokensTool {
          a directory fits within the token budget before assigning it to a spec group."
     }
 
+    fn is_idempotent(&self) -> bool {
+        true
+    }
+
     fn parameters(&self) -> Vec<ToolParameter> {
         vec![ToolParameter {
             name: "path".to_string(),
