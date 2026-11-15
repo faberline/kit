@@ -254,7 +254,8 @@ where
                                 call_id: call.id.clone(),
                                 error: e.to_string(),
                             });
-                            break 'outer Err(e);
+                            // The model sees the error as the tool result and can react to it.
+                            serde_json::json!({ "error": e.to_string() })
                         }
                     };
                     let serialized = match serde_json::to_string(&output) {
@@ -367,17 +368,36 @@ where
         .await
     }
 
+    /// Turn the final reply into `Output`.
+    ///
+    /// With an output schema the reply must be JSON that matches it; a bad
+    /// reply goes to the revision loop. Without a schema, a reply that does
+    /// not fit `Output` is also tried as a plain JSON string, so `Output =
+    /// String` gets the text as it is.
     fn finalize(&self, raw: &str) -> AgentResult<Output> {
-        let value: serde_json::Value = if raw.trim().is_empty() {
+        if raw.trim().is_empty() {
             return Err(AgentError::MalformedLLMResponse(
                 "empty final reply".to_string(),
             ));
-        } else {
-            serde_json::from_str(raw).map_err(|e| {
-                AgentError::MalformedLLMResponse(format!("final reply is not valid JSON: {e}"))
-            })?
+        }
+
+        let first = match serde_json::from_str::<serde_json::Value>(raw) {
+            Ok(value) => self.parse_reply(value),
+            Err(e) => Err(AgentError::MalformedLLMResponse(format!(
+                "final reply is not valid JSON: {e}"
+            ))),
         };
 
+        match first {
+            Err(original) if self.output_schema.is_none() => {
+                serde_json::from_value(serde_json::Value::String(raw.to_string()))
+                    .map_err(|_| original)
+            }
+            other => other,
+        }
+    }
+
+    fn parse_reply(&self, value: serde_json::Value) -> AgentResult<Output> {
         if let Some(schema) = &self.output_schema {
             schema
                 .validate(&value)
