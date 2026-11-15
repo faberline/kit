@@ -15,6 +15,8 @@ A quality check found wrong results. Open issues track them: #3 (frame), #4 (arr
 
 See [docs/stability.md](docs/stability.md), [docs/limits.md](docs/limits.md) and [CHANGELOG.md](CHANGELOG.md).
 
+Report a vulnerability as described in [SECURITY.md](SECURITY.md).
+
 ## Crates
 
 | Crate | What it is |
