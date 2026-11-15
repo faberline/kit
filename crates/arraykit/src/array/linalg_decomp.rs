@@ -395,6 +395,12 @@ impl NdArray<f64> {
     }
 
     /// Singular Value Decomposition: A = U * diag(S) * V^T.
+    ///
+    /// Uses one-sided Jacobi on the columns of A. It never forms A^T * A and
+    /// never calls `eig`, so small singular values keep their accuracy.
+    /// Returns U (m × m), S (min(m, n), descending) and V^T (n × n).
+    /// Returns an error for a NaN or infinite entry, or when the sweeps do
+    /// not converge.
     pub fn svd(&self) -> Result<SvdResult> {
         if self.ndim() != 2 {
             return Err(ArrayError::ShapeMismatch {
@@ -406,81 +412,57 @@ impl NdArray<f64> {
         let m = self.dims()[0];
         let n = self.dims()[1];
 
-        // Compute A^T * A
-        let at = self.t()?;
-        let ata = at.matmul(self)?;
-
-        // Eigendecompose A^T * A -> V, Σ²
-        let eig = ata.eig()?;
-
-        // Sort eigenvalues descending and get singular values
-        let mut indices: Vec<usize> = (0..n).collect();
-        indices.sort_by(|&a, &b| {
-            eig.values[b]
-                .abs()
-                .partial_cmp(&eig.values[a].abs())
-                .unwrap()
-        });
-
-        let s: Vec<f64> = indices
-            .iter()
-            .map(|&i| eig.values[i].abs().sqrt())
-            .collect();
-
-        // V = eigenvectors of A^T * A (sorted)
-        let mut vt_data = vec![0.0; n * n];
-        for (new_i, &old_i) in indices.iter().enumerate() {
-            for j in 0..n {
-                vt_data[new_i * n + j] = eig.vectors.data[j * n + old_i];
-            }
+        if self.data.iter().any(|x| !x.is_finite()) {
+            return Err(ArrayError::InvalidOperation(
+                "matrix contains NaN or infinity".into(),
+            ));
         }
 
-        // U = A * V * Σ^(-1) for non-zero singular values
-        let k = s.iter().filter(|&&sv| sv > 1e-10).count();
-        let mut u_data = vec![0.0; m * m];
-
-        for j in 0..k {
-            // u_j = A * v_j / s_j
+        if m >= n {
+            let (u_thin, s, v) = svd_tall(&self.data, m, n)?;
+            let u_cols: Vec<Vec<f64>> = (0..n)
+                .map(|j| (0..m).map(|i| u_thin[i * n + j]).collect())
+                .collect();
+            let u = to_row_major(&complete_basis(u_cols, m)?, m);
+            // V^T is the transpose of V.
+            let mut vt = vec![0.0; n * n];
+            for row in 0..n {
+                for col in 0..n {
+                    vt[row * n + col] = v[col * n + row];
+                }
+            }
+            Ok(SvdResult {
+                u: NdArray::new(u, vec![m, m])?,
+                s,
+                vt: NdArray::new(vt, vec![n, n])?,
+            })
+        } else {
+            // A^T = U' S V'^T, so A = V' S U'^T.
+            let mut at = vec![0.0; n * m];
             for i in 0..m {
-                let mut val = 0.0;
-                for l in 0..n {
-                    val += self.data[i * n + l] * vt_data[j * n + l];
+                for j in 0..n {
+                    at[j * m + i] = self.data[i * n + j];
                 }
-                u_data[i * m + j] = val / s[j];
             }
+            let (u_thin, s, v) = svd_tall(&at, n, m)?;
+            // U = V' (m × m). The rows of V^T for the first m singular
+            // values are the columns of U'; complete them to an n × n basis.
+            let u_cols: Vec<Vec<f64>> = (0..m)
+                .map(|j| (0..n).map(|i| u_thin[i * m + j]).collect())
+                .collect();
+            let w = to_row_major(&complete_basis(u_cols, n)?, n);
+            let mut vt = vec![0.0; n * n];
+            for row in 0..n {
+                for col in 0..n {
+                    vt[row * n + col] = w[col * n + row];
+                }
+            }
+            Ok(SvdResult {
+                u: NdArray::new(v, vec![m, m])?,
+                s,
+                vt: NdArray::new(vt, vec![n, n])?,
+            })
         }
-
-        // Complete U with orthogonal basis for null space (Gram-Schmidt)
-        for j in k..m {
-            // Start with standard basis vector e_j
-            let mut col = vec![0.0; m];
-            col[j.min(m - 1)] = 1.0;
-
-            // Orthogonalize against existing columns
-            for prev in 0..j {
-                let mut dot = 0.0;
-                for i in 0..m {
-                    dot += col[i] * u_data[i * m + prev];
-                }
-                for i in 0..m {
-                    col[i] -= dot * u_data[i * m + prev];
-                }
-            }
-
-            // Normalize
-            let norm = col.iter().map(|x| x * x).sum::<f64>().sqrt();
-            if norm > 1e-10 {
-                for i in 0..m {
-                    u_data[i * m + j] = col[i] / norm;
-                }
-            }
-        }
-
-        Ok(SvdResult {
-            u: NdArray::new(u_data, vec![m, m])?,
-            s,
-            vt: NdArray::new(vt_data, vec![n, n])?,
-        })
     }
 
     /// Least squares solution: min ||Ax - b||^2.
@@ -848,6 +830,167 @@ fn wilkinson_shift(a: f64, b: f64, c: f64, d: f64) -> f64 {
     } else {
         d - bc / (delta + delta.signum() * (delta * delta + bc).abs().sqrt())
     }
+}
+
+/// Maximum number of Jacobi sweeps that `svd` runs before it gives up.
+const SVD_MAX_SWEEPS: usize = 60;
+
+/// One-sided (Hestenes) Jacobi SVD for `rows >= cols`.
+///
+/// `data` is `rows × cols`, row-major. Returns `(u, s, v)`:
+/// - `u`: thin U, `rows × cols`, row-major. A column with a zero singular
+///   value is all zero; `complete_basis` fills it.
+/// - `s`: the `cols` singular values, descending.
+/// - `v`: `cols × cols`, row-major, orthogonal, columns in the order of `s`.
+fn svd_tall(data: &[f64], rows: usize, cols: usize) -> Result<(Vec<f64>, Vec<f64>, Vec<f64>)> {
+    let m = rows;
+    let n = cols;
+    let mut w = data.to_vec();
+    let mut v = vec![0.0; n * n];
+    for i in 0..n {
+        v[i * n + i] = 1.0;
+    }
+    let frob2: f64 = data.iter().map(|x| x * x).sum();
+
+    let mut converged = false;
+    for _ in 0..SVD_MAX_SWEEPS {
+        let mut rotated = false;
+        for p in 0..n {
+            for q in (p + 1)..n {
+                let mut alpha = 0.0;
+                let mut beta = 0.0;
+                let mut gamma = 0.0;
+                for i in 0..m {
+                    let wp = w[i * n + p];
+                    let wq = w[i * n + q];
+                    alpha += wp * wp;
+                    beta += wq * wq;
+                    gamma += wp * wq;
+                }
+                // Skip a pair that is orthogonal already. Skip also a column
+                // that is zero within rounding: its norm is below
+                // 1e-15 * ||A||_F, so a relative test alone never settles it.
+                if gamma == 0.0
+                    || gamma.abs() <= 1e-15 * (alpha * beta).sqrt()
+                    || alpha.min(beta) <= 1e-30 * frob2
+                {
+                    continue;
+                }
+                rotated = true;
+                let zeta = (beta - alpha) / (2.0 * gamma);
+                let t = if zeta == 0.0 {
+                    1.0
+                } else {
+                    zeta.signum() / (zeta.abs() + (1.0 + zeta * zeta).sqrt())
+                };
+                let c = 1.0 / (1.0 + t * t).sqrt();
+                let s = c * t;
+                for i in 0..m {
+                    let wp = w[i * n + p];
+                    let wq = w[i * n + q];
+                    w[i * n + p] = c * wp - s * wq;
+                    w[i * n + q] = s * wp + c * wq;
+                }
+                for i in 0..n {
+                    let vp = v[i * n + p];
+                    let vq = v[i * n + q];
+                    v[i * n + p] = c * vp - s * vq;
+                    v[i * n + q] = s * vp + c * vq;
+                }
+            }
+        }
+        if !rotated {
+            converged = true;
+            break;
+        }
+    }
+    if !converged {
+        return Err(ArrayError::InvalidOperation("svd did not converge".into()));
+    }
+
+    // The column norms are the singular values. Sort them descending and
+    // permute the columns of V in the same way.
+    let norms: Vec<f64> = (0..n)
+        .map(|j| {
+            (0..m)
+                .map(|i| w[i * n + j] * w[i * n + j])
+                .sum::<f64>()
+                .sqrt()
+        })
+        .collect();
+    let mut order: Vec<usize> = (0..n).collect();
+    order.sort_by(|&a, &b| norms[b].total_cmp(&norms[a]));
+    let s: Vec<f64> = order.iter().map(|&j| norms[j]).collect();
+    let s0 = s.first().copied().unwrap_or(0.0);
+
+    let mut u = vec![0.0; m * n];
+    let mut v_sorted = vec![0.0; n * n];
+    for (new_j, &old_j) in order.iter().enumerate() {
+        let sj = norms[old_j];
+        if s0 > 0.0 && sj > 1e-14 * s0 {
+            for i in 0..m {
+                u[i * n + new_j] = w[i * n + old_j] / sj;
+            }
+        }
+        for i in 0..n {
+            v_sorted[i * n + new_j] = v[i * n + old_j];
+        }
+    }
+    Ok((u, s, v_sorted))
+}
+
+/// Completes `cols` to an orthonormal basis of R^d.
+///
+/// `cols` holds unit vectors of length `d`, in order. A zero vector is
+/// dropped. The result has `d` orthonormal vectors; the kept vectors come
+/// first, in their order.
+fn complete_basis(cols: Vec<Vec<f64>>, d: usize) -> Result<Vec<Vec<f64>>> {
+    let mut basis: Vec<Vec<f64>> = Vec::with_capacity(d);
+    for col in cols {
+        if col.iter().any(|&x| x != 0.0) {
+            basis.push(col);
+        }
+    }
+    for k in 0..d {
+        if basis.len() == d {
+            break;
+        }
+        let mut cand = vec![0.0; d];
+        cand[k] = 1.0;
+        // Gram-Schmidt, applied twice for stability.
+        for _ in 0..2 {
+            for b in &basis {
+                let dot: f64 = cand.iter().zip(b).map(|(x, y)| x * y).sum();
+                for (c, y) in cand.iter_mut().zip(b) {
+                    *c -= dot * y;
+                }
+            }
+        }
+        let norm = cand.iter().map(|x| x * x).sum::<f64>().sqrt();
+        if norm > 1e-8 {
+            for c in cand.iter_mut() {
+                *c /= norm;
+            }
+            basis.push(cand);
+        }
+    }
+    if basis.len() != d {
+        return Err(ArrayError::InvalidOperation(
+            "svd basis is incomplete".into(),
+        ));
+    }
+    Ok(basis)
+}
+
+/// Packs `cols` (each of length `d`) as the columns of a `d × d` row-major matrix.
+fn to_row_major(cols: &[Vec<f64>], d: usize) -> Vec<f64> {
+    let mut out = vec![0.0; d * d];
+    for (j, col) in cols.iter().enumerate() {
+        for (i, &x) in col.iter().enumerate() {
+            out[i * d + j] = x;
+        }
+    }
+    out
 }
 
 #[cfg(test)]
