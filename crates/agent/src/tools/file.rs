@@ -219,7 +219,8 @@ impl EditFileTool {
             return Err(AgentError::EditFailed(format!(
                 "old_string not found in file: '{}'",
                 if args.old_string.len() > 50 {
-                    format!("{}...", &args.old_string[..50])
+                    let cut = crate::tools::text::floor_char_boundary(&args.old_string, 50);
+                    format!("{}...", &args.old_string[..cut])
                 } else {
                     args.old_string.clone()
                 }
@@ -627,5 +628,26 @@ mod tests {
         assert!(result["success"].as_bool().unwrap());
         let content = std::fs::read_to_string(&file_path).unwrap();
         assert_eq!(content, "Hello, Rust!");
+    }
+
+    #[tokio::test]
+    async fn edit_with_long_multibyte_old_string_does_not_panic() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("edit.txt");
+        std::fs::write(&file_path, "hello").unwrap();
+
+        // 60 two-byte characters: byte 50, used by the "..." preview, is inside one.
+        let result = EditFileTool::new()
+            .execute(serde_json::json!({
+                "file_path": file_path.to_string_lossy(),
+                "old_string": "é".repeat(60),
+                "new_string": "x"
+            }))
+            .await;
+
+        assert!(
+            matches!(result, Err(AgentError::EditFailed(_))),
+            "expected EditFailed, got {result:?}"
+        );
     }
 }

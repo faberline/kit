@@ -465,9 +465,10 @@ impl Tool for WebFetchTool {
 
         // Truncate if too long
         let body = if body.len() > self.max_content_length {
+            let cut = crate::tools::text::floor_char_boundary(&body, self.max_content_length);
             format!(
                 "{}... [truncated, {} bytes total]",
-                &body[..self.max_content_length],
+                &body[..cut],
                 body.len()
             )
         } else {

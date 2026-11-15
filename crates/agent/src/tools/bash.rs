@@ -1,10 +1,11 @@
 use crate::error::{AgentError, AgentResult};
+use crate::tools::text::truncate_at_char_boundary;
 use crate::tools::tool::{Tool, ToolParameter};
 use async_trait::async_trait;
 use serde::Deserialize;
 use std::process::Stdio;
 use std::time::Duration;
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::process::Command;
 use tokio::time::timeout;
 use tracing::{debug, warn};
@@ -59,30 +60,58 @@ impl BashTool {
 
         cmd.stdout(Stdio::piped());
         cmd.stderr(Stdio::piped());
+        // A child that is still alive when the handle drops is killed, not left running.
+        cmd.kill_on_drop(true);
 
-        let child = cmd
+        let mut child = cmd
             .spawn()
             .map_err(|e| AgentError::CommandFailed(format!("Failed to spawn command: {}", e)))?;
 
-        let output = timeout(timeout_duration, child.wait_with_output())
-            .await
-            .map_err(|_| AgentError::CommandTimeout(timeout_ms / 1000))?
+        let mut stdout_pipe = child.stdout.take().unwrap();
+        let mut stderr_pipe = child.stderr.take().unwrap();
+        let mut out_task = tokio::spawn(async move {
+            let mut buf = Vec::new();
+            let _ = stdout_pipe.read_to_end(&mut buf).await;
+            buf
+        });
+        let mut err_task = tokio::spawn(async move {
+            let mut buf = Vec::new();
+            let _ = stderr_pipe.read_to_end(&mut buf).await;
+            buf
+        });
+
+        let (status, stdout_bytes, stderr_bytes) = match timeout(timeout_duration, async {
+            tokio::join!(child.wait(), &mut out_task, &mut err_task)
+        })
+        .await
+        {
+            Ok((status, out, err)) => (status, out.unwrap_or_default(), err.unwrap_or_default()),
+            Err(_) => {
+                // Kill and reap the shell. A grandchild may still hold the pipes,
+                // so the readers are aborted, not waited for.
+                let _ = child.kill().await;
+                out_task.abort();
+                err_task.abort();
+                return Err(AgentError::CommandTimeout(timeout_ms / 1000));
+            }
+        };
+        let status = status
             .map_err(|e| AgentError::CommandFailed(format!("Command execution failed: {}", e)))?;
 
-        let exit_code = output.status.code().unwrap_or(-1);
-        let mut stdout = String::from_utf8_lossy(&output.stdout).to_string();
-        let mut stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        let exit_code = status.code().unwrap_or(-1);
+        let mut stdout = String::from_utf8_lossy(&stdout_bytes).to_string();
+        let mut stderr = String::from_utf8_lossy(&stderr_bytes).to_string();
 
         let stdout_truncated = stdout.len() > self.max_output_size;
         let stderr_truncated = stderr.len() > self.max_output_size;
 
         if stdout_truncated {
-            stdout.truncate(self.max_output_size);
+            truncate_at_char_boundary(&mut stdout, self.max_output_size);
             stdout.push_str("\n... [output truncated]");
         }
 
         if stderr_truncated {
-            stderr.truncate(self.max_output_size);
+            truncate_at_char_boundary(&mut stderr, self.max_output_size);
             stderr.push_str("\n... [output truncated]");
         }
 
@@ -176,6 +205,7 @@ impl StreamingBashTool {
 
         cmd.stdout(Stdio::piped());
         cmd.stderr(Stdio::piped());
+        cmd.kill_on_drop(true);
 
         let mut child = cmd
             .spawn()
@@ -213,13 +243,17 @@ impl StreamingBashTool {
             }
         };
 
-        let wait_task = child.wait();
-
-        let (_, status) = timeout(timeout_duration, async {
-            tokio::join!(read_task, wait_task)
+        let (_, status) = match timeout(timeout_duration, async {
+            tokio::join!(read_task, child.wait())
         })
         .await
-        .map_err(|_| AgentError::CommandTimeout(timeout_duration.as_secs()))?;
+        {
+            Ok(done) => done,
+            Err(_) => {
+                let _ = child.kill().await;
+                return Err(AgentError::CommandTimeout(timeout_duration.as_secs()));
+            }
+        };
 
         let status = status
             .map_err(|e| AgentError::CommandFailed(format!("Failed to wait for command: {}", e)))?;
@@ -293,5 +327,102 @@ mod tests {
 
         assert_eq!(exit_code, 0);
         assert_eq!(lines.len(), 3);
+    }
+
+    /// Wait up to 2 s for `pid` to disappear. Returns true when it is gone.
+    #[cfg(unix)]
+    async fn pid_gone_within_2s(pid: &str) -> bool {
+        for _ in 0..20 {
+            let alive = std::process::Command::new("kill")
+                .args(["-0", pid])
+                .status()
+                .unwrap()
+                .success();
+            if !alive {
+                return true;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        false
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn timeout_kills_the_child() {
+        let dir = tempfile::tempdir().unwrap();
+        let pid_file = dir.path().join("pid");
+        let command = format!("echo $$ > {}; sleep 30", pid_file.display());
+
+        let started = std::time::Instant::now();
+        let err = BashTool::new()
+            .execute(serde_json::json!({ "command": command, "timeout": 1000 }))
+            .await
+            .unwrap_err();
+
+        assert!(
+            started.elapsed() < Duration::from_secs(5),
+            "timeout took {:?}",
+            started.elapsed()
+        );
+        assert!(
+            matches!(err, AgentError::CommandTimeout(_)),
+            "expected CommandTimeout, got {err:?}"
+        );
+        let pid = std::fs::read_to_string(&pid_file).unwrap();
+        assert!(
+            pid_gone_within_2s(pid.trim()).await,
+            "child {} is still running after the timeout",
+            pid.trim()
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn streaming_timeout_kills_the_child() {
+        let dir = tempfile::tempdir().unwrap();
+        let pid_file = dir.path().join("pid");
+        let command = format!("echo $$ > {}; sleep 30", pid_file.display());
+
+        let started = std::time::Instant::now();
+        let err = StreamingBashTool::new()
+            .execute_streaming(&command, Some(500), |_| {})
+            .await
+            .unwrap_err();
+
+        assert!(
+            started.elapsed() < Duration::from_secs(5),
+            "timeout took {:?}",
+            started.elapsed()
+        );
+        assert!(
+            matches!(err, AgentError::CommandTimeout(_)),
+            "expected CommandTimeout, got {err:?}"
+        );
+        let pid = std::fs::read_to_string(&pid_file).unwrap();
+        assert!(
+            pid_gone_within_2s(pid.trim()).await,
+            "child {} is still running after the timeout",
+            pid.trim()
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn output_cut_inside_a_multibyte_char_does_not_panic() {
+        // 10 000 two-byte characters = 20 000 bytes, cut at 101 bytes, which
+        // falls inside a character.
+        let tool = BashTool::new().with_max_output_size(101);
+        let result = tool
+            .execute(serde_json::json!({
+                "command": "yes é | head -n 10000 | tr -d '\\n'"
+            }))
+            .await
+            .unwrap();
+
+        assert_eq!(result["stdout_truncated"], true);
+        assert!(result["stdout"]
+            .as_str()
+            .unwrap()
+            .starts_with(&"é".repeat(50)));
     }
 }
