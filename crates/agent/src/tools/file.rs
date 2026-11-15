@@ -1,15 +1,18 @@
 use crate::error::{AgentError, AgentResult};
+use crate::security::SecurityPolicy;
 use crate::tools::tool::{Tool, ToolParameter};
 use async_trait::async_trait;
 use regex::Regex;
 use serde::Deserialize;
 use std::path::PathBuf;
+use std::sync::Arc;
 use walkdir::WalkDir;
 
 /// Tool for reading file contents
 pub struct ReadFileTool {
     max_file_size: usize,
     default_line_limit: usize,
+    policy: Arc<SecurityPolicy>,
 }
 
 impl ReadFileTool {
@@ -17,6 +20,7 @@ impl ReadFileTool {
         Self {
             max_file_size: 10 * 1024 * 1024,
             default_line_limit: 2000,
+            policy: Arc::new(SecurityPolicy::default()),
         }
     }
 
@@ -25,19 +29,26 @@ impl ReadFileTool {
         self
     }
 
+    pub fn with_policy(mut self, policy: Arc<SecurityPolicy>) -> Self {
+        self.policy = policy;
+        self
+    }
+
     async fn read_file_impl(&self, args: ReadFileArgs) -> AgentResult<serde_json::Value> {
         let path = PathBuf::from(&args.file_path);
+        self.policy.check_path(&path)?;
 
         if !path.exists() {
             return Err(AgentError::FileNotFound(args.file_path));
         }
 
+        let limit = self.max_file_size.min(self.policy.max_file_bytes);
         let metadata = tokio::fs::metadata(&path).await?;
-        if metadata.len() > self.max_file_size as u64 {
+        if metadata.len() > limit as u64 {
             return Err(AgentError::InvalidArguments(format!(
                 "File too large: {} bytes (max: {} bytes)",
                 metadata.len(),
-                self.max_file_size
+                limit
             )));
         }
 
@@ -128,15 +139,33 @@ impl Tool for ReadFileTool {
 }
 
 /// Tool for writing file contents
-pub struct WriteFileTool;
+pub struct WriteFileTool {
+    policy: Arc<SecurityPolicy>,
+}
 
 impl WriteFileTool {
     pub fn new() -> Self {
-        Self
+        Self {
+            policy: Arc::new(SecurityPolicy::default()),
+        }
+    }
+
+    pub fn with_policy(mut self, policy: Arc<SecurityPolicy>) -> Self {
+        self.policy = policy;
+        self
     }
 
     async fn write_file_impl(&self, args: WriteFileArgs) -> AgentResult<serde_json::Value> {
         let path = PathBuf::from(&args.file_path);
+        self.policy.check_path(&path)?;
+
+        if args.content.len() > self.policy.max_file_bytes {
+            return Err(AgentError::InvalidArguments(format!(
+                "Content too large: {} bytes (max: {} bytes)",
+                args.content.len(),
+                self.policy.max_file_bytes
+            )));
+        }
 
         if let Some(parent) = path.parent() {
             tokio::fs::create_dir_all(parent).await?;
@@ -202,21 +231,38 @@ impl Tool for WriteFileTool {
 }
 
 /// Tool for editing files with precise text replacement
-pub struct EditFileTool;
+pub struct EditFileTool {
+    policy: Arc<SecurityPolicy>,
+}
 
 impl EditFileTool {
     pub fn new() -> Self {
-        Self
+        Self {
+            policy: Arc::new(SecurityPolicy::default()),
+        }
+    }
+
+    pub fn with_policy(mut self, policy: Arc<SecurityPolicy>) -> Self {
+        self.policy = policy;
+        self
     }
 
     async fn edit_file_impl(&self, args: EditFileArgs) -> AgentResult<serde_json::Value> {
         let path = PathBuf::from(&args.file_path);
+        self.policy.check_path(&path)?;
 
         if !path.exists() {
             return Err(AgentError::FileNotFound(args.file_path));
         }
 
         let content = tokio::fs::read_to_string(&path).await?;
+        if content.len() > self.policy.max_file_bytes {
+            return Err(AgentError::InvalidArguments(format!(
+                "Content too large: {} bytes (max: {} bytes)",
+                content.len(),
+                self.policy.max_file_bytes
+            )));
+        }
         let occurrences = content.matches(&args.old_string).count();
 
         if occurrences == 0 {
@@ -243,6 +289,14 @@ impl EditFileTool {
         } else {
             content.replacen(&args.old_string, &args.new_string, 1)
         };
+
+        if new_content.len() > self.policy.max_file_bytes {
+            return Err(AgentError::InvalidArguments(format!(
+                "Content too large: {} bytes (max: {} bytes)",
+                new_content.len(),
+                self.policy.max_file_bytes
+            )));
+        }
 
         tokio::fs::write(&path, &new_content).await?;
 
@@ -586,13 +640,21 @@ mod tests {
     use super::*;
     use tempfile::tempdir;
 
+    fn allow_dir(dir: &std::path::Path) -> Arc<SecurityPolicy> {
+        Arc::new(
+            SecurityPolicy::builder()
+                .with_allowed_paths(vec![dir.to_path_buf()])
+                .build(),
+        )
+    }
+
     #[tokio::test]
     async fn test_read_file() {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("test.txt");
         std::fs::write(&file_path, "line 1\nline 2\nline 3").unwrap();
 
-        let tool = ReadFileTool::new();
+        let tool = ReadFileTool::new().with_policy(allow_dir(dir.path()));
         let result = tool
             .execute(serde_json::json!({
                 "file_path": file_path.to_string_lossy()
@@ -608,7 +670,7 @@ mod tests {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("new_file.txt");
 
-        let tool = WriteFileTool::new();
+        let tool = WriteFileTool::new().with_policy(allow_dir(dir.path()));
         let result = tool
             .execute(serde_json::json!({
                 "file_path": file_path.to_string_lossy(),
@@ -627,7 +689,7 @@ mod tests {
         let file_path = dir.path().join("edit.txt");
         std::fs::write(&file_path, "Hello, world!").unwrap();
 
-        let tool = EditFileTool::new();
+        let tool = EditFileTool::new().with_policy(allow_dir(dir.path()));
         let result = tool
             .execute(serde_json::json!({
                 "file_path": file_path.to_string_lossy(),
@@ -650,6 +712,7 @@ mod tests {
 
         // 60 two-byte characters: byte 50, used by the "..." preview, is inside one.
         let result = EditFileTool::new()
+            .with_policy(allow_dir(dir.path()))
             .execute(serde_json::json!({
                 "file_path": file_path.to_string_lossy(),
                 "old_string": "é".repeat(60),
@@ -660,6 +723,144 @@ mod tests {
         assert!(
             matches!(result, Err(AgentError::EditFailed(_))),
             "expected EditFailed, got {result:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn write_file_default_policy_refuses() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("a.txt");
+
+        let result = WriteFileTool::new()
+            .execute(serde_json::json!({
+                "file_path": file_path.to_string_lossy(),
+                "content": "x"
+            }))
+            .await;
+
+        assert!(result.is_err());
+        assert!(!file_path.exists());
+    }
+
+    #[tokio::test]
+    async fn write_file_outside_allowed_root() {
+        let a = tempdir().unwrap();
+        let b = tempdir().unwrap();
+        let target = b.path().join("x.txt");
+
+        let result = WriteFileTool::new()
+            .with_policy(allow_dir(a.path()))
+            .execute(serde_json::json!({
+                "file_path": target.to_string_lossy(),
+                "content": "x"
+            }))
+            .await;
+
+        assert!(matches!(result, Err(AgentError::PathNotAllowed(_))));
+        assert!(!target.exists());
+    }
+
+    #[tokio::test]
+    async fn write_file_inside_allowed_root_writes() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("ok.txt");
+
+        WriteFileTool::new()
+            .with_policy(allow_dir(dir.path()))
+            .execute(serde_json::json!({
+                "file_path": file_path.to_string_lossy(),
+                "content": "hello"
+            }))
+            .await
+            .unwrap();
+
+        assert_eq!(std::fs::read_to_string(&file_path).unwrap(), "hello");
+    }
+
+    #[tokio::test]
+    async fn write_file_over_limit_refused() {
+        let dir = tempdir().unwrap();
+        let policy = Arc::new(
+            SecurityPolicy::builder()
+                .with_allowed_paths(vec![dir.path().to_path_buf()])
+                .with_max_file_bytes(10)
+                .build(),
+        );
+        let tool = WriteFileTool::new().with_policy(policy);
+
+        let too_big = dir.path().join("big.txt");
+        let result = tool
+            .execute(serde_json::json!({
+                "file_path": too_big.to_string_lossy(),
+                "content": "x".repeat(11)
+            }))
+            .await;
+        assert!(result.is_err());
+        assert!(!too_big.exists());
+
+        let fits = dir.path().join("fits.txt");
+        tool.execute(serde_json::json!({
+            "file_path": fits.to_string_lossy(),
+            "content": "x".repeat(10)
+        }))
+        .await
+        .unwrap();
+        assert!(fits.exists());
+    }
+
+    #[tokio::test]
+    async fn read_file_over_limit_refused() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("twenty.txt");
+        std::fs::write(&file_path, "y".repeat(20)).unwrap();
+        let policy = Arc::new(
+            SecurityPolicy::builder()
+                .with_allowed_paths(vec![dir.path().to_path_buf()])
+                .with_max_file_bytes(10)
+                .build(),
+        );
+
+        let result = ReadFileTool::new()
+            .with_policy(policy)
+            .execute(serde_json::json!({ "file_path": file_path.to_string_lossy() }))
+            .await;
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn read_file_default_policy_refuses() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("test.txt");
+        std::fs::write(&file_path, "data").unwrap();
+
+        let result = ReadFileTool::new()
+            .execute(serde_json::json!({ "file_path": file_path.to_string_lossy() }))
+            .await;
+
+        assert!(matches!(result, Err(AgentError::PathNotAllowed(_))));
+    }
+
+    #[tokio::test]
+    async fn edit_file_outside_allowed_root_refused() {
+        let a = tempdir().unwrap();
+        let b = tempdir().unwrap();
+        let file_path = b.path().join("edit.txt");
+        std::fs::write(&file_path, "Hello, world!").unwrap();
+
+        let result = EditFileTool::new()
+            .with_policy(allow_dir(a.path()))
+            .execute(serde_json::json!({
+                "file_path": file_path.to_string_lossy(),
+                "old_string": "world",
+                "new_string": "Rust"
+            }))
+            .await;
+
+        assert!(matches!(result, Err(AgentError::PathNotAllowed(_))));
+        assert_eq!(
+            std::fs::read_to_string(&file_path).unwrap(),
+            "Hello, world!"
         );
     }
 }

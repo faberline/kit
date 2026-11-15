@@ -10,5 +10,5 @@ target = "rust"
 test_cmd = "cargo test --workspace"
 
 [standards.coverage]
-line = 82.47
+line = 82.75
 target = 100
