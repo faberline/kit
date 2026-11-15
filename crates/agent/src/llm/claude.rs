@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use futures::StreamExt;
 use kit_http::client::{HttpClient, HttpClientConfig, HttpMethod, RequestBuilder};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 use tracing::debug;
 
@@ -335,26 +335,11 @@ fn parse_claude_sse_stream(
         Box<dyn futures::Stream<Item = Result<bytes::Bytes, kit_http::client::HttpError>> + Send>,
     >,
 ) -> impl futures::Stream<Item = AgentResult<StreamChunk>> + Send {
-    let mut buffer = String::new();
+    let mut parser = SseParser::new();
 
     byte_stream.flat_map(move |result| {
         let chunks: Vec<AgentResult<StreamChunk>> = match result {
-            Ok(bytes_data) => {
-                buffer.push_str(&String::from_utf8_lossy(&bytes_data));
-
-                let mut parsed_chunks = Vec::new();
-
-                while let Some(event_end) = buffer.find("\n\n") {
-                    let event = buffer[..event_end].to_string();
-                    buffer = buffer[event_end + 2..].to_string();
-
-                    if let Some(chunk) = parse_sse_event(&event) {
-                        parsed_chunks.push(Ok(chunk));
-                    }
-                }
-
-                parsed_chunks
-            }
+            Ok(bytes_data) => parser.push(&bytes_data),
             Err(e) => vec![Err(AgentError::StreamingError(e.to_string()))],
         };
 
@@ -362,56 +347,173 @@ fn parse_claude_sse_stream(
     })
 }
 
-fn parse_sse_event(event: &str) -> Option<StreamChunk> {
-    let mut event_type = None;
-    let mut data = None;
+/// Stateful parser for the Claude Messages SSE stream.
+///
+/// Bytes are kept until a complete event arrives, so a character split
+/// across network chunks is decoded only once. Streamed tool arguments are
+/// collected per content block index and emitted when the block stops.
+struct SseParser {
+    buf: Vec<u8>,
+    /// Content block index -> (tool id, tool name, partial JSON text).
+    tools: BTreeMap<usize, (String, String, String)>,
+    /// First stop reason from `message_delta`; a `null` never overwrites it.
+    stop_reason: Option<String>,
+}
 
-    for line in event.lines() {
-        if let Some(stripped) = line.strip_prefix("event: ") {
-            event_type = Some(stripped.trim());
-        } else if let Some(stripped) = line.strip_prefix("data: ") {
-            data = Some(stripped.trim());
+impl SseParser {
+    fn new() -> Self {
+        Self {
+            buf: Vec::new(),
+            tools: BTreeMap::new(),
+            stop_reason: None,
         }
     }
 
-    let event_type = event_type?;
-    let data = data?;
+    /// Append `bytes` and return every chunk or error from the events that are now complete.
+    fn push(&mut self, bytes: &[u8]) -> Vec<AgentResult<StreamChunk>> {
+        self.buf.extend_from_slice(bytes);
+        let mut out = Vec::new();
 
-    match event_type {
-        "content_block_delta" => {
-            if let Ok(delta) = serde_json::from_str::<ClaudeStreamDelta>(data) {
-                if let Some(text) = delta.delta.and_then(|d| d.text) {
-                    return Some(StreamChunk {
-                        content: text,
+        while let Some((pos, sep_len)) = self.next_separator() {
+            let raw: Vec<u8> = self.buf.drain(..pos + sep_len).collect();
+            match std::str::from_utf8(&raw[..pos]) {
+                Ok(event) => out.extend(self.handle_event(event)),
+                Err(_) => out.push(Err(AgentError::StreamingError(
+                    "invalid UTF-8 in stream".to_string(),
+                ))),
+            }
+        }
+
+        out
+    }
+
+    /// Earliest event separator in the buffer: (start, length).
+    fn next_separator(&self) -> Option<(usize, usize)> {
+        let crlf = find_bytes(&self.buf, b"\r\n\r\n").map(|p| (p, 4));
+        let lf = find_bytes(&self.buf, b"\n\n").map(|p| (p, 2));
+        match (crlf, lf) {
+            (Some(a), Some(b)) => Some(if a.0 <= b.0 { a } else { b }),
+            (a, b) => a.or(b),
+        }
+    }
+
+    fn handle_event(&mut self, event: &str) -> Vec<AgentResult<StreamChunk>> {
+        let mut event_name = None;
+        let mut data = None;
+
+        for line in event.lines() {
+            if let Some(value) = line.strip_prefix("event:") {
+                event_name = Some(value.trim());
+            } else if let Some(value) = line.strip_prefix("data:") {
+                data = Some(value.trim());
+            }
+        }
+
+        let (Some(event_name), Some(data)) = (event_name, data) else {
+            return Vec::new();
+        };
+        let json: serde_json::Value = serde_json::from_str(data).unwrap_or(serde_json::Value::Null);
+
+        match event_name {
+            "content_block_start" => {
+                let block = &json["content_block"];
+                if block["type"].as_str() == Some("tool_use") {
+                    self.tools.insert(
+                        index_of(&json),
+                        (
+                            block["id"].as_str().unwrap_or_default().to_string(),
+                            block["name"].as_str().unwrap_or_default().to_string(),
+                            String::new(),
+                        ),
+                    );
+                }
+                Vec::new()
+            }
+            "content_block_delta" => {
+                let delta = &json["delta"];
+                match delta["type"].as_str() {
+                    Some("text_delta") => vec![Ok(StreamChunk {
+                        content: delta["text"].as_str().unwrap_or_default().to_string(),
                         tool_calls: None,
                         finish_reason: None,
                         is_final: false,
-                    });
+                    })],
+                    Some("input_json_delta") => {
+                        if let Some(entry) = self.tools.get_mut(&index_of(&json)) {
+                            entry
+                                .2
+                                .push_str(delta["partial_json"].as_str().unwrap_or_default());
+                        }
+                        Vec::new()
+                    }
+                    _ => Vec::new(),
                 }
             }
-        }
-        "message_delta" => {
-            if let Ok(delta) = serde_json::from_str::<ClaudeMessageDelta>(data) {
-                return Some(StreamChunk {
+            "content_block_stop" => match self.tools.remove(&index_of(&json)) {
+                None => Vec::new(),
+                Some((id, name, partial)) => {
+                    let arguments = if partial.is_empty() {
+                        Ok(serde_json::json!({}))
+                    } else {
+                        serde_json::from_str(&partial).map_err(|e| {
+                            AgentError::StreamingError(format!("invalid tool call arguments: {e}"))
+                        })
+                    };
+                    match arguments {
+                        Ok(arguments) => vec![Ok(StreamChunk {
+                            content: String::new(),
+                            tool_calls: Some(vec![ToolCall {
+                                id,
+                                name,
+                                arguments,
+                            }]),
+                            finish_reason: None,
+                            is_final: false,
+                        })],
+                        Err(e) => vec![Err(e)],
+                    }
+                }
+            },
+            "message_delta" => {
+                if self.stop_reason.is_none() {
+                    if let Some(reason) = json["delta"]["stop_reason"].as_str() {
+                        self.stop_reason = Some(reason.to_string());
+                    }
+                }
+                Vec::new()
+            }
+            "message_stop" => {
+                let finish_reason = match self.stop_reason.as_deref() {
+                    Some("end_turn") => "stop",
+                    Some("max_tokens") => "length",
+                    Some("tool_use") => "tool_calls",
+                    Some("stop_sequence") => "stop",
+                    _ => "unknown",
+                };
+                vec![Ok(StreamChunk {
                     content: String::new(),
                     tool_calls: None,
-                    finish_reason: delta.delta.and_then(|d| d.stop_reason),
+                    finish_reason: Some(finish_reason.to_string()),
                     is_final: true,
-                });
+                })]
             }
+            "error" => {
+                let message = json["error"]["message"].as_str().unwrap_or("unknown error");
+                vec![Err(AgentError::StreamingError(format!(
+                    "Claude stream error: {message}"
+                )))]
+            }
+            _ => Vec::new(),
         }
-        "message_stop" => {
-            return Some(StreamChunk {
-                content: String::new(),
-                tool_calls: None,
-                finish_reason: Some("stop".to_string()),
-                is_final: true,
-            });
-        }
-        _ => {}
     }
+}
 
-    None
+fn index_of(json: &serde_json::Value) -> usize {
+    json["index"].as_u64().unwrap_or(0) as usize
+}
+
+fn find_bytes(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    haystack.windows(needle.len()).position(|w| w == needle)
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -467,26 +569,6 @@ struct ClaudeUsage {
     output_tokens: u64,
 }
 
-#[derive(Debug, Deserialize)]
-struct ClaudeStreamDelta {
-    delta: Option<ClaudeTextDelta>,
-}
-
-#[derive(Debug, Deserialize)]
-struct ClaudeTextDelta {
-    text: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct ClaudeMessageDelta {
-    delta: Option<ClaudeStopDelta>,
-}
-
-#[derive(Debug, Deserialize)]
-struct ClaudeStopDelta {
-    stop_reason: Option<String>,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -504,15 +586,114 @@ mod tests {
         assert!(models.contains(&"claude-sonnet-4-20250514".to_string()));
     }
 
-    #[test]
-    fn test_parse_sse_content_delta() {
-        let event = r#"event: content_block_delta
-data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello"}}"#;
+    fn ev(name: &str, data: &str) -> Vec<u8> {
+        format!("event: {name}\ndata: {data}\n\n").into_bytes()
+    }
 
-        let chunk = parse_sse_event(event);
-        assert!(chunk.is_some());
-        let chunk = chunk.unwrap();
+    #[test]
+    fn stream_text_delta_unchanged() {
+        let mut parser = SseParser::new();
+        let out = parser.push(&ev(
+            "content_block_delta",
+            r#"{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello"}}"#,
+        ));
+        assert_eq!(out.len(), 1);
+        let chunk = out.into_iter().next().unwrap().unwrap();
         assert_eq!(chunk.content, "Hello");
         assert!(!chunk.is_final);
+    }
+
+    #[test]
+    fn stream_tool_call_assembled() {
+        let mut bytes = Vec::new();
+        bytes.extend(ev(
+            "content_block_start",
+            r#"{"index":1,"content_block":{"type":"tool_use","id":"t1","name":"get_weather","input":{}}}"#,
+        ));
+        bytes.extend(ev(
+            "content_block_delta",
+            r#"{"index":1,"delta":{"type":"input_json_delta","partial_json":"{\"city\":"}}"#,
+        ));
+        bytes.extend(ev(
+            "content_block_delta",
+            r#"{"index":1,"delta":{"type":"input_json_delta","partial_json":"\"Paris\"}"}}"#,
+        ));
+        bytes.extend(ev("content_block_stop", r#"{"index":1}"#));
+
+        let mut parser = SseParser::new();
+        let out = parser.push(&bytes);
+        assert_eq!(out.len(), 1);
+        let chunk = out.into_iter().next().unwrap().unwrap();
+        let calls = chunk.tool_calls.expect("tool_calls must be Some");
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].id, "t1");
+        assert_eq!(calls[0].name, "get_weather");
+        assert_eq!(calls[0].arguments, serde_json::json!({"city": "Paris"}));
+        assert!(!chunk.is_final);
+    }
+
+    #[test]
+    fn stream_stop_reason_kept() {
+        let mut bytes = Vec::new();
+        bytes.extend(ev(
+            "message_delta",
+            r#"{"type":"message_delta","delta":{"stop_reason":"tool_use"}}"#,
+        ));
+        bytes.extend(ev(
+            "message_delta",
+            r#"{"type":"message_delta","delta":{"stop_reason":null}}"#,
+        ));
+        bytes.extend(ev("message_stop", r#"{"type":"message_stop"}"#));
+
+        let mut parser = SseParser::new();
+        let out = parser.push(&bytes);
+        let chunks: Vec<StreamChunk> = out.into_iter().map(|c| c.unwrap()).collect();
+
+        assert_eq!(chunks.iter().filter(|c| c.is_final).count(), 1);
+        let last = chunks.last().unwrap();
+        assert!(last.is_final);
+        assert_eq!(last.finish_reason, Some("tool_calls".to_string()));
+    }
+
+    #[test]
+    fn stream_error_event_is_err() {
+        let mut parser = SseParser::new();
+        let out = parser.push(&ev(
+            "error",
+            r#"{"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}"#,
+        ));
+        assert_eq!(out.len(), 1);
+        let err = out.into_iter().next().unwrap().unwrap_err();
+        assert!(err.to_string().contains("Overloaded"));
+    }
+
+    #[test]
+    fn stream_utf8_split_across_chunks() {
+        let bytes = ev(
+            "content_block_delta",
+            r#"{"index":0,"delta":{"type":"text_delta","text":"héllo"}}"#,
+        );
+        // Cut right after the first byte of the two-byte character `é`.
+        let cut = bytes.iter().position(|&b| b == 0xC3).unwrap() + 1;
+
+        let mut parser = SseParser::new();
+        let first = parser.push(&bytes[..cut]);
+        assert!(first.is_empty());
+
+        let second = parser.push(&bytes[cut..]);
+        assert_eq!(second.len(), 1);
+        let chunk = second.into_iter().next().unwrap().unwrap();
+        assert_eq!(chunk.content, "héllo");
+    }
+
+    #[test]
+    fn stream_crlf_separator() {
+        let mut parser = SseParser::new();
+        let out = parser.push(
+            b"event: content_block_delta\r\ndata: {\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"Hi\"}}\r\n\r\n",
+        );
+        assert_eq!(out.len(), 1);
+        let chunk = out.into_iter().next().unwrap().unwrap();
+        assert_eq!(chunk.content, "Hi");
     }
 }
