@@ -54,7 +54,9 @@ pub fn sosfilt(sos: &[SosSection], x: &[f64]) -> Vec<f64> {
 
 /// Design a Butterworth filter (analog prototype → digital via bilinear transform).
 ///
-/// Returns second-order sections.
+/// Returns `ceil(order / 2)` sections: one second-order section per conjugate
+/// pole pair, plus one first-order section for odd order. The first-order
+/// section is the last one (like SciPy `sos`); its `b[2]` and `a[2]` are 0.
 ///
 /// * `order` - Filter order (1-8 typical)
 /// * `wn` - Normalized cutoff frequency (0 to 1, where 1 = Nyquist)
@@ -76,12 +78,13 @@ pub fn butter(order: usize, wn: f64, ftype: FilterType) -> Vec<SosSection> {
 
     // Convert to second-order sections via bilinear transform
     let mut sections = Vec::new();
-    let mut i = 0;
 
-    while i < poles.len() {
-        if poles[i].1.abs() < 1e-14 {
+    for (k, &(p_re, p_im)) in poles.iter().enumerate() {
+        // For odd order the real pole is the middle one: k = (order - 1) / 2.
+        // Test `k` instead of `|p_im| < 1e-14`: sin(PI) is not exactly 0 for every wn.
+        let is_real = order % 2 == 1 && k == (order - 1) / 2;
+        if is_real {
             // Real pole → first-order section (embed in SOS)
-            let p_re = poles[i].0;
             let pd_re = (1.0 + p_re / (2.0 * fs)) / (1.0 - p_re / (2.0 * fs));
 
             let (b, a) = match ftype {
@@ -95,10 +98,8 @@ pub fn butter(order: usize, wn: f64, ftype: FilterType) -> Vec<SosSection> {
                 }
             };
             sections.push(SosSection { b, a });
-            i += 1;
-        } else {
-            // Conjugate pair → second-order section
-            let (p_re, p_im) = poles[i];
+        } else if p_im > 0.0 {
+            // Upper-half-plane pole → second-order section (its conjugate is implied)
             // Bilinear transform: z = (1 + s/(2fs)) / (1 - s/(2fs))
             let c = 2.0 * fs;
             let denom_re = 1.0 - p_re / c;
@@ -127,8 +128,8 @@ pub fn butter(order: usize, wn: f64, ftype: FilterType) -> Vec<SosSection> {
                 b: [b0, b1, b2],
                 a: [1.0, a1, a2],
             });
-            i += 2;
         }
+        // p_im < 0: the conjugate pole is already in a section; skip it.
     }
 
     sections
@@ -137,6 +138,7 @@ pub fn butter(order: usize, wn: f64, ftype: FilterType) -> Vec<SosSection> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::f64::consts::FRAC_1_SQRT_2;
 
     #[test]
     fn test_lfilter_fir() {
@@ -178,6 +180,77 @@ mod tests {
             .collect();
         let y = sosfilt(&sos, &x);
         assert_eq!(y.len(), n);
+    }
+
+    /// Magnitude response of cascaded sections at normalized frequency `w` (radians).
+    fn sos_response(sos: &[SosSection], w: f64) -> f64 {
+        let mut gain = 1.0;
+        for s in sos {
+            // z^-1 = cos(w) - j sin(w), z^-2 = cos(2w) - j sin(2w)
+            let (c1, s1) = (w.cos(), -w.sin());
+            let (c2, s2) = ((2.0 * w).cos(), -(2.0 * w).sin());
+            let num_re = s.b[0] + s.b[1] * c1 + s.b[2] * c2;
+            let num_im = s.b[1] * s1 + s.b[2] * s2;
+            let den_re = s.a[0] + s.a[1] * c1 + s.a[2] * c2;
+            let den_im = s.a[1] * s1 + s.a[2] * s2;
+            gain *= num_re.hypot(num_im) / den_re.hypot(den_im);
+        }
+        gain
+    }
+
+    #[test]
+    fn butter_section_count() {
+        assert_eq!(butter(1, 0.3, FilterType::Lowpass).len(), 1);
+        assert_eq!(butter(2, 0.3, FilterType::Lowpass).len(), 1);
+        assert_eq!(butter(3, 0.3, FilterType::Lowpass).len(), 2);
+        assert_eq!(butter(4, 0.3, FilterType::Lowpass).len(), 2);
+        assert_eq!(butter(5, 0.3, FilterType::Lowpass).len(), 3);
+    }
+
+    #[test]
+    fn butter_odd_order_dc_gain_and_cutoff() {
+        for order in [3, 5] {
+            let sos = butter(order, 0.3, FilterType::Lowpass);
+            assert!(
+                (sos_response(&sos, 0.0) - 1.0).abs() < 1e-9,
+                "order {order} DC gain"
+            );
+            assert!(
+                (sos_response(&sos, PI * 0.3) - FRAC_1_SQRT_2).abs() < 1e-6,
+                "order {order} -3 dB at cutoff"
+            );
+        }
+    }
+
+    #[test]
+    fn butter_even_order_cutoff() {
+        for order in [2, 4] {
+            let sos = butter(order, 0.3, FilterType::Lowpass);
+            assert!(
+                (sos_response(&sos, PI * 0.3) - FRAC_1_SQRT_2).abs() < 1e-6,
+                "order {order} -3 dB at cutoff"
+            );
+        }
+    }
+
+    #[test]
+    fn butter_highpass_odd_order() {
+        let sos = butter(3, 0.3, FilterType::Highpass);
+        assert!((sos_response(&sos, PI) - 1.0).abs() < 1e-9);
+        assert!((sos_response(&sos, PI * 0.3) - FRAC_1_SQRT_2).abs() < 1e-6);
+    }
+
+    #[test]
+    fn butter_odd_order_stable() {
+        for order in [1, 3, 5] {
+            for s in butter(order, 0.3, FilterType::Lowpass) {
+                assert!(s.a[2].abs() < 1.0, "order {order}: |a2| must be < 1");
+                assert!(
+                    s.a[1].abs() < 1.0 + s.a[2],
+                    "order {order}: |a1| must be < 1 + a2"
+                );
+            }
+        }
     }
 
     #[test]
