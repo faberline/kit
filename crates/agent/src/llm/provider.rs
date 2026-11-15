@@ -128,6 +128,16 @@ impl CompletionRequest {
         self
     }
 
+    pub fn with_top_p(mut self, top_p: f32) -> Self {
+        self.top_p = Some(top_p);
+        self
+    }
+
+    pub fn with_stop(mut self, stop: Vec<String>) -> Self {
+        self.stop = Some(stop);
+        self
+    }
+
     pub fn with_tools(mut self, tools: Vec<ToolDefinition>) -> Self {
         self.tools = Some(tools);
         self
@@ -141,5 +151,19 @@ impl CompletionRequest {
     pub fn with_response_schema(mut self, schema: serde_json::Value) -> Self {
         self.response_schema = Some(schema);
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn builders_set_top_p_and_stop() {
+        let request = CompletionRequest::new(vec![], "m")
+            .with_top_p(0.5)
+            .with_stop(vec!["END".to_string()]);
+        assert_eq!(request.top_p, Some(0.5));
+        assert_eq!(request.stop, Some(vec!["END".to_string()]));
     }
 }

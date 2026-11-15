@@ -120,6 +120,14 @@ impl OpenAIProvider {
             body["temperature"] = serde_json::json!(temp);
         }
 
+        if let Some(top_p) = request.top_p {
+            body["top_p"] = serde_json::json!(top_p);
+        }
+
+        if let Some(stop) = &request.stop {
+            body["stop"] = serde_json::json!(stop);
+        }
+
         if let Some(max_tokens) = request.max_tokens {
             let key = if uses_max_completion_tokens(model) {
                 "max_completion_tokens"
@@ -482,6 +490,26 @@ mod tests {
         let body = provider.build_body(&request, "o3-mini").unwrap();
         assert_eq!(body["max_completion_tokens"], 100);
         assert!(body.get("max_tokens").is_none());
+    }
+
+    #[test]
+    fn build_body_sends_top_p_and_stop() {
+        let provider = OpenAIProvider::new("k").unwrap();
+        let request = CompletionRequest::new(vec![Message::user("hi")], "gpt-4o")
+            .with_top_p(0.5)
+            .with_stop(vec!["END".to_string()]);
+        let body = provider.build_body(&request, "gpt-4o").unwrap();
+        assert_eq!(body["top_p"], 0.5);
+        assert_eq!(body["stop"], serde_json::json!(["END"]));
+    }
+
+    #[test]
+    fn build_body_omits_top_p_and_stop_when_none() {
+        let provider = OpenAIProvider::new("k").unwrap();
+        let request = CompletionRequest::new(vec![Message::user("hi")], "gpt-4o");
+        let body = provider.build_body(&request, "gpt-4o").unwrap();
+        assert!(body.get("top_p").is_none());
+        assert!(body.get("stop").is_none());
     }
 
     #[test]
