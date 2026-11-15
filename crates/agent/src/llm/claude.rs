@@ -14,6 +14,9 @@ use tracing::debug;
 /// Anthropic Claude LLM provider
 pub struct ClaudeProvider {
     client: Arc<HttpClient>,
+    /// Client for streaming requests: a long total timeout, because the idle timeout ends a silent stream.
+    stream_client: Arc<HttpClient>,
+    stream_idle_timeout: std::time::Duration,
     api_key: String,
     default_model: String,
 }
@@ -30,13 +33,22 @@ impl ClaudeProvider {
     ) -> AgentResult<Self> {
         let base_url: String = base_url.into();
         let config = HttpClientConfig::new()
-            .base_url(base_url)
+            .base_url(base_url.clone())
             .timeout_secs(120.0);
 
         let client = HttpClient::new(config)?;
 
+        // Streams can run longer than 120 s. The idle timeout is the real limit; this is a ceiling.
+        let stream_config = HttpClientConfig::new()
+            .base_url(base_url)
+            .timeout_secs(3600.0);
+
+        let stream_client = HttpClient::new(stream_config)?;
+
         Ok(Self {
             client: Arc::new(client),
+            stream_client: Arc::new(stream_client),
+            stream_idle_timeout: std::time::Duration::from_secs(60),
             api_key: api_key.into(),
             default_model: "claude-sonnet-4-20250514".to_string(),
         })
@@ -44,6 +56,12 @@ impl ClaudeProvider {
 
     pub fn with_default_model(mut self, model: impl Into<String>) -> Self {
         self.default_model = model.into();
+        self
+    }
+
+    /// Set the longest silence allowed between two stream chunks (default 60 s).
+    pub fn with_stream_idle_timeout(mut self, d: std::time::Duration) -> Self {
+        self.stream_idle_timeout = d;
         self
     }
 
@@ -322,12 +340,39 @@ impl LLMProvider for ClaudeProvider {
         }
 
         let builder = self.build_request("/v1/messages", body);
-        let byte_stream = self.client.execute_builder_stream(builder).await?;
+        let byte_stream = self.stream_client.execute_builder_stream(builder).await?;
 
-        let chunk_stream = parse_claude_sse_stream(byte_stream);
+        let chunk_stream = Box::pin(parse_claude_sse_stream(byte_stream));
+        let chunk_stream = with_idle_timeout(chunk_stream, self.stream_idle_timeout);
 
         Ok(Box::pin(chunk_stream))
     }
+}
+
+/// End a stream that stays silent longer than `idle`, with one error item.
+fn with_idle_timeout<S>(
+    stream: S,
+    idle: std::time::Duration,
+) -> impl futures::Stream<Item = AgentResult<StreamChunk>> + Send
+where
+    S: futures::Stream<Item = AgentResult<StreamChunk>> + Send + Unpin + 'static,
+{
+    futures::stream::unfold((stream, false), move |(mut stream, done)| async move {
+        if done {
+            return None;
+        }
+        match tokio::time::timeout(idle, stream.next()).await {
+            Ok(Some(item)) => Some((item, (stream, false))),
+            Ok(None) => None,
+            Err(_) => Some((
+                Err(AgentError::StreamingError(format!(
+                    "stream idle for {} s",
+                    idle.as_secs()
+                ))),
+                (stream, true),
+            )),
+        }
+    })
 }
 
 fn parse_claude_sse_stream(
@@ -514,5 +559,64 @@ data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text
         let chunk = chunk.unwrap();
         assert_eq!(chunk.content, "Hello");
         assert!(!chunk.is_final);
+    }
+
+    fn test_chunk(content: &str) -> StreamChunk {
+        StreamChunk {
+            content: content.to_string(),
+            tool_calls: None,
+            finish_reason: None,
+            is_final: false,
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn idle_timeout_ends_stream_with_error() {
+        let inner = Box::pin(futures::stream::unfold(0u8, |state| async move {
+            if state == 0 {
+                Some((Ok(test_chunk("a")), 1u8))
+            } else {
+                tokio::time::sleep(std::time::Duration::from_secs(3600)).await;
+                None
+            }
+        }));
+        let mut stream = Box::pin(with_idle_timeout(inner, std::time::Duration::from_secs(5)));
+
+        let first = stream.next().await.expect("first item");
+        assert_eq!(first.unwrap().content, "a");
+
+        let second = stream.next().await.expect("second item");
+        let err = second.unwrap_err();
+        assert!(err.to_string().contains("idle"));
+
+        assert!(stream.next().await.is_none());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn fast_stream_passes_through() {
+        let inner = Box::pin(futures::stream::iter(vec![
+            Ok(test_chunk("one")),
+            Ok(test_chunk("two")),
+        ]));
+        let mut stream = Box::pin(with_idle_timeout(inner, std::time::Duration::from_secs(5)));
+
+        assert_eq!(stream.next().await.unwrap().unwrap().content, "one");
+        assert_eq!(stream.next().await.unwrap().unwrap().content, "two");
+        assert!(stream.next().await.is_none());
+    }
+
+    #[test]
+    fn stream_idle_timeout_default_and_builder() {
+        let provider = ClaudeProvider::new("test-key").unwrap();
+        assert_eq!(
+            provider.stream_idle_timeout,
+            std::time::Duration::from_secs(60)
+        );
+
+        let provider = provider.with_stream_idle_timeout(std::time::Duration::from_secs(7));
+        assert_eq!(
+            provider.stream_idle_timeout,
+            std::time::Duration::from_secs(7)
+        );
     }
 }
