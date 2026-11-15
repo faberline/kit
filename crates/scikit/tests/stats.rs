@@ -447,3 +447,49 @@ mod distribution_tests {
         assert!((lower_incomplete_gamma(1.0, x) - expected).abs() < 1e-8);
     }
 }
+
+// ============================================================================
+// Accuracy tests (issue #54: ln_gamma, erf, lower_incomplete_gamma)
+// ============================================================================
+
+#[test]
+fn ln_gamma_500() {
+    // scipy.special.gammaln(500.0) = 2605.1158503617335
+    assert!((ln_gamma(500.0) - 2605.1158503617335).abs() < 1e-9);
+}
+
+#[test]
+fn ln_gamma_small() {
+    // ln(Γ(0.5)) = 0.5 * ln(pi)
+    assert!((ln_gamma(0.5) - 0.5723649429247001).abs() < 1e-12);
+    assert!(ln_gamma(1.0).abs() < 1e-12);
+    assert!(ln_gamma(2.0).abs() < 1e-12);
+    assert_eq!(ln_gamma(0.0), f64::INFINITY);
+}
+
+#[test]
+fn erf_reference() {
+    // scipy.special.erf reference values
+    assert!((erf(0.5) - 0.5204998778130465).abs() < 1e-12);
+    assert!((erf(1.0) - 0.8427007929497149).abs() < 1e-12);
+    assert!((erf(-2.0) + 0.9953222650189527).abs() < 1e-12);
+    assert!((erf(3.0) - 0.9999779095030014).abs() < 1e-12);
+    assert_eq!(erf(0.0), 0.0);
+    assert!(erf(f64::NAN).is_nan());
+    assert!((erf(10.0) - 1.0).abs() < 1e-12);
+}
+
+#[test]
+fn ttest_1samp_n400_finite() {
+    let x: Vec<f64> = (0..400).map(|i| ((i as f64) * 0.37).sin() + 0.1).collect();
+    let r = ttest_1samp(&x, 0.0);
+    assert!(r.pvalue.is_finite());
+    assert!((0.0..=1.0).contains(&r.pvalue));
+}
+
+#[test]
+fn lower_incomplete_gamma_large_x() {
+    // γ(1, x) = 1 - e^(-x); the old 100-term loop stops too early here.
+    let x = 150.0_f64;
+    assert!((lower_incomplete_gamma(1.0, x) - (1.0 - (-x).exp())).abs() < 1e-12);
+}

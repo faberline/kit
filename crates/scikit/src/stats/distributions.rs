@@ -541,23 +541,61 @@ impl DiscreteDistribution for Geometric {
 // Helper Functions
 // ============================================================================
 
-/// Error function (erf).
+/// Lanczos parameter g, shared by `gamma_fn` and `ln_gamma`.
+const LANCZOS_G: f64 = 7.0;
+
+/// Lanczos coefficients for g = 7 (nine terms), shared by `gamma_fn` and `ln_gamma`.
+const LANCZOS_C: [f64; 9] = [
+    0.999_999_999_999_809_9,
+    676.5203681218851,
+    -1259.1392167224028,
+    771.323_428_777_653_1,
+    -176.615_029_162_140_6,
+    12.507343278686905,
+    -0.13857109526572012,
+    9.984_369_578_019_572e-6,
+    1.5056327351493116e-7,
+];
+
+/// Error function (erf), accurate to about 1e-12.
+///
+/// Uses the Maclaurin series for |x| < 3 and 1 - erfc(x) above it.
 pub fn erf(x: f64) -> f64 {
-    // Approximation using Horner's method
-    let a1 = 0.254829592;
-    let a2 = -0.284496736;
-    let a3 = 1.421413741;
-    let a4 = -1.453152027;
-    let a5 = 1.061405429;
-    let p = 0.3275911;
+    if x.is_nan() {
+        return f64::NAN;
+    }
+    if x == 0.0 {
+        return 0.0;
+    }
+    let sign = x.signum();
+    let ax = x.abs();
+    if ax < 3.0 {
+        // erf(x) = 2/sqrt(pi) * sum_n (-1)^n x^(2n+1) / (n! (2n+1))
+        let mut term = ax;
+        let mut sum = ax;
+        for n in 1..200 {
+            term *= -ax * ax / n as f64;
+            let add = term / (2 * n + 1) as f64;
+            sum += add;
+            if add.abs() < 1e-17 * sum.abs() {
+                break;
+            }
+        }
+        return sign * 2.0 / PI.sqrt() * sum;
+    }
+    if ax > 6.0 {
+        return sign;
+    }
+    sign * (1.0 - erfc_cf(ax))
+}
 
-    let sign = if x < 0.0 { -1.0 } else { 1.0 };
-    let x = x.abs();
-
-    let t = 1.0 / (1.0 + p * x);
-    let y = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * (-x * x).exp();
-
-    sign * y
+/// erfc(x) for x > 0 from a continued fraction (backward evaluation, 100 terms).
+fn erfc_cf(x: f64) -> f64 {
+    let mut f = x;
+    for k in (1..=100).rev() {
+        f = x + (k as f64 / 2.0) / f;
+    }
+    (-x * x).exp() / (PI.sqrt() * f)
 }
 
 /// Gamma function using Lanczos approximation.
@@ -573,40 +611,45 @@ pub fn gamma_fn(x: f64) -> f64 {
 
     let x = x - 1.0;
 
-    // Lanczos coefficients
-    let g = 7.0;
-    let c = [
-        0.999_999_999_999_809_9,
-        676.5203681218851,
-        -1259.1392167224028,
-        771.323_428_777_653_1,
-        -176.615_029_162_140_6,
-        12.507343278686905,
-        -0.13857109526572012,
-        9.984_369_578_019_572e-6,
-        1.5056327351493116e-7,
-    ];
-
-    let mut sum = c[0];
-    for (i, &ci) in c.iter().enumerate().skip(1) {
+    let mut sum = LANCZOS_C[0];
+    for (i, &ci) in LANCZOS_C.iter().enumerate().skip(1) {
         sum += ci / (x + i as f64);
     }
 
-    let t = x + g + 0.5;
+    let t = x + LANCZOS_G + 0.5;
     (2.0 * PI).sqrt() * t.powf(x + 0.5) * (-t).exp() * sum
 }
 
-/// Log gamma function.
+/// Log gamma function ln Γ(x), finite for large x. Poles return +infinity.
 pub fn ln_gamma(x: f64) -> f64 {
-    gamma_fn(x).ln()
+    if x <= 0.0 && x == x.floor() {
+        return f64::INFINITY;
+    }
+
+    // Reflection: Γ(x) Γ(1 - x) = π / sin(π x)
+    if x < 0.5 {
+        return (PI / (PI * x).sin().abs()).ln() - ln_gamma(1.0 - x);
+    }
+
+    let x = x - 1.0;
+
+    let mut sum = LANCZOS_C[0];
+    for (i, &ci) in LANCZOS_C.iter().enumerate().skip(1) {
+        sum += ci / (x + i as f64);
+    }
+
+    let t = x + LANCZOS_G + 0.5;
+    0.5 * (2.0 * PI).ln() + (x + 0.5) * t.ln() - t + sum.ln()
 }
 
-/// Beta function B(a, b) = Γ(a)Γ(b)/Γ(a+b).
+/// Beta function B(a, b) = Γ(a)Γ(b)/Γ(a+b), computed in log form.
 pub fn beta_fn(a: f64, b: f64) -> f64 {
-    gamma_fn(a) * gamma_fn(b) / gamma_fn(a + b)
+    (ln_gamma(a) + ln_gamma(b) - ln_gamma(a + b)).exp()
 }
 
 /// Lower incomplete gamma function γ(s, x).
+///
+/// Series expansion with at most 10_000 terms. Returns NaN when it does not converge.
 pub fn lower_incomplete_gamma(s: f64, x: f64) -> f64 {
     if x <= 0.0 {
         return 0.0;
@@ -617,12 +660,17 @@ pub fn lower_incomplete_gamma(s: f64, x: f64) -> f64 {
     let mut term = 1.0 / s;
     sum += term;
 
-    for n in 1..100 {
+    let mut converged = false;
+    for n in 1..10_000 {
         term *= x / (s + n as f64);
         sum += term;
         if term.abs() < 1e-15 * sum.abs() {
+            converged = true;
             break;
         }
+    }
+    if !converged {
+        return f64::NAN;
     }
 
     x.powf(s) * (-x).exp() * sum
