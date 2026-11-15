@@ -171,6 +171,14 @@ impl GeminiProvider {
             generation_config.insert("temperature".to_string(), serde_json::json!(temp));
         }
 
+        if let Some(top_p) = request.top_p {
+            generation_config.insert("topP".to_string(), serde_json::json!(top_p));
+        }
+
+        if let Some(stop) = &request.stop {
+            generation_config.insert("stopSequences".to_string(), serde_json::json!(stop));
+        }
+
         if let Some(max_tokens) = request.max_tokens {
             generation_config.insert("maxOutputTokens".to_string(), serde_json::json!(max_tokens));
         }
@@ -470,6 +478,28 @@ mod tests {
 
     /// Response with a function call, an inline image and text, used by several tests.
     const MIXED_PARTS_RESPONSE: &str = r#"{"candidates":[{"content":{"role":"model","parts":[{"inlineData":{"mimeType":"image/png","data":"AAAA"}},{"text":"hello"},{"functionCall":{"name":"get_weather","args":{"city":"Paris"}}}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":1,"candidatesTokenCount":2,"totalTokenCount":3}}"#;
+
+    #[test]
+    fn build_body_sends_top_p_and_stop_sequences() {
+        let provider = GeminiProvider::new("k").unwrap();
+        let request = CompletionRequest::new(vec![Message::user("hi")], "gemini-2.0-flash")
+            .with_top_p(0.5)
+            .with_stop(vec!["END".to_string()]);
+        let body = provider.build_body(&request).unwrap();
+        assert_eq!(body["generationConfig"]["topP"], 0.5);
+        assert_eq!(
+            body["generationConfig"]["stopSequences"],
+            serde_json::json!(["END"])
+        );
+    }
+
+    #[test]
+    fn build_body_omits_top_p_and_stop_sequences_when_none() {
+        let provider = GeminiProvider::new("k").unwrap();
+        let request = CompletionRequest::new(vec![Message::user("hi")], "gemini-2.0-flash");
+        let body = provider.build_body(&request).unwrap();
+        assert!(body.get("generationConfig").is_none());
+    }
 
     #[test]
     fn test_provider_name() {

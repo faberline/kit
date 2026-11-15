@@ -167,6 +167,7 @@ impl ClaudeProvider {
         if let Some(temp) = request.temperature {
             body["temperature"] = serde_json::json!(temp);
         }
+        apply_sampling_options(&mut body, request);
 
         if !all_tools.is_empty() {
             body["tools"] = serde_json::to_value(&all_tools)?;
@@ -280,6 +281,7 @@ impl LLMProvider for ClaudeProvider {
         if let Some(temp) = request.temperature {
             body["temperature"] = serde_json::json!(temp);
         }
+        apply_sampling_options(&mut body, &request);
 
         if let Some(tools) = tools {
             body["tools"] = serde_json::to_value(tools)?;
@@ -291,6 +293,16 @@ impl LLMProvider for ClaudeProvider {
         let chunk_stream = parse_claude_sse_stream(byte_stream);
 
         Ok(Box::pin(chunk_stream))
+    }
+}
+
+/// Send `top_p` and `stop_sequences` when the request sets them.
+fn apply_sampling_options(body: &mut serde_json::Value, request: &CompletionRequest) {
+    if let Some(top_p) = request.top_p {
+        body["top_p"] = serde_json::json!(top_p);
+    }
+    if let Some(stop) = &request.stop {
+        body["stop_sequences"] = serde_json::json!(stop);
     }
 }
 
@@ -610,6 +622,26 @@ data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text
         assert_eq!(out.content, "hi");
         assert_eq!(out.finish_reason, "stop");
         assert_eq!(out.usage.total_tokens, 3);
+    }
+
+    #[test]
+    fn sampling_options_are_sent() {
+        let mut body = serde_json::json!({"model": "m"});
+        let request = CompletionRequest::new(vec![Message::user("hi")], "m")
+            .with_top_p(0.5)
+            .with_stop(vec!["END".to_string()]);
+        apply_sampling_options(&mut body, &request);
+        assert_eq!(body["top_p"], 0.5);
+        assert_eq!(body["stop_sequences"], serde_json::json!(["END"]));
+    }
+
+    #[test]
+    fn sampling_options_are_absent_when_none() {
+        let mut body = serde_json::json!({"model": "m"});
+        let request = CompletionRequest::new(vec![Message::user("hi")], "m");
+        apply_sampling_options(&mut body, &request);
+        assert!(body.get("top_p").is_none());
+        assert!(body.get("stop_sequences").is_none());
     }
 
     #[test]
