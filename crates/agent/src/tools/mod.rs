@@ -10,6 +10,7 @@ mod list_folder_summary;
 mod read_manifest;
 mod registry;
 pub mod set_grouping;
+mod text;
 mod tool;
 
 // Coding tools
