@@ -15,6 +15,11 @@ pub struct SecurityPolicy {
     pub file_timeout: Duration,
     pub allow_absolute_paths: bool,
     pub working_directory: PathBuf,
+    pub allow_all_paths: bool,
+    pub allowed_commands: Vec<String>,
+    pub allow_all_commands: bool,
+    pub max_file_bytes: usize,
+    pub max_fetch_bytes: usize,
 }
 
 impl Default for SecurityPolicy {
@@ -47,6 +52,11 @@ impl Default for SecurityPolicy {
             file_timeout: Duration::from_secs(30),
             allow_absolute_paths: false,
             working_directory: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+            allow_all_paths: false,
+            allowed_commands: vec![],
+            allow_all_commands: false,
+            max_file_bytes: 1_048_576,
+            max_fetch_bytes: 1_048_576,
         }
     }
 }
@@ -68,11 +78,26 @@ impl SecurityPolicy {
             file_timeout: Duration::from_secs(60),
             allow_absolute_paths: true,
             working_directory: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+            allow_all_paths: true,
+            allowed_commands: vec![],
+            allow_all_commands: true,
+            max_file_bytes: 1_048_576,
+            max_fetch_bytes: 1_048_576,
         }
     }
 
     /// Check if a path is allowed for file operations
     pub fn check_path(&self, path: &Path) -> AgentResult<()> {
+        if path
+            .components()
+            .any(|c| c == std::path::Component::ParentDir)
+        {
+            return Err(AgentError::PathNotAllowed(format!(
+                "Path '{}' contains '..'",
+                path.display()
+            )));
+        }
+
         let normalized = self.normalize_path(path)?;
 
         for blocked in &self.blocked_paths {
@@ -85,12 +110,13 @@ impl SecurityPolicy {
             }
         }
 
-        if self.allowed_paths.is_empty() {
+        if self.allow_all_paths {
             return Ok(());
         }
 
         for allowed in &self.allowed_paths {
-            if normalized.starts_with(allowed) {
+            let root = allowed.canonicalize().unwrap_or_else(|_| allowed.clone());
+            if normalized.starts_with(&root) {
                 return Ok(());
             }
         }
@@ -114,7 +140,19 @@ impl SecurityPolicy {
             }
         }
 
-        Ok(())
+        if self.allow_all_commands {
+            return Ok(());
+        }
+
+        let first = command.split_whitespace().next().unwrap_or("");
+        if self.allowed_commands.iter().any(|c| c == first) {
+            return Ok(());
+        }
+
+        Err(AgentError::CommandNotAllowed(format!(
+            "Command '{}' is not in the allowed list",
+            first
+        )))
     }
 
     /// Check if a tool requires approval
@@ -124,7 +162,11 @@ impl SecurityPolicy {
 
     fn normalize_path(&self, path: &Path) -> AgentResult<PathBuf> {
         let normalized = if path.is_absolute() {
-            if !self.allow_absolute_paths && !path.starts_with(&self.working_directory) {
+            let under_allowed_root = self.allowed_paths.iter().any(|root| path.starts_with(root));
+            if !self.allow_absolute_paths
+                && !path.starts_with(&self.working_directory)
+                && !under_allowed_root
+            {
                 return Err(AgentError::PathNotAllowed(format!(
                     "Absolute path '{}' outside working directory not allowed",
                     path.display()
@@ -181,6 +223,21 @@ impl SecurityPolicyBuilder {
         self
     }
 
+    pub fn with_allowed_commands(mut self, commands: Vec<String>) -> Self {
+        self.policy.allowed_commands = commands;
+        self
+    }
+
+    pub fn with_max_file_bytes(mut self, bytes: usize) -> Self {
+        self.policy.max_file_bytes = bytes;
+        self
+    }
+
+    pub fn with_max_fetch_bytes(mut self, bytes: usize) -> Self {
+        self.policy.max_fetch_bytes = bytes;
+        self
+    }
+
     pub fn build(self) -> SecurityPolicy {
         self.policy
     }
@@ -226,9 +283,82 @@ mod tests {
 
     #[test]
     fn test_command_blocked() {
-        let policy = SecurityPolicy::default();
+        let policy = SecurityPolicy::builder()
+            .with_allowed_commands(vec!["rm".into()])
+            .build();
         let result = policy.check_command("rm -rf /");
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn default_policy_refuses_any_path() {
+        let policy = SecurityPolicy::default();
+        let result = policy.check_path(Path::new("some_file.txt"));
+        assert!(matches!(result, Err(AgentError::PathNotAllowed(_))));
+    }
+
+    #[test]
+    fn allowed_root_allows_inside_and_refuses_outside() {
+        let dir = tempfile::tempdir().unwrap();
+        let other = tempfile::tempdir().unwrap();
+        let policy = SecurityPolicy::builder()
+            .with_allowed_paths(vec![dir.path().to_path_buf()])
+            .build();
+
+        assert!(policy.check_path(&dir.path().join("a.txt")).is_ok());
+        assert!(matches!(
+            policy.check_path(&other.path().join("a.txt")),
+            Err(AgentError::PathNotAllowed(_))
+        ));
+    }
+
+    #[test]
+    fn parent_dir_component_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let policy = SecurityPolicy::builder()
+            .with_allowed_paths(vec![dir.path().to_path_buf()])
+            .build();
+
+        assert!(matches!(
+            policy.check_path(&dir.path().join("..").join("x")),
+            Err(AgentError::PathNotAllowed(_))
+        ));
+        assert!(matches!(
+            policy.check_path(&dir.path().join("sub/../a.txt")),
+            Err(AgentError::PathNotAllowed(_))
+        ));
+    }
+
+    #[test]
+    fn default_policy_refuses_any_command() {
+        let policy = SecurityPolicy::default();
+        let result = policy.check_command("echo hi");
+        assert!(matches!(result, Err(AgentError::CommandNotAllowed(_))));
+    }
+
+    #[test]
+    fn allowed_command_is_accepted() {
+        let policy = SecurityPolicy::builder()
+            .with_allowed_commands(vec!["echo".into()])
+            .build();
+
+        assert!(policy.check_command("echo hi").is_ok());
+        assert!(policy.check_command("ls").is_err());
+        assert!(policy.check_command("rm -rf /").is_err());
+    }
+
+    #[test]
+    fn permissive_allows_everything() {
+        let policy = SecurityPolicy::permissive();
+        assert!(policy.check_command("anything --flag").is_ok());
+        assert!(policy.check_path(Path::new("some_file.txt")).is_ok());
+    }
+
+    #[test]
+    fn default_limits() {
+        let policy = SecurityPolicy::default();
+        assert_eq!(policy.max_file_bytes, 1_048_576);
+        assert_eq!(policy.max_fetch_bytes, 1_048_576);
     }
 
     #[test]

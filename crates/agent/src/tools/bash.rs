@@ -1,8 +1,10 @@
 use crate::error::{AgentError, AgentResult};
+use crate::security::SecurityPolicy;
 use crate::tools::tool::{Tool, ToolParameter};
 use async_trait::async_trait;
 use serde::Deserialize;
 use std::process::Stdio;
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
@@ -15,6 +17,7 @@ pub struct BashTool {
     max_output_size: usize,
     shell: String,
     working_dir: Option<String>,
+    policy: Arc<SecurityPolicy>,
 }
 
 impl BashTool {
@@ -24,7 +27,13 @@ impl BashTool {
             max_output_size: 100_000,
             shell: "/bin/bash".to_string(),
             working_dir: None,
+            policy: Arc::new(SecurityPolicy::default()),
         }
+    }
+
+    pub fn with_policy(mut self, policy: Arc<SecurityPolicy>) -> Self {
+        self.policy = policy;
+        self
     }
 
     pub fn with_timeout(mut self, timeout: Duration) -> Self {
@@ -43,6 +52,8 @@ impl BashTool {
     }
 
     async fn execute_impl(&self, args: BashArgs) -> AgentResult<serde_json::Value> {
+        self.policy.check_command(&args.command)?;
+
         let timeout_ms = args
             .timeout
             .unwrap_or(self.default_timeout.as_millis() as u64);
@@ -142,7 +153,8 @@ impl Tool for BashTool {
     }
 }
 
-/// Tool for executing bash commands with streaming output
+/// Tool for executing bash commands with streaming output.
+/// Does not check a `SecurityPolicy` yet.
 pub struct StreamingBashTool {
     inner: BashTool,
 }
@@ -244,10 +256,38 @@ pub enum StreamOutput {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::error::AgentError;
+
+    fn allow_commands(commands: &[&str]) -> Arc<SecurityPolicy> {
+        Arc::new(
+            SecurityPolicy::builder()
+                .with_allowed_commands(commands.iter().map(|c| c.to_string()).collect())
+                .build(),
+        )
+    }
+
+    #[tokio::test]
+    async fn bash_default_policy_refuses() {
+        let result = BashTool::new()
+            .execute(serde_json::json!({ "command": "echo hi" }))
+            .await;
+
+        assert!(matches!(result, Err(AgentError::CommandNotAllowed(_))));
+    }
+
+    #[tokio::test]
+    async fn bash_blocked_pattern_refused_even_when_listed() {
+        let tool = BashTool::new().with_policy(allow_commands(&["rm"]));
+        let result = tool
+            .execute(serde_json::json!({ "command": "rm -rf /" }))
+            .await;
+
+        assert!(matches!(result, Err(AgentError::CommandNotAllowed(_))));
+    }
 
     #[tokio::test]
     async fn test_bash_echo() {
-        let tool = BashTool::new();
+        let tool = BashTool::new().with_policy(allow_commands(&["echo", "exit"]));
         let result = tool
             .execute(serde_json::json!({
                 "command": "echo 'Hello, World!'"
@@ -261,7 +301,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_bash_exit_code() {
-        let tool = BashTool::new();
+        let tool = BashTool::new().with_policy(allow_commands(&["echo", "exit"]));
         let result = tool
             .execute(serde_json::json!({
                 "command": "exit 42"
