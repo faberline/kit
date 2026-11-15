@@ -32,6 +32,12 @@ pub trait Tool: Send + Sync {
     fn parameters(&self) -> Vec<ToolParameter>;
     async fn execute(&self, arguments: serde_json::Value) -> AgentResult<serde_json::Value>;
 
+    /// True when calling the tool again with the same arguments is safe, so
+    /// `ToolExecutor` may retry it after an error. Default: false.
+    fn is_idempotent(&self) -> bool {
+        false
+    }
+
     fn definition(&self) -> ToolDefinition {
         ToolDefinition {
             name: self.name().to_string(),
@@ -107,7 +113,7 @@ impl ToolExecutor {
                     debug!("Tool {} executed successfully", tool_name);
                     return Ok(output);
                 }
-                Err(e) if attempt < self.max_retries => {
+                Err(e) if tool.is_idempotent() && attempt < self.max_retries => {
                     warn!(
                         "Tool {} execution failed (attempt {}): {}. Retrying...",
                         tool_name,
@@ -148,6 +154,7 @@ impl Clone for ToolExecutor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     struct EchoTool;
 
@@ -196,5 +203,100 @@ mod tests {
 
         let result = executor.execute("nonexistent", serde_json::json!({})).await;
         assert!(result.is_err());
+    }
+
+    struct CountingTool {
+        calls: Arc<AtomicUsize>,
+        idempotent: bool,
+        fail_first_only: bool,
+    }
+
+    #[async_trait]
+    impl Tool for CountingTool {
+        fn name(&self) -> &str {
+            "counting"
+        }
+
+        fn description(&self) -> &str {
+            "Count calls and fail"
+        }
+
+        fn parameters(&self) -> Vec<ToolParameter> {
+            Vec::new()
+        }
+
+        fn is_idempotent(&self) -> bool {
+            self.idempotent
+        }
+
+        async fn execute(&self, _arguments: serde_json::Value) -> AgentResult<serde_json::Value> {
+            let n = self.calls.fetch_add(1, Ordering::SeqCst);
+            if !self.fail_first_only || n == 0 {
+                Err(AgentError::ToolError("boom".into()))
+            } else {
+                Ok(serde_json::json!({"ok": true}))
+            }
+        }
+    }
+
+    fn counting_executor(tool: CountingTool) -> ToolExecutor {
+        let registry = Arc::new(ToolRegistry::new());
+        registry.register(Arc::new(tool)).unwrap();
+        ToolExecutor::new(registry)
+    }
+
+    #[tokio::test]
+    async fn non_idempotent_tool_runs_once() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let executor = counting_executor(CountingTool {
+            calls: calls.clone(),
+            idempotent: false,
+            fail_first_only: false,
+        });
+
+        let result = executor.execute("counting", serde_json::json!({})).await;
+        assert!(result.is_err());
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn idempotent_tool_is_retried_once() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let executor = counting_executor(CountingTool {
+            calls: calls.clone(),
+            idempotent: true,
+            fail_first_only: false,
+        });
+
+        let result = executor.execute("counting", serde_json::json!({})).await;
+        assert!(result.is_err());
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn idempotent_tool_recovers_after_one_failure() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let executor = counting_executor(CountingTool {
+            calls: calls.clone(),
+            idempotent: true,
+            fail_first_only: true,
+        });
+
+        let result = executor.execute("counting", serde_json::json!({})).await;
+        assert!(result.is_ok());
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+    }
+
+    #[test]
+    fn file_tools_declare_idempotency() {
+        use crate::tools::bash::BashTool;
+        use crate::tools::file::{EditFileTool, GlobTool, GrepTool, ReadFileTool, WriteFileTool};
+
+        assert!(!WriteFileTool::new().is_idempotent());
+        assert!(!EditFileTool::new().is_idempotent());
+        assert!(ReadFileTool::new().is_idempotent());
+        assert!(GlobTool::new().is_idempotent());
+        assert!(GrepTool::new().is_idempotent());
+        assert!(!BashTool::new().is_idempotent());
     }
 }

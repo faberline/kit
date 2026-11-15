@@ -94,6 +94,10 @@ impl Tool for ReadFileTool {
         "Read the contents of a file. Returns content with line numbers."
     }
 
+    fn is_idempotent(&self) -> bool {
+        true
+    }
+
     fn parameters(&self) -> Vec<ToolParameter> {
         vec![
             ToolParameter {
@@ -379,6 +383,10 @@ impl Tool for GlobTool {
         "Find files matching a glob pattern."
     }
 
+    fn is_idempotent(&self) -> bool {
+        true
+    }
+
     fn parameters(&self) -> Vec<ToolParameter> {
         vec![
             ToolParameter {
@@ -531,6 +539,10 @@ impl Tool for GrepTool {
 
     fn description(&self) -> &str {
         "Search file contents using a regex pattern."
+    }
+
+    fn is_idempotent(&self) -> bool {
+        true
     }
 
     fn parameters(&self) -> Vec<ToolParameter> {
