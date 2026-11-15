@@ -13,7 +13,7 @@ use bytes::Bytes;
 use futures::Stream;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 /// High-performance async HTTP client with connection pooling.
 #[derive(Clone)]
@@ -71,16 +71,42 @@ impl HttpClient {
 
     /// Execute a pre-extracted request. Internal entry point used by
     /// middleware-aware paths.
+    ///
+    /// When `HttpClientConfig::retry` is set, a response whose status is in
+    /// `retry_on_status` is sent again after a delay, up to `max_retries`
+    /// times. A 429 or 503 with a `Retry-After` in seconds sets the delay. When
+    /// the retries run out, the last response is returned, not an error.
     pub async fn execute(&self, request: ExtractedRequest) -> HttpResult<Response> {
         let start = Instant::now();
+        let mut retries_done: u32 = 0;
 
-        let reqwest_builder =
-            request.build_reqwest(&self.inner.client, self.inner.config.base_url.as_deref())?;
+        loop {
+            let reqwest_builder =
+                request.build_reqwest(&self.inner.client, self.inner.config.base_url.as_deref())?;
 
-        let response = self.send_reqwest(reqwest_builder).await?;
-        let latency_ms = start.elapsed().as_millis() as u64;
+            let response = self.send_reqwest(reqwest_builder).await?;
+            let latency_ms = start.elapsed().as_millis() as u64;
+            let response = from_reqwest(response, latency_ms).await?;
 
-        from_reqwest(response, latency_ms).await
+            let Some(retry) = &self.inner.config.retry else {
+                return Ok(response);
+            };
+            if !retry.retry_on_status.contains(&response.status_code)
+                || retries_done >= retry.max_retries
+            {
+                return Ok(response);
+            }
+
+            let delay = retry.delay_for(retries_done, retry_after(&response));
+            tracing::warn!(
+                status = response.status_code,
+                retry = retries_done + 1,
+                delay_ms = delay.as_millis() as u64,
+                "retrying request"
+            );
+            tokio::time::sleep(delay).await;
+            retries_done += 1;
+        }
     }
 
     /// Execute the unified request shape. Preferred entry point.
@@ -190,6 +216,20 @@ impl HttpClient {
             }
         })
     }
+}
+
+/// `Retry-After` in whole seconds, read only for 429 and 503. An HTTP date or
+/// any other value gives `None`.
+fn retry_after(response: &Response) -> Option<Duration> {
+    if response.status_code != 429 && response.status_code != 503 {
+        return None;
+    }
+    response
+        .headers
+        .iter()
+        .find(|(name, _)| name.eq_ignore_ascii_case("retry-after"))
+        .and_then(|(_, value)| value.trim().parse::<u64>().ok())
+        .map(Duration::from_secs)
 }
 
 impl std::fmt::Debug for HttpClient {

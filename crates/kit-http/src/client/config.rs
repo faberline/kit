@@ -46,6 +46,10 @@ pub struct HttpClientConfig {
 
     /// HTTP protocol policy for the client transport.
     pub protocol_policy: HttpProtocolPolicy,
+
+    /// Retry policy for `HttpClient::execute`. `None` (the default) sends
+    /// each request once.
+    pub retry: Option<RetryConfig>,
 }
 
 impl Default for HttpClientConfig {
@@ -65,6 +69,7 @@ impl Default for HttpClientConfig {
             gzip: true,
             brotli: true,
             protocol_policy: HttpProtocolPolicy::Auto,
+            retry: None,
         }
     }
 }
@@ -165,6 +170,12 @@ impl HttpClientConfig {
         self
     }
 
+    /// Retry 429 and 5xx responses with the given policy.
+    pub fn retry(mut self, retry: RetryConfig) -> Self {
+        self.retry = Some(retry);
+        self
+    }
+
     /// Use normal protocol negotiation. HTTPS uses ALPN when available; HTTP
     /// preserves the existing HTTP/1.1 default behavior.
     pub fn auto_http_protocol(mut self) -> Self {
@@ -227,6 +238,20 @@ impl Default for RetryConfig {
             retry_on_status: vec![500, 502, 503, 504, 429],
             retry_on_timeout: true,
             retry_on_connection_error: true,
+        }
+    }
+}
+
+impl RetryConfig {
+    /// Delay before retry number `retry_index` (0 for the first retry). A
+    /// `Retry-After` delay from the server wins over the backoff; both are
+    /// capped at `max_delay`.
+    pub fn delay_for(&self, retry_index: u32, retry_after: Option<Duration>) -> Duration {
+        match retry_after {
+            Some(d) => std::cmp::min(d, self.max_delay),
+            None => self
+                .backoff
+                .delay(self.initial_delay, retry_index, self.max_delay),
         }
     }
 }
@@ -299,5 +324,34 @@ mod tests {
             Duration::from_millis(400)
         );
         assert_eq!(BackoffStrategy::Exponential.delay(base, 10, max), max); // Capped at max
+    }
+
+    #[test]
+    fn retry_is_off_by_default() {
+        assert!(HttpClientConfig::default().retry.is_none());
+        assert!(HttpClientConfig::new()
+            .retry(RetryConfig::default())
+            .retry
+            .is_some());
+    }
+
+    #[test]
+    fn delay_for_uses_backoff_and_retry_after() {
+        let cfg = RetryConfig {
+            initial_delay: Duration::from_millis(100),
+            max_delay: Duration::from_secs(5),
+            ..RetryConfig::default()
+        };
+        assert_eq!(cfg.delay_for(0, None), Duration::from_millis(100));
+        assert_eq!(cfg.delay_for(2, None), Duration::from_millis(400));
+        assert_eq!(
+            cfg.delay_for(0, Some(Duration::from_secs(2))),
+            Duration::from_secs(2)
+        );
+        // Retry-After is capped by max_delay.
+        assert_eq!(
+            cfg.delay_for(0, Some(Duration::from_secs(60))),
+            Duration::from_secs(5)
+        );
     }
 }
