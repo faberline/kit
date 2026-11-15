@@ -1,9 +1,11 @@
 use crate::error::{AgentError, AgentResult};
+use crate::security::SecurityPolicy;
 use crate::tools::text::truncate_at_char_boundary;
 use crate::tools::tool::{Tool, ToolParameter};
 use async_trait::async_trait;
 use serde::Deserialize;
 use std::process::Stdio;
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::process::Command;
@@ -16,6 +18,7 @@ pub struct BashTool {
     max_output_size: usize,
     shell: String,
     working_dir: Option<String>,
+    policy: Arc<SecurityPolicy>,
 }
 
 impl BashTool {
@@ -25,7 +28,13 @@ impl BashTool {
             max_output_size: 100_000,
             shell: "/bin/bash".to_string(),
             working_dir: None,
+            policy: Arc::new(SecurityPolicy::default()),
         }
+    }
+
+    pub fn with_policy(mut self, policy: Arc<SecurityPolicy>) -> Self {
+        self.policy = policy;
+        self
     }
 
     pub fn with_timeout(mut self, timeout: Duration) -> Self {
@@ -44,6 +53,8 @@ impl BashTool {
     }
 
     async fn execute_impl(&self, args: BashArgs) -> AgentResult<serde_json::Value> {
+        self.policy.check_command(&args.command)?;
+
         let timeout_ms = args
             .timeout
             .unwrap_or(self.default_timeout.as_millis() as u64);
@@ -171,7 +182,9 @@ impl Tool for BashTool {
     }
 }
 
-/// Tool for executing bash commands with streaming output
+/// Tool for executing bash commands with streaming output.
+///
+/// Does not check a `SecurityPolicy` yet.
 pub struct StreamingBashTool {
     inner: BashTool,
 }
@@ -279,9 +292,18 @@ pub enum StreamOutput {
 mod tests {
     use super::*;
 
+    /// A policy that allows only the given first words of a command.
+    fn allow_commands(commands: &[&str]) -> Arc<SecurityPolicy> {
+        Arc::new(
+            SecurityPolicy::builder()
+                .with_allowed_commands(commands.iter().map(|c| c.to_string()).collect())
+                .build(),
+        )
+    }
+
     #[tokio::test]
     async fn test_bash_echo() {
-        let tool = BashTool::new();
+        let tool = BashTool::new().with_policy(allow_commands(&["echo", "exit"]));
         let result = tool
             .execute(serde_json::json!({
                 "command": "echo 'Hello, World!'"
@@ -295,7 +317,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_bash_exit_code() {
-        let tool = BashTool::new();
+        let tool = BashTool::new().with_policy(allow_commands(&["echo", "exit"]));
         let result = tool
             .execute(serde_json::json!({
                 "command": "exit 42"
@@ -355,6 +377,7 @@ mod tests {
 
         let started = std::time::Instant::now();
         let err = BashTool::new()
+            .with_policy(allow_commands(&["echo"]))
             .execute(serde_json::json!({ "command": command, "timeout": 1000 }))
             .await
             .unwrap_err();
@@ -411,7 +434,9 @@ mod tests {
     async fn output_cut_inside_a_multibyte_char_does_not_panic() {
         // 10 000 two-byte characters = 20 000 bytes, cut at 101 bytes, which
         // falls inside a character.
-        let tool = BashTool::new().with_max_output_size(101);
+        let tool = BashTool::new()
+            .with_policy(allow_commands(&["yes"]))
+            .with_max_output_size(101);
         let result = tool
             .execute(serde_json::json!({
                 "command": "yes é | head -n 10000 | tr -d '\\n'"
@@ -424,5 +449,24 @@ mod tests {
             .as_str()
             .unwrap()
             .starts_with(&"é".repeat(50)));
+    }
+
+    #[tokio::test]
+    async fn bash_default_policy_refuses() {
+        let result = BashTool::new()
+            .execute(serde_json::json!({ "command": "echo hi" }))
+            .await;
+
+        assert!(matches!(result, Err(AgentError::CommandNotAllowed(_))));
+    }
+
+    #[tokio::test]
+    async fn bash_blocked_pattern_refused_even_when_listed() {
+        let result = BashTool::new()
+            .with_policy(allow_commands(&["rm"]))
+            .execute(serde_json::json!({ "command": "rm -rf /" }))
+            .await;
+
+        assert!(matches!(result, Err(AgentError::CommandNotAllowed(_))));
     }
 }
