@@ -1,6 +1,6 @@
 //! Integration tests for the array module.
 
-use arraykit::array::{ArrayError, AxisSlice, DType, KitRng, NdArray, Shape, SliceInfo};
+use arraykit::array::{ArrayError, AxisSlice, DType, KitRng, NdArray, Shape, SliceInfo, SvdResult};
 
 // ============================================================================
 // DType tests (from dtype.rs)
@@ -2111,4 +2111,171 @@ fn svd_identity_reconstructs() {
             assert!((val - want).abs() < 1e-9);
         }
     }
+}
+
+// ============================================================================
+// svd tests (issue #51: one-sided Jacobi, orthonormal U, no A^T * A)
+// ============================================================================
+
+/// U[:, :k] * diag(s) * Vt[:k, :] as an m × n row-major vector, k = s.len().
+fn svd_reconstruct(r: &SvdResult, m: usize, n: usize) -> Vec<f64> {
+    let u = r.u.data();
+    let vt = r.vt.data();
+    let mut out = vec![0.0; m * n];
+    for i in 0..m {
+        for j in 0..n {
+            out[i * n + j] = (0..r.s.len())
+                .map(|l| u[i * m + l] * r.s[l] * vt[l * n + j])
+                .sum();
+        }
+    }
+    out
+}
+
+/// Asserts that the d × d row-major matrix has orthonormal columns: MᵀM = I within 1e-12.
+fn assert_orthonormal(data: &[f64], d: usize) {
+    for a in 0..d {
+        for b in 0..d {
+            let dot: f64 = (0..d).map(|i| data[i * d + a] * data[i * d + b]).sum();
+            let want = if a == b { 1.0 } else { 0.0 };
+            assert!((dot - want).abs() < 1e-12, "MtM[{a}][{b}] = {dot}");
+        }
+    }
+}
+
+/// Asserts that every entry of `got` is within `tol` of `want`.
+fn assert_close_slice(got: &[f64], want: &[f64], tol: f64) {
+    assert_eq!(got.len(), want.len(), "length");
+    for (k, (g, w)) in got.iter().zip(want).enumerate() {
+        assert!((g - w).abs() <= tol, "index {k}: got {g}, want {w}");
+    }
+}
+
+#[test]
+fn svd_zero_column_u_orthonormal() {
+    // np.linalg.svd(np.array([[0., 0.], [1., 0.]])): s = [1.0, 0.0]
+    let a = NdArray::new(vec![0.0, 0.0, 1.0, 0.0], vec![2, 2]).unwrap();
+    let r = a.svd().unwrap();
+    assert_close_slice(&r.s, &[1.0, 0.0], 1e-12);
+    assert_orthonormal(r.u.data(), 2);
+    assert_orthonormal(r.vt.data(), 2);
+    assert_close_slice(&svd_reconstruct(&r, 2, 2), a.data(), 1e-12);
+}
+
+#[test]
+fn svd_2x2_values() {
+    // np.linalg.svd(np.array([[1., 2.], [3., 4.]]))[1]
+    // = [5.464985704219043, 0.36596619062625746]
+    let a = NdArray::new(vec![1.0, 2.0, 3.0, 4.0], vec![2, 2]).unwrap();
+    let r = a.svd().unwrap();
+    assert_close_slice(&r.s, &[5.464985704219043, 0.36596619062625746], 1e-12);
+    assert_orthonormal(r.u.data(), 2);
+    assert_orthonormal(r.vt.data(), 2);
+    assert_close_slice(&svd_reconstruct(&r, 2, 2), a.data(), 1e-12);
+}
+
+#[test]
+fn svd_wide_2x3() {
+    // np.linalg.svd(np.array([[1., 2., 3.], [4., 5., 6.]]))[1]
+    // = [9.508032000695724, 0.7728696356734838]
+    let a = NdArray::new(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0], vec![2, 3]).unwrap();
+    let r = a.svd().unwrap();
+    assert_close_slice(&r.s, &[9.508032000695724, 0.7728696356734838], 1e-12);
+    assert_orthonormal(r.u.data(), 2);
+    assert_orthonormal(r.vt.data(), 3);
+    assert_close_slice(&svd_reconstruct(&r, 2, 3), a.data(), 1e-12);
+}
+
+#[test]
+fn svd_tall_3x2() {
+    // np.linalg.svd(np.array([[1., 2.], [3., 4.], [5., 6.]]))[1]
+    // = [9.525518091565107, 0.5143005806586446]
+    let a = NdArray::new(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0], vec![3, 2]).unwrap();
+    let r = a.svd().unwrap();
+    assert_close_slice(&r.s, &[9.525518091565107, 0.5143005806586446], 1e-12);
+    assert_orthonormal(r.u.data(), 3);
+    assert_orthonormal(r.vt.data(), 2);
+    assert_close_slice(&svd_reconstruct(&r, 3, 2), a.data(), 1e-12);
+}
+
+#[test]
+fn svd_ill_conditioned() {
+    // np.linalg.svd(np.array([[1., 1.], [1., 1. + 1e-9]]), compute_uv=False)[1]
+    // = 5.000000141855309e-10 (about 5e-10). A^T * A loses this value.
+    let a = NdArray::new(vec![1.0, 1.0, 1.0, 1.0 + 1e-9], vec![2, 2]).unwrap();
+    let r = a.svd().unwrap();
+    assert!((r.s[1] - 5e-10).abs() <= 0.01 * 5e-10, "s[1] = {}", r.s[1]);
+    assert_close_slice(&svd_reconstruct(&r, 2, 2), a.data(), 1e-12);
+}
+
+#[test]
+fn svd_nan_errors() {
+    // A NaN or an infinite entry gives an error, not a panic.
+    let nan = NdArray::new(vec![1.0, f64::NAN, 0.0, 1.0], vec![2, 2]).unwrap();
+    assert!(matches!(nan.svd(), Err(ArrayError::InvalidOperation(_))));
+    let inf = NdArray::new(vec![1.0, f64::INFINITY, 0.0, 1.0], vec![2, 2]).unwrap();
+    assert!(matches!(inf.svd(), Err(ArrayError::InvalidOperation(_))));
+}
+
+#[test]
+fn svd_zero_matrix() {
+    // np.linalg.svd(np.zeros((2, 2)))[1] = [0.0, 0.0]
+    let a = NdArray::new(vec![0.0; 4], vec![2, 2]).unwrap();
+    let r = a.svd().unwrap();
+    assert_eq!(r.s, vec![0.0, 0.0]);
+    assert_orthonormal(r.u.data(), 2);
+    assert_orthonormal(r.vt.data(), 2);
+    assert_close_slice(&svd_reconstruct(&r, 2, 2), a.data(), 1e-12);
+}
+
+#[test]
+fn svd_rank_one_square() {
+    // np.linalg.svd(np.array([[4., 1., 3.], [8., 2., 6.], [0., 0., 0.]]), compute_uv=False)
+    // = [11.40175425099138, ~1e-15, 0.0]; sqrt(130) = 11.40175425099138
+    let a = NdArray::new(
+        vec![4.0, 1.0, 3.0, 8.0, 2.0, 6.0, 0.0, 0.0, 0.0],
+        vec![3, 3],
+    )
+    .unwrap();
+    let r = a.svd().unwrap();
+    assert_close_slice(&r.s, &[11.40175425099138, 0.0, 0.0], 1e-12);
+    assert_orthonormal(r.u.data(), 3);
+    assert_orthonormal(r.vt.data(), 3);
+    assert_close_slice(&svd_reconstruct(&r, 3, 3), a.data(), 1e-12);
+}
+
+#[test]
+fn svd_rank_one_tall_4x3() {
+    // np.linalg.svd(np.array([[8., 2., 6.], [-4., -1., -3.], [0., 0., 0.], [0., 0., 0.]]), compute_uv=False)
+    // = [11.401754250991381, ~4e-17, 0.0]
+    let a = NdArray::new(
+        vec![
+            8.0, 2.0, 6.0, -4.0, -1.0, -3.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+        ],
+        vec![4, 3],
+    )
+    .unwrap();
+    let r = a.svd().unwrap();
+    assert_close_slice(&r.s, &[11.40175425099138, 0.0, 0.0], 1e-12);
+    assert_orthonormal(r.u.data(), 4);
+    assert_orthonormal(r.vt.data(), 3);
+    assert_close_slice(&svd_reconstruct(&r, 4, 3), a.data(), 1e-12);
+}
+
+#[test]
+fn svd_wide_rank_two_3x4() {
+    // np.linalg.svd(np.array([[-2., 4., 0., 0.], [-1., 3., 0., 0.], [0., -1., 0., 0.]]), compute_uv=False)
+    // = [5.541381265149111, 0.5413812651491101, 0.0]
+    let a = NdArray::new(
+        vec![
+            -2.0, 4.0, 0.0, 0.0, -1.0, 3.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0,
+        ],
+        vec![3, 4],
+    )
+    .unwrap();
+    let r = a.svd().unwrap();
+    assert_close_slice(&r.s, &[5.541381265149111, 0.5413812651491101, 0.0], 1e-12);
+    assert_orthonormal(r.u.data(), 3);
+    assert_orthonormal(r.vt.data(), 4);
+    assert_close_slice(&svd_reconstruct(&r, 3, 4), a.data(), 1e-12);
 }
