@@ -8,6 +8,7 @@ description = "DataFrame and Series (Pandas-like)"
 
 [lib]
 crate-type = ["rlib"]
+bench = false
 
 [dependencies]
 thiserror.workspace = true
@@ -20,9 +21,14 @@ arraykit = { path = "../arraykit" }
 tempfile = "3"
 serde_json.workspace = true
 proptest = "=1.12.0"
+criterion = "=0.5.1"
 
 [features]
 default = []
 io-extra = ["dep:serde_json"]
 serde = ["dep:serde"]
 parallel = ["dep:rayon"]
+
+[[bench]]
+name = "frame"
+harness = false
