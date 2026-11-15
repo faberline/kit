@@ -110,35 +110,12 @@ impl ClaudeProvider {
             .header("content-type", "application/json")
             .json_value(body)
     }
-}
 
-#[async_trait]
-impl LLMProvider for ClaudeProvider {
-    fn provider_name(&self) -> &str {
-        "anthropic"
-    }
-
-    fn supported_models(&self) -> Vec<String> {
-        vec![
-            "claude-sonnet-4-20250514".to_string(),
-            "claude-opus-4-20250514".to_string(),
-            "claude-3-5-sonnet-20241022".to_string(),
-            "claude-3-5-sonnet-20240620".to_string(),
-            "claude-3-opus-20240229".to_string(),
-            "claude-3-sonnet-20240229".to_string(),
-            "claude-3-haiku-20240307".to_string(),
-        ]
-    }
-
-    async fn complete(&self, request: CompletionRequest) -> AgentResult<CompletionResponse> {
-        let model = if request.model.is_empty() {
-            self.default_model.clone()
-        } else {
-            request.model.clone()
-        };
-
-        debug!("Claude completion request: model={}", model);
-
+    fn build_completion_body(
+        &self,
+        request: &CompletionRequest,
+        model: &str,
+    ) -> AgentResult<(serde_json::Value, bool)> {
         let mut system_content = String::new();
         let mut claude_messages = Vec::new();
 
@@ -197,11 +174,49 @@ impl LLMProvider for ClaudeProvider {
 
         // Force the structured output tool when structured output is requested
         if is_structured {
-            body["tool_choice"] = serde_json::json!({
-                "type": "tool",
-                "name": "__structured_output"
-            });
+            // Force the schema tool only when it is the only tool; otherwise let
+            // the model call the agent's tools too.
+            let only_structured =
+                all_tools.len() == 1 && all_tools[0].name == "__structured_output";
+            body["tool_choice"] = if only_structured {
+                serde_json::json!({"type": "tool", "name": "__structured_output"})
+            } else {
+                serde_json::json!({"type": "auto"})
+            };
         }
+
+        Ok((body, is_structured))
+    }
+}
+
+#[async_trait]
+impl LLMProvider for ClaudeProvider {
+    fn provider_name(&self) -> &str {
+        "anthropic"
+    }
+
+    fn supported_models(&self) -> Vec<String> {
+        vec![
+            "claude-sonnet-4-20250514".to_string(),
+            "claude-opus-4-20250514".to_string(),
+            "claude-3-5-sonnet-20241022".to_string(),
+            "claude-3-5-sonnet-20240620".to_string(),
+            "claude-3-opus-20240229".to_string(),
+            "claude-3-sonnet-20240229".to_string(),
+            "claude-3-haiku-20240307".to_string(),
+        ]
+    }
+
+    async fn complete(&self, request: CompletionRequest) -> AgentResult<CompletionResponse> {
+        let model = if request.model.is_empty() {
+            self.default_model.clone()
+        } else {
+            request.model.clone()
+        };
+
+        debug!("Claude completion request: model={}", model);
+
+        let (body, is_structured) = self.build_completion_body(&request, &model)?;
 
         let builder = self.build_request("/v1/messages", body);
         let response = self.client.execute_builder(builder).await?;
@@ -210,6 +225,7 @@ impl LLMProvider for ClaudeProvider {
             let error_text = response
                 .text()
                 .unwrap_or_else(|_| "Unknown error".to_string());
+            let error_text = redact(&error_text, &self.api_key);
             return Err(AgentError::ApiError(format!(
                 "Claude API error ({}): {}",
                 response.status_code, error_text
@@ -219,59 +235,7 @@ impl LLMProvider for ClaudeProvider {
         let response_text = response.text()?;
         let claude_response: ClaudeResponse = serde_json::from_str(&response_text)?;
 
-        let mut content = String::new();
-        let mut tool_calls = Vec::new();
-
-        for content_block in claude_response.content {
-            match content_block {
-                ClaudeContent::Text { text } => {
-                    if !content.is_empty() {
-                        content.push('\n');
-                    }
-                    content.push_str(&text);
-                }
-                ClaudeContent::ToolUse { id, name, input } => {
-                    if is_structured && name == "__structured_output" {
-                        // Structured output: serialise the tool input as content
-                        content = serde_json::to_string(&input).unwrap_or_default();
-                    } else {
-                        tool_calls.push(ToolCall {
-                            id,
-                            name,
-                            arguments: input,
-                        });
-                    }
-                }
-                _ => {}
-            }
-        }
-
-        let finish_reason = match claude_response.stop_reason.as_deref() {
-            Some("end_turn") => "stop",
-            Some("max_tokens") => "length",
-            Some("tool_use") => "tool_calls",
-            Some("stop_sequence") => "stop",
-            _ => "unknown",
-        }
-        .to_string();
-
-        Ok(CompletionResponse {
-            content,
-            finish_reason,
-            model: claude_response.model,
-            tool_calls: if tool_calls.is_empty() {
-                None
-            } else {
-                Some(tool_calls)
-            },
-            usage: TokenUsage {
-                prompt_tokens: claude_response.usage.input_tokens as u32,
-                completion_tokens: claude_response.usage.output_tokens as u32,
-                total_tokens: (claude_response.usage.input_tokens
-                    + claude_response.usage.output_tokens) as u32,
-            },
-            metadata: HashMap::new(),
-        })
+        Ok(map_response(claude_response, is_structured))
     }
 
     async fn complete_stream(&self, request: CompletionRequest) -> AgentResult<StreamResponse> {
@@ -328,6 +292,70 @@ impl LLMProvider for ClaudeProvider {
 
         Ok(Box::pin(chunk_stream))
     }
+}
+
+fn map_response(claude_response: ClaudeResponse, is_structured: bool) -> CompletionResponse {
+    let mut content = String::new();
+    let mut tool_calls = Vec::new();
+
+    for content_block in claude_response.content {
+        match content_block {
+            ClaudeContent::Text { text } => {
+                if !content.is_empty() {
+                    content.push('\n');
+                }
+                content.push_str(&text);
+            }
+            ClaudeContent::ToolUse { id, name, input } => {
+                if is_structured && name == "__structured_output" {
+                    // Structured output: serialise the tool input as content
+                    content = serde_json::to_string(&input).unwrap_or_default();
+                } else {
+                    tool_calls.push(ToolCall {
+                        id,
+                        name,
+                        arguments: input,
+                    });
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let finish_reason = match claude_response.stop_reason.as_deref() {
+        Some("end_turn") => "stop",
+        Some("max_tokens") => "length",
+        Some("tool_use") => "tool_calls",
+        Some("stop_sequence") => "stop",
+        _ => "unknown",
+    }
+    .to_string();
+
+    CompletionResponse {
+        content,
+        finish_reason,
+        model: claude_response.model,
+        tool_calls: if tool_calls.is_empty() {
+            None
+        } else {
+            Some(tool_calls)
+        },
+        usage: TokenUsage {
+            prompt_tokens: claude_response.usage.input_tokens as u32,
+            completion_tokens: claude_response.usage.output_tokens as u32,
+            total_tokens: (claude_response.usage.input_tokens + claude_response.usage.output_tokens)
+                as u32,
+        },
+        metadata: HashMap::new(),
+    }
+}
+
+/// Replace every occurrence of `secret` in `text` (an empty secret changes nothing).
+fn redact(text: &str, secret: &str) -> String {
+    if secret.is_empty() {
+        return text.to_string();
+    }
+    text.replace(secret, "[redacted]")
 }
 
 fn parse_claude_sse_stream(
@@ -435,6 +463,10 @@ enum ClaudeContent {
         tool_use_id: String,
         content: String,
     },
+    /// Any other block type (for example `thinking`). Built only when reading.
+    #[serde(other)]
+    #[allow(dead_code)]
+    Unknown,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -514,5 +546,78 @@ data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text
         let chunk = chunk.unwrap();
         assert_eq!(chunk.content, "Hello");
         assert!(!chunk.is_final);
+    }
+
+    const TEST_MODEL: &str = "claude-sonnet-4-20250514";
+
+    fn request(with_tool: bool, with_schema: bool) -> CompletionRequest {
+        let mut req = CompletionRequest::new(vec![Message::user("hi")], TEST_MODEL);
+        if with_tool {
+            req = req.with_tools(vec![ToolDefinition {
+                name: "get_weather".to_string(),
+                description: "Weather".to_string(),
+                parameters: serde_json::json!({"type": "object"}),
+            }]);
+        }
+        if with_schema {
+            req = req.with_response_schema(serde_json::json!({"type": "object"}));
+        }
+        req
+    }
+
+    #[test]
+    fn tool_choice_forced_when_only_schema() {
+        let provider = ClaudeProvider::new("test-key").unwrap();
+        let (body, is_structured) = provider
+            .build_completion_body(&request(false, true), TEST_MODEL)
+            .unwrap();
+        assert!(is_structured);
+        assert_eq!(
+            body["tool_choice"],
+            serde_json::json!({"type": "tool", "name": "__structured_output"})
+        );
+        assert_eq!(body["tools"].as_array().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn tool_choice_auto_with_tools_and_schema() {
+        let provider = ClaudeProvider::new("test-key").unwrap();
+        let (body, is_structured) = provider
+            .build_completion_body(&request(true, true), TEST_MODEL)
+            .unwrap();
+        assert!(is_structured);
+        assert_eq!(body["tool_choice"], serde_json::json!({"type": "auto"}));
+        let tools = body["tools"].as_array().unwrap();
+        assert_eq!(tools.len(), 2);
+        assert!(tools.iter().any(|t| t["name"] == "__structured_output"));
+    }
+
+    #[test]
+    fn no_tool_choice_without_schema() {
+        let provider = ClaudeProvider::new("test-key").unwrap();
+        let (body, is_structured) = provider
+            .build_completion_body(&request(true, false), TEST_MODEL)
+            .unwrap();
+        assert!(!is_structured);
+        assert!(body.get("tool_choice").is_none());
+    }
+
+    #[test]
+    fn unknown_content_block_is_skipped() {
+        let raw = r#"{"id":"m","type":"message","role":"assistant","model":"x","content":[{"type":"thinking","thinking":"..."},{"type":"text","text":"hi"}],"stop_reason":"end_turn","usage":{"input_tokens":1,"output_tokens":2}}"#;
+        let resp: ClaudeResponse = serde_json::from_str(raw).unwrap();
+        let out = map_response(resp, false);
+        assert_eq!(out.content, "hi");
+        assert_eq!(out.finish_reason, "stop");
+        assert_eq!(out.usage.total_tokens, 3);
+    }
+
+    #[test]
+    fn redact_removes_key() {
+        assert_eq!(
+            redact("bad key sk-test-123 here", "sk-test-123"),
+            "bad key [redacted] here"
+        );
+        assert_eq!(redact("abc", ""), "abc");
     }
 }
