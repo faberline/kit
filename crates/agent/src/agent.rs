@@ -13,9 +13,10 @@
 //! 4. otherwise parse the reply as JSON, validate against `Output`'s schema,
 //!    deserialize into `Output`, and return
 //!
-//! The validator-retry loop (#2033), structured-output coercion (#2032), and
-//! cancellation/timeout (#2070) are deliberately layered on top of this base
-//! in their own issues.
+//! The validator-retry loop (#2033) and structured-output coercion (#2032) are
+//! layered on top of this base. The agent also supports cancellation and an
+//! overall timeout (#2070): set them on the builder and they bound one whole
+//! run. `run_with_usage` returns the token usage summed over all LLM turns.
 
 // HANDWRITE-BEGIN reason: codegen has no Rust generator for `changes`-section
 // targets yet (the `cb gen-code` pipeline emits marker-only stubs for Rust
@@ -27,15 +28,17 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::time::Duration;
 
 use serde::de::DeserializeOwned;
 use tracing::{info_span, Instrument};
 
+use crate::cancellation_timeout::{run_until_cancelled, CancellationToken};
 use crate::error::{AgentError, AgentResult};
 use crate::events::{AgentEvent, EventEmitter};
 use crate::llm::{CompletionRequest, CompletionResponse, LLMProvider, ToolDefinition};
 use crate::schema::Schema;
-use crate::types::{Message, ToolCall};
+use crate::types::{Message, TokenUsage, ToolCall};
 
 /// Boxed async handler returned by [`ToolSpec`] handlers. The handler is
 /// invoked once per LLM `tool_call`, with the shared [`Deps`](Agent) bag and
@@ -119,6 +122,8 @@ pub struct Agent<Deps, Output> {
     max_turns: u32,
     max_revisions: u32,
     events: Option<EventEmitter<AgentEvent>>,
+    timeout: Option<Duration>,
+    cancellation: Option<CancellationToken>,
     _output: std::marker::PhantomData<fn() -> Output>,
 }
 
@@ -133,6 +138,8 @@ pub struct AgentBuilder<Deps, Output> {
     max_turns: u32,
     max_revisions: u32,
     events: Option<EventEmitter<AgentEvent>>,
+    timeout: Option<Duration>,
+    cancellation: Option<CancellationToken>,
     _output: std::marker::PhantomData<fn() -> Output>,
 }
 
@@ -148,6 +155,8 @@ impl<Deps, Output> Default for AgentBuilder<Deps, Output> {
             max_turns: 10,
             max_revisions: 2,
             events: None,
+            timeout: None,
+            cancellation: None,
             _output: std::marker::PhantomData,
         }
     }
@@ -170,6 +179,16 @@ where
     /// asks for a corrected reply, up to [`max_revisions`](AgentBuilder::max_revisions)
     /// attempts (#2033 — validator + retry-with-feedback).
     pub async fn run(&self, input: impl Into<String>) -> AgentResult<Output> {
+        self.run_with_usage(input).await.map(|(out, _usage)| out)
+    }
+
+    /// Like [`run`](Self::run), but also returns the token usage summed over
+    /// all LLM turns of the run (a tool-call turn plus the final turn, and any
+    /// validator-feedback turns). On error the usage is dropped.
+    pub async fn run_with_usage(
+        &self,
+        input: impl Into<String>,
+    ) -> AgentResult<(Output, TokenUsage)> {
         let span = info_span!(
             "agent.run",
             agent.model = %self.model,
@@ -180,7 +199,35 @@ where
             revisions = tracing::field::Empty,
             outcome = tracing::field::Empty,
         );
-        self.run_inner(input.into()).instrument(span).await
+        let mut usage = TokenUsage::default();
+        let result = self
+            .with_limits(self.run_inner(input.into(), &mut usage))
+            .instrument(span)
+            .await;
+        result.map(|out| (out, usage))
+    }
+
+    /// Bound a whole run by the configured cancellation token and timeout.
+    /// Dropping the run future cancels any pending LLM or tool call.
+    async fn with_limits<T>(&self, fut: impl Future<Output = AgentResult<T>>) -> AgentResult<T> {
+        if let Some(token) = &self.cancellation {
+            if token.is_cancelled() {
+                return Err(AgentError::Cancelled);
+            }
+        }
+        let limited = async {
+            match self.timeout {
+                Some(d) => match tokio::time::timeout(d, fut).await {
+                    Ok(r) => r,
+                    Err(_) => Err(AgentError::Timeout(d.as_secs().max(1))),
+                },
+                None => fut.await,
+            }
+        };
+        match &self.cancellation {
+            Some(token) => run_until_cancelled(limited, token).await?,
+            None => limited.await,
+        }
     }
 
     fn emit(&self, event: AgentEvent) {
@@ -189,7 +236,7 @@ where
         }
     }
 
-    async fn run_inner(&self, input: String) -> AgentResult<Output> {
+    async fn run_inner(&self, input: String, usage: &mut TokenUsage) -> AgentResult<Output> {
         let span = tracing::Span::current();
         self.emit(AgentEvent::run_started(self.model.clone()));
         let mut messages: Vec<Message> = Vec::new();
@@ -222,6 +269,7 @@ where
                     Ok(r) => r,
                     Err(e) => break 'outer Err(e),
                 };
+                usage.add(&response.usage);
                 let tool_calls = response.tool_calls.clone().unwrap_or_default();
                 self.emit(AgentEvent::LlmCallCompleted {
                     turn: turns_used,
@@ -483,6 +531,21 @@ where
         self
     }
 
+    /// Overall time limit for one `run`. When it expires the run returns
+    /// `AgentError::Timeout`. Default: no limit.
+    pub fn timeout(mut self, timeout: Duration) -> Self {
+        self.timeout = Some(timeout);
+        self
+    }
+
+    /// Cancellation token for one `run`. When it is cancelled the run returns
+    /// `AgentError::Cancelled`, also while an LLM or tool call is pending.
+    /// Default: none.
+    pub fn cancellation_token(mut self, token: CancellationToken) -> Self {
+        self.cancellation = Some(token);
+        self
+    }
+
     pub fn build(self) -> AgentResult<Agent<Deps, Output>> {
         Ok(Agent {
             provider: self
@@ -500,6 +563,8 @@ where
             max_turns: self.max_turns,
             max_revisions: self.max_revisions,
             events: self.events,
+            timeout: self.timeout,
+            cancellation: self.cancellation,
             _output: std::marker::PhantomData,
         })
     }
@@ -823,6 +888,198 @@ mod tests {
 
         let err = agent.run("loop").await.unwrap_err();
         assert!(matches!(err, AgentError::MaxTurnsReached(2)));
+    }
+
+    /// Provider that answers only after a long sleep, so a timeout or a
+    /// cancellation must cut the LLM call short.
+    struct SlowProvider;
+
+    #[async_trait]
+    impl LLMProvider for SlowProvider {
+        fn provider_name(&self) -> &str {
+            "slow"
+        }
+        fn supported_models(&self) -> Vec<String> {
+            vec!["test-model".into()]
+        }
+        async fn complete(&self, _req: CompletionRequest) -> AgentResult<CompletionResponse> {
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            Ok(reply(r#"{"city":"Taipei","temp_c":24}"#))
+        }
+        async fn complete_stream(&self, _req: CompletionRequest) -> AgentResult<StreamResponse> {
+            Err(AgentError::NotSupported("stream".into()))
+        }
+        fn validate_model(&self, _model: &str) -> AgentResult<()> {
+            Ok(())
+        }
+    }
+
+    fn weather_agent(
+        provider: Arc<dyn LLMProvider>,
+        tool: Option<ToolSpec<CounterDeps>>,
+    ) -> Agent<CounterDeps, WeatherReport> {
+        let deps = CounterDeps {
+            seen: Arc::new(Mutex::new(Vec::new())),
+        };
+        let mut builder = Agent::builder()
+            .provider(provider)
+            .model("test-model")
+            .deps(deps)
+            .output_schema(weather_schema());
+        if let Some(tool) = tool {
+            builder = builder.tool(tool);
+        }
+        builder.build().unwrap()
+    }
+
+    fn lookup_tool() -> ToolSpec<CounterDeps> {
+        ToolSpec::new(
+            "lookup_city",
+            "Look up a city",
+            serde_json::json!({
+                "type": "object",
+                "properties": {"city": {"type": "string"}},
+                "required": ["city"],
+            }),
+            |deps: CounterDeps, args: serde_json::Value| async move {
+                let city = args["city"].as_str().unwrap_or("").to_string();
+                deps.seen.lock().unwrap().push(city.clone());
+                Ok(serde_json::json!({"found": city}))
+            },
+        )
+    }
+
+    #[tokio::test]
+    async fn run_with_usage_sums_two_turns() {
+        let mut tool_turn = reply_with_tool(
+            "lookup_city",
+            serde_json::json!({"city": "Taipei"}),
+            "call_1",
+        );
+        tool_turn.usage = TokenUsage {
+            prompt_tokens: 10,
+            completion_tokens: 5,
+            total_tokens: 15,
+        };
+        let mut final_turn = reply(r#"{"city":"Taipei","temp_c":24}"#);
+        final_turn.usage = TokenUsage {
+            prompt_tokens: 20,
+            completion_tokens: 7,
+            total_tokens: 27,
+        };
+        let provider = Arc::new(ScriptedProvider::new(vec![tool_turn, final_turn]));
+        let agent = weather_agent(provider, Some(lookup_tool()));
+
+        let (out, usage) = agent.run_with_usage("weather?").await.unwrap();
+        assert_eq!(out.city, "Taipei");
+        assert_eq!(usage.prompt_tokens, 30);
+        assert_eq!(usage.completion_tokens, 12);
+        assert_eq!(usage.total_tokens, 42);
+    }
+
+    #[tokio::test]
+    async fn run_still_returns_output_only() {
+        let provider = Arc::new(ScriptedProvider::new(vec![reply(
+            r#"{"city":"Taipei","temp_c":24}"#,
+        )]));
+        let agent = weather_agent(provider, None);
+
+        let out = agent.run("how's Taipei?").await.unwrap();
+        assert_eq!(
+            out,
+            WeatherReport {
+                city: "Taipei".into(),
+                temp_c: 24
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn timeout_returns_timeout_error() {
+        let agent: Agent<CounterDeps, WeatherReport> = {
+            let deps = CounterDeps {
+                seen: Arc::new(Mutex::new(Vec::new())),
+            };
+            Agent::builder()
+                .provider(Arc::new(SlowProvider))
+                .model("test-model")
+                .deps(deps)
+                .output_schema(weather_schema())
+                .timeout(std::time::Duration::from_millis(50))
+                .build()
+                .unwrap()
+        };
+
+        // Outer guard: the run must end long before the provider's 5 s sleep.
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            agent.run("how's Taipei?"),
+        )
+        .await
+        .expect("run must stop at the agent timeout, not wait for the provider");
+        let err = result.unwrap_err();
+        assert!(
+            matches!(err, AgentError::Timeout(_)),
+            "expected Timeout, got {err:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn cancelled_token_returns_cancelled() {
+        let provider = Arc::new(ScriptedProvider::new(vec![reply(
+            r#"{"city":"Taipei","temp_c":24}"#,
+        )]));
+        let deps = CounterDeps {
+            seen: Arc::new(Mutex::new(Vec::new())),
+        };
+        let agent: Agent<CounterDeps, WeatherReport> = Agent::builder()
+            .provider(provider)
+            .model("test-model")
+            .deps(deps)
+            .output_schema(weather_schema())
+            .cancellation_token(CancellationToken::cancelled_now())
+            .build()
+            .unwrap();
+
+        let err = agent.run("how's Taipei?").await.unwrap_err();
+        assert!(
+            matches!(err, AgentError::Cancelled),
+            "expected Cancelled, got {err:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn cancel_during_llm_call_returns_cancelled() {
+        let token = CancellationToken::new();
+        let deps = CounterDeps {
+            seen: Arc::new(Mutex::new(Vec::new())),
+        };
+        let agent: Agent<CounterDeps, WeatherReport> = Agent::builder()
+            .provider(Arc::new(SlowProvider))
+            .model("test-model")
+            .deps(deps)
+            .output_schema(weather_schema())
+            .cancellation_token(token.clone())
+            .build()
+            .unwrap();
+
+        let canceller = {
+            let token = token.clone();
+            async move {
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                token.cancel();
+            }
+        };
+        let (result, ()) = tokio::time::timeout(std::time::Duration::from_secs(2), async {
+            tokio::join!(agent.run("how's Taipei?"), canceller)
+        })
+        .await
+        .expect("cancel must stop the in-flight LLM call");
+        let err = result.unwrap_err();
+        assert!(
+            matches!(err, AgentError::Cancelled),
+            "expected Cancelled, got {err:?}"
+        );
     }
 
     // Tracing-span emission is verified in `tests/tracing_spans.rs`
