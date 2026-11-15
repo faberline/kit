@@ -34,7 +34,8 @@ impl ClaudeProvider {
         let base_url: String = base_url.into();
         let config = HttpClientConfig::new()
             .base_url(base_url.clone())
-            .timeout_secs(120.0);
+            .timeout_secs(120.0)
+            .retry(kit_http::client::config::RetryConfig::default());
         let stream_config = HttpClientConfig::new()
             .base_url(base_url)
             .timeout_secs(3600.0);
