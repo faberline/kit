@@ -942,3 +942,60 @@ mod tests {
         assert_eq!(redact("abc", ""), "abc");
     }
 }
+
+#[cfg(test)]
+mod prop_tests {
+    use super::*;
+    use proptest::prelude::*;
+
+    /// One SSE event, without its blank-line separator.
+    fn event_text(name: &str, data: &str) -> String {
+        format!("event: {name}\ndata: {data}")
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(256))]
+
+        #[test]
+        fn parse_sse_event_never_panics_on_arbitrary_text(s in ".{0,2000}") {
+            let mut parser = SseParser::new();
+            let _ = parser.handle_event(&s);
+        }
+
+        #[test]
+        fn content_block_delta_keeps_random_text(text in "\\PC{1,100}") {
+            let data = serde_json::json!({
+                "type": "content_block_delta",
+                "index": 0,
+                "delta": {"type": "text_delta", "text": text}
+            })
+            .to_string();
+            let event = event_text("content_block_delta", &data);
+
+            let mut parser = SseParser::new();
+            let out = parser.handle_event(&event);
+            prop_assert_eq!(out.len(), 1);
+            let chunk = out[0].as_ref().expect("text_delta is never an error");
+            prop_assert_eq!(&chunk.content, &text);
+            prop_assert!(!chunk.is_final);
+            prop_assert!(chunk.tool_calls.is_none());
+        }
+
+        #[test]
+        fn parse_sse_event_garbage_data_never_panics(
+            garbage in ".{0,500}",
+            kind in prop::sample::select(vec![
+                "content_block_delta",
+                "message_delta",
+                "message_stop",
+                "content_block_start",
+                "ping",
+                "error",
+            ]),
+        ) {
+            let event = event_text(kind, &garbage);
+            let mut parser = SseParser::new();
+            let _ = parser.handle_event(&event);
+        }
+    }
+}
