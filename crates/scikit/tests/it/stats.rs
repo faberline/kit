@@ -2,8 +2,6 @@
 //!
 //! These tests were extracted from the inline `#[cfg(test)]` modules in the stats source files.
 
-#![cfg(feature = "stats")]
-
 use scikit::stats::{
     beta_fn,
     binomial_coef,

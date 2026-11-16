@@ -1,7 +1,5 @@
 //! Integration tests for the fft module: exact DFT for any length, and irfft for odd n.
 
-#![cfg(feature = "fft")]
-
 use scikit::fft::{fft, ifft, irfft, rfft, Complex};
 use std::f64::consts::PI;
 
