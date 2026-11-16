@@ -2279,3 +2279,78 @@ fn svd_wide_rank_two_3x4() {
     assert_orthonormal(r.vt.data(), 4);
     assert_close_slice(&svd_reconstruct(&r, 3, 4), a.data(), 1e-12);
 }
+
+// ============================================================================
+// ArrayView tests (transpose views share the buffer)
+// ============================================================================
+
+#[test]
+fn test_transpose_view_shares_buffer() {
+    let a = NdArray::new((0..6).map(|x| x as f64).collect::<Vec<f64>>(), vec![2, 3]).unwrap();
+    let t = a.view().transpose();
+    assert_eq!(t.dims(), &[3, 2]);
+    assert_eq!(t.strides(), &[1, 3]);
+    // Same buffer: no copy was made
+    assert!(t.data_ptr() == a.data().as_ptr());
+    // t[2, 1] is a[1, 2] = 5.0; t[0, 1] is a[1, 0] = 3.0
+    assert_eq!(t.get(&[2, 1]).unwrap(), 5.0);
+    assert_eq!(t.get(&[0, 1]).unwrap(), 3.0);
+}
+
+#[test]
+fn test_transpose_view_to_owned_matches_transpose() {
+    let a = NdArray::new((0..6).map(|x| x as f64).collect::<Vec<f64>>(), vec![2, 3]).unwrap();
+    let t = a.view().transpose();
+    let owned = t.to_owned();
+    assert_eq!(owned.dims(), a.transpose().dims());
+    assert_eq!(owned.data(), a.transpose().data());
+}
+
+#[test]
+fn test_view_not_contiguous_after_transpose() {
+    let a = NdArray::new((0..6).map(|x| x as f64).collect::<Vec<f64>>(), vec![2, 3]).unwrap();
+    let t = a.view().transpose();
+    assert!(a.view().is_contiguous());
+    assert!(!t.is_contiguous());
+}
+
+#[test]
+fn test_view_transpose_axes_bad_axis_is_error() {
+    let a = NdArray::new(
+        (0..24).map(|x| x as f64).collect::<Vec<f64>>(),
+        vec![2, 3, 4],
+    )
+    .unwrap();
+    let v = a.view();
+    assert!(matches!(
+        v.transpose_axes(&[0, 1, 3]),
+        Err(ArrayError::InvalidAxis { axis: 3, ndim: 3 })
+    ));
+    assert!(v.transpose_axes(&[0, 1]).is_err());
+    // A repeated axis is not a permutation
+    assert!(v.transpose_axes(&[0, 0, 1]).is_err());
+
+    let t = v.transpose_axes(&[2, 0, 1]).unwrap();
+    assert_eq!(t.dims(), &[4, 2, 3]);
+    // t[3, 1, 2] is a[1, 2, 3] = 23.0
+    assert_eq!(t.get(&[3, 1, 2]).unwrap(), 23.0);
+}
+
+#[test]
+fn test_view_get_out_of_bounds_is_error() {
+    let a = NdArray::new((0..6).map(|x| x as f64).collect::<Vec<f64>>(), vec![2, 3]).unwrap();
+    assert!(matches!(
+        a.view().get(&[2, 0]),
+        Err(ArrayError::IndexOutOfBounds { .. })
+    ));
+    assert!(a.view().get(&[0]).is_err());
+}
+
+#[test]
+fn test_view_of_empty_array_data_ptr_is_buffer_start() {
+    let e = NdArray::<f64>::zeros(vec![0, 3]);
+    let v = e.view();
+    assert_eq!(v.size(), 0);
+    assert_eq!(v.ndim(), 2);
+    assert!(v.data_ptr() == e.data().as_ptr());
+}
