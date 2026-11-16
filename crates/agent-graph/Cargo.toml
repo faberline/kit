@@ -2,7 +2,7 @@
 name = "agentkit-graph"
 version = "0.1.0"
 edition = "2021"
-description = "Stateful agent graph runtime (Epic 3 — LangGraph parity)"
+description = "Stateful agent graph runtime"
 license = "MIT"
 authors.workspace = true
 

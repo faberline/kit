@@ -56,10 +56,10 @@ pub use cancellation_timeout::{
     run_until_cancelled, run_with_deadline, with_timeout, CancellationSnapshot, CancellationToken,
 };
 
-// Re-export schema builder + validator (pydantic-style typed I/O foundation, #1949, #1950)
+// Re-export schema builder and validator (typed input and output schemas)
 pub use schema::{ObjectSchemaBuilder, Schema, SchemaMetadata, ValidationError};
 
-// Re-export `#[derive(AgentSchema)]` proc-macro (#1952)
+// Re-export the `#[derive(AgentSchema)]` proc-macro
 pub use agent_derive::AgentSchema;
 
 // Re-export LLM types
