@@ -36,7 +36,9 @@ jobs:
       - run: cargo install --locked cargo-deny --version 0.19.0
       - run: cargo deny check
       - run: cargo install --locked cargo-audit --version 0.23.0
-      - run: cargo audit
+      # cargo-audit refuses to clone into a non-empty directory, and the runner's
+      # default ~/.cargo/advisory-db is not empty. Use a fresh database path.
+      - run: cargo audit --db "${{ runner.temp }}/advisory-db"
 
   test-default:
     name: "test: workspace (default features)"
