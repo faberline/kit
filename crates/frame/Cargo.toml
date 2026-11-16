@@ -34,3 +34,6 @@ parallel = ["dep:rayon"]
 [[bench]]
 name = "frame"
 harness = false
+
+[lints]
+workspace = true

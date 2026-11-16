@@ -23,3 +23,6 @@ serde.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "sync"] }
 async-trait.workspace = true
 trybuild = "1"
+
+[lints]
+workspace = true

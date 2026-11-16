@@ -43,3 +43,6 @@ parallel = ["dep:rayon"]
 name = "scikit"
 harness = false
 required-features = ["fft", "stats"]
+
+[lints]
+workspace = true

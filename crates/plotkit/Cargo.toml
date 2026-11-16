@@ -22,3 +22,6 @@ tempfile.workspace = true
 [features]
 default = []
 serde = ["dep:serde"]
+
+[lints]
+workspace = true

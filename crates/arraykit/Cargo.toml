@@ -30,3 +30,6 @@ parallel = ["dep:rayon"]
 [[bench]]
 name = "arraykit"
 harness = false
+
+[lints]
+workspace = true

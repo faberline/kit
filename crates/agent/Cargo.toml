@@ -69,3 +69,6 @@ tokio-test.workspace = true
 # `start_paused` in the stream tests needs the test-util feature.
 tokio = { workspace = true, features = ["test-util"] }
 proptest = "=1.12.0"
+
+[lints]
+workspace = true
