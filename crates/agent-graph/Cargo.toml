@@ -1,9 +1,9 @@
 [package]
 name = "agentkit-graph"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
 description = "Stateful agent graph runtime"
-license = "MIT"
+license.workspace = true
 authors.workspace = true
 
 [lib]
@@ -12,15 +12,15 @@ crate-type = ["rlib"]
 
 [dependencies]
 agent = { path = "../agent" }
-async-trait = "0.1"
-tokio = { version = "1", features = ["sync", "rt", "macros", "fs", "io-util"] }
-futures = "0.3"
-thiserror = "1"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-tracing = "0.1"
+async-trait.workspace = true
+tokio = { workspace = true, features = ["sync", "rt", "macros", "fs", "io-util"] }
+futures.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
 
 [dev-dependencies]
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync"] }
-tempfile = "3"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "sync"] }
+tempfile.workspace = true
+tracing-subscriber.workspace = true
