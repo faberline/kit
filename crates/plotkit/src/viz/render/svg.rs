@@ -480,6 +480,15 @@ pub(crate) fn box_stats(data: &[f64]) -> BoxStats {
     let mut sorted = data.to_vec();
     sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     let n = sorted.len();
+    if n == 0 {
+        return BoxStats {
+            median: 0.0,
+            q1: 0.0,
+            q3: 0.0,
+            whisker_low: 0.0,
+            whisker_high: 0.0,
+        };
+    }
 
     let median = percentile_sorted(&sorted, 0.5);
     let q1 = percentile_sorted(&sorted, 0.25);
@@ -748,5 +757,13 @@ mod tests {
         )];
         let svg = r.render(&None, &series, &style);
         assert!(svg.starts_with("<svg"));
+    }
+
+    #[test]
+    fn test_box_stats_empty() {
+        let s = box_stats(&[]);
+        assert_eq!(s.median, 0.0);
+        assert_eq!(s.whisker_low, 0.0);
+        assert_eq!(s.whisker_high, 0.0);
     }
 }

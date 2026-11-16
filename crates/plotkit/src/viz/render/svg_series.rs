@@ -167,6 +167,9 @@ impl SvgRenderer {
         if groups.is_empty() {
             return;
         }
+        if groups.iter().all(|g| g.is_empty()) {
+            return;
+        }
 
         let mut all_min = f64::INFINITY;
         let mut all_max = f64::NEG_INFINITY;
@@ -174,8 +177,10 @@ impl SvgRenderer {
             .iter()
             .map(|g| {
                 let s = box_stats(g);
-                all_min = all_min.min(s.whisker_low);
-                all_max = all_max.max(s.whisker_high);
+                if !g.is_empty() {
+                    all_min = all_min.min(s.whisker_low);
+                    all_max = all_max.max(s.whisker_high);
+                }
                 s
             })
             .collect();
@@ -210,6 +215,19 @@ impl SvgRenderer {
         for (i, (s, label)) in stats.iter().zip(labels.iter()).enumerate() {
             let cx = self.margin.left + (i as f64 + 0.5) * group_w;
             let bx = cx - box_w / 2.0;
+
+            if groups[i].is_empty() {
+                // No box for an empty group; keep its label.
+                self.text(
+                    cx,
+                    self.margin.top + self.plot_height() + 15.0,
+                    label,
+                    &style.text_color.to_hex(),
+                    style.font_size * 0.9,
+                    "middle",
+                );
+                continue;
+            }
 
             let y_q1 = self.map_y(s.q1, y_ticks.min, y_ticks.max);
             let y_q3 = self.map_y(s.q3, y_ticks.min, y_ticks.max);
@@ -640,6 +658,7 @@ fn kernel_density(data: &[f64], min_val: f64, max_val: f64, n_points: usize) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::viz::series_data::DataSeries;
 
     #[test]
     fn test_kernel_density_basic() {
@@ -669,5 +688,49 @@ mod tests {
             .unwrap()
             .0;
         assert!((peak_idx as i32 - mid_idx).unsigned_abs() <= 1);
+    }
+
+    fn render_series(series: DataSeries) -> String {
+        let mut r = SvgRenderer::new(400.0, 300.0);
+        r.render(&None, &[series], &ChartStyle::default())
+    }
+
+    #[test]
+    fn test_box_plot_empty_group() {
+        let series = DataSeries::box_plot(
+            vec![vec![1.0, 2.0, 3.0], vec![]],
+            vec!["a".to_string(), "b".to_string()],
+        );
+        let svg = render_series(series);
+        assert!(svg.contains(">b</text>"));
+        assert!(!svg.contains("NaN"));
+    }
+
+    #[test]
+    fn test_box_plot_all_empty() {
+        let series =
+            DataSeries::box_plot(vec![vec![], vec![]], vec!["a".to_string(), "b".to_string()]);
+        let svg = render_series(series);
+        assert!(svg.starts_with("<svg"));
+        assert!(!svg.contains("NaN"));
+    }
+
+    #[test]
+    fn test_violin_empty_group() {
+        let series = DataSeries::violin(
+            vec![vec![1.0, 2.0], vec![]],
+            vec!["a".to_string(), "b".to_string()],
+        );
+        let svg = render_series(series);
+        assert!(svg.contains(">b</text>"));
+        assert!(!svg.contains("NaN"));
+    }
+
+    #[test]
+    fn test_violin_all_empty() {
+        let series =
+            DataSeries::violin(vec![vec![], vec![]], vec!["a".to_string(), "b".to_string()]);
+        let svg = render_series(series);
+        assert!(!svg.contains("NaN"));
     }
 }
