@@ -13,6 +13,8 @@ Results are not yet checked against reference libraries (NumPy, pandas, SciPy).
 
 A quality check found wrong results. Open issues track them: #3 (frame), #4 (arraykit and scikit), #5 (agent), and #1, #7 to #11 (CI and clippy).
 
+See [docs/parity.md](docs/parity.md) for how each crate compares with its reference library.
+
 See [docs/stability.md](docs/stability.md), [docs/limits.md](docs/limits.md), [docs/benchmarks.md](docs/benchmarks.md) and [CHANGELOG.md](CHANGELOG.md).
 
 Report a vulnerability as described in [SECURITY.md](SECURITY.md).
@@ -36,6 +38,7 @@ Report a vulnerability as described in [SECURITY.md](SECURITY.md).
 
 - No autograd, neural network layers, optimizers, GPU support or model file formats.
 - No machine-learning estimators.
+- No loss functions, no `DataLoader`, and no `StandardScaler`, `PCA` or `train_test_split`.
 - `frame` is row-oriented, not columnar.
 - In `agent`, only the Claude provider streams. Other providers do not.
 - No embeddings and no vector store.
