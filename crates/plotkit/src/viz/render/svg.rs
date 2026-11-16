@@ -81,13 +81,21 @@ impl SvgRenderer {
             );
         }
 
+        // Shared axes for all Line, Scatter and Area series; drawn once
+        let axes = shared_axes(series);
+        if let Some(a) = &axes {
+            self.draw_axes(&a.x.ticks, &a.y.ticks, &a.x, &a.y, style);
+        }
+
         // Render each series
         for s in series {
             match s {
                 DataSeries::Line {
                     x, y, style: ls, ..
                 } => {
-                    self.render_line(x, y, &ls.color, ls.width, style);
+                    if let Some(a) = &axes {
+                        self.render_line(x, y, &ls.color, ls.width, a);
+                    }
                 }
                 DataSeries::Bar {
                     labels,
@@ -100,7 +108,9 @@ impl SvgRenderer {
                 DataSeries::Scatter {
                     x, y, style: ps, ..
                 } => {
-                    self.render_scatter(x, y, &ps.color, ps.radius, ps.opacity, style);
+                    if let Some(a) = &axes {
+                        self.render_scatter(x, y, &ps.color, ps.radius, ps.opacity, a);
+                    }
                 }
                 DataSeries::Histogram {
                     data,
@@ -127,7 +137,9 @@ impl SvgRenderer {
                 DataSeries::Area {
                     x, y, style: ls, ..
                 } => {
-                    self.render_area(x, y, &ls.color, ls.width, style);
+                    if let Some(a) = &axes {
+                        self.render_area(x, y, &ls.color, ls.width, a);
+                    }
                 }
                 DataSeries::Pie { labels, values } => {
                     self.render_pie(labels, values, style);
@@ -379,33 +391,64 @@ impl SvgRenderer {
 
 // ── Free functions used by other submodules ────────────────────────────
 
-/// Try to infer X and Y tick info from the first XY-type series (for annotation mapping).
-fn infer_tick_info(series: &[DataSeries]) -> (Option<TickInfo>, Option<TickInfo>) {
+/// X and Y ticks shared by all Line, Scatter and Area series of one chart.
+pub(crate) struct SharedAxes {
+    pub(crate) x: TickInfo,
+    pub(crate) y: TickInfo,
+}
+
+/// Fold the min and max of x and y over all Line, Scatter and Area series.
+/// Returns `None` when no such series has a finite x and a finite y value.
+fn shared_axes(series: &[DataSeries]) -> Option<SharedAxes> {
     use crate::viz::axis::nice_ticks;
 
+    let mut x_min = f64::INFINITY;
+    let mut x_max = f64::NEG_INFINITY;
+    let mut y_min = f64::INFINITY;
+    let mut y_max = f64::NEG_INFINITY;
+    let mut has_x = false;
+    let mut has_y = false;
+
     for s in series {
-        match s {
-            DataSeries::Line { x, y, .. }
-            | DataSeries::Scatter { x, y, .. }
-            | DataSeries::Area { x, y, .. }
-                if !x.is_empty() && !y.is_empty() =>
-            {
-                let x_info = nice_ticks(
-                    x.iter().copied().fold(f64::INFINITY, f64::min),
-                    x.iter().copied().fold(f64::NEG_INFINITY, f64::max),
-                    5,
-                );
-                let y_info = nice_ticks(
-                    y.iter().copied().fold(f64::INFINITY, f64::min),
-                    y.iter().copied().fold(f64::NEG_INFINITY, f64::max),
-                    5,
-                );
-                return (Some(x_info), Some(y_info));
-            }
-            _ => {}
+        let (x, y, is_area) = match s {
+            DataSeries::Line { x, y, .. } | DataSeries::Scatter { x, y, .. } => (x, y, false),
+            DataSeries::Area { x, y, .. } => (x, y, true),
+            _ => continue,
+        };
+        if x.is_empty() || y.is_empty() {
+            continue;
+        }
+        for &v in x.iter().filter(|v| v.is_finite()) {
+            x_min = x_min.min(v);
+            x_max = x_max.max(v);
+            has_x = true;
+        }
+        for &v in y.iter().filter(|v| v.is_finite()) {
+            y_min = y_min.min(v);
+            y_max = y_max.max(v);
+            has_y = true;
+        }
+        if is_area {
+            // An area is drawn from its baseline at zero, as render_area does.
+            y_min = y_min.min(0.0);
         }
     }
-    (None, None)
+
+    if !has_x || !has_y {
+        return None;
+    }
+    Some(SharedAxes {
+        x: nice_ticks(x_min, x_max, 5),
+        y: nice_ticks(y_min, y_max, 5),
+    })
+}
+
+/// Try to infer X and Y tick info from the shared axes (for annotation mapping).
+fn infer_tick_info(series: &[DataSeries]) -> (Option<TickInfo>, Option<TickInfo>) {
+    match shared_axes(series) {
+        Some(a) => (Some(a.x), Some(a.y)),
+        None => (None, None),
+    }
 }
 
 pub(crate) fn escape_xml(s: &str) -> String {
@@ -648,5 +691,62 @@ mod tests {
         let series = vec![DataSeries::line(vec![1.0, 2.0], vec![3.0, 4.0])];
         let svg = r.render(&Some("My Chart".into()), &series, &style);
         assert!(svg.contains("My Chart"));
+    }
+
+    #[test]
+    fn test_shared_axes_two_lines() {
+        let style = ChartStyle::default();
+        let mut r = SvgRenderer::new(400.0, 300.0);
+        let series = vec![
+            DataSeries::line(vec![0.0, 1.0, 2.0], vec![0.0, 1.0, 2.0]),
+            DataSeries::line(vec![0.0, 1.0, 2.0], vec![0.0, 100.0, 200.0]),
+        ];
+        let svg = r.render(&None, &series, &style);
+
+        // Last point y of each path, in series order.
+        let last_ys: Vec<f64> = svg
+            .split("<path d=\"M")
+            .skip(1)
+            .map(|s| {
+                let d = s.split('"').next().unwrap();
+                let last = d.rsplit(' ').next().unwrap();
+                last.split(',').nth(1).unwrap().parse::<f64>().unwrap()
+            })
+            .collect();
+        assert_eq!(last_ys.len(), 2);
+
+        let ticks = crate::viz::axis::nice_ticks(0.0, 200.0, 5);
+        let expected_a = r.map_y(2.0, ticks.min, ticks.max);
+        assert_eq!(format!("{:.1}", last_ys[0]), format!("{:.1}", expected_a));
+        assert_eq!(format!("{:.1}", last_ys[1]), format!("{:.1}", 40.0));
+        assert!(last_ys[0] > last_ys[1]);
+    }
+
+    #[test]
+    fn test_shared_axes_drawn_once() {
+        let style = ChartStyle::default();
+        let mut r = SvgRenderer::new(400.0, 300.0);
+        let series = vec![
+            DataSeries::line(vec![0.0, 1.0, 2.0], vec![0.0, 1.0, 2.0]),
+            DataSeries::line(vec![0.0, 1.0, 2.0], vec![0.0, 100.0, 200.0]),
+        ];
+        let svg = r.render(&None, &series, &style);
+        let expected = format!(
+            r#"<line x1="60.0" y1="40.0" x2="60.0" y2="250.0" stroke="{}" stroke-width="1" />"#,
+            style.text_color.to_hex()
+        );
+        assert_eq!(svg.matches(&expected).count(), 1);
+    }
+
+    #[test]
+    fn test_shared_axes_bar_only_still_renders() {
+        let style = ChartStyle::default();
+        let mut r = SvgRenderer::new(400.0, 300.0);
+        let series = vec![DataSeries::bar(
+            vec!["a".to_string(), "b".to_string()],
+            vec![1.0, 2.0],
+        )];
+        let svg = r.render(&None, &series, &style);
+        assert!(svg.starts_with("<svg"));
     }
 }

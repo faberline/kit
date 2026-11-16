@@ -3,7 +3,7 @@
 use crate::viz::axis::{format_tick, nice_ticks};
 use crate::viz::style::{ChartStyle, Color};
 
-use super::svg::{box_stats, viridis, SvgRenderer};
+use super::svg::{box_stats, viridis, SharedAxes, SvgRenderer};
 
 impl SvgRenderer {
     pub(crate) fn render_line(
@@ -12,28 +12,16 @@ impl SvgRenderer {
         y: &[f64],
         color: &Color,
         width: f64,
-        style: &ChartStyle,
+        axes: &SharedAxes,
     ) {
         if x.is_empty() || y.is_empty() {
             return;
         }
-        let x_ticks = nice_ticks(
-            x.iter().copied().fold(f64::INFINITY, f64::min),
-            x.iter().copied().fold(f64::NEG_INFINITY, f64::max),
-            5,
-        );
-        let y_ticks = nice_ticks(
-            y.iter().copied().fold(f64::INFINITY, f64::min),
-            y.iter().copied().fold(f64::NEG_INFINITY, f64::max),
-            5,
-        );
-
-        self.draw_axes(&x_ticks.ticks, &y_ticks.ticks, &x_ticks, &y_ticks, style);
 
         let mut path = String::new();
         for (i, (&xi, &yi)) in x.iter().zip(y.iter()).enumerate() {
-            let px = self.map_x(xi, x_ticks.min, x_ticks.max);
-            let py = self.map_y(yi, y_ticks.min, y_ticks.max);
+            let px = self.map_x(xi, axes.x.min, axes.x.max);
+            let py = self.map_y(yi, axes.y.min, axes.y.max);
             if i == 0 {
                 path.push_str(&format!("M{:.1},{:.1}", px, py));
             } else {
@@ -114,26 +102,15 @@ impl SvgRenderer {
         color: &Color,
         radius: f64,
         opacity: f64,
-        style: &ChartStyle,
+        axes: &SharedAxes,
     ) {
         if x.is_empty() {
             return;
         }
-        let x_ticks = nice_ticks(
-            x.iter().copied().fold(f64::INFINITY, f64::min),
-            x.iter().copied().fold(f64::NEG_INFINITY, f64::max),
-            5,
-        );
-        let y_ticks = nice_ticks(
-            y.iter().copied().fold(f64::INFINITY, f64::min),
-            y.iter().copied().fold(f64::NEG_INFINITY, f64::max),
-            5,
-        );
-        self.draw_axes(&x_ticks.ticks, &y_ticks.ticks, &x_ticks, &y_ticks, style);
 
         for (&xi, &yi) in x.iter().zip(y.iter()) {
-            let px = self.map_x(xi, x_ticks.min, x_ticks.max);
-            let py = self.map_y(yi, y_ticks.min, y_ticks.max);
+            let px = self.map_x(xi, axes.x.min, axes.x.max);
+            let py = self.map_y(yi, axes.y.min, axes.y.max);
             self.circle(px, py, radius, &color.to_hex(), opacity);
         }
     }
@@ -354,35 +331,22 @@ impl SvgRenderer {
         y: &[f64],
         color: &Color,
         width: f64,
-        style: &ChartStyle,
+        axes: &SharedAxes,
     ) {
         if x.is_empty() || y.is_empty() {
             return;
         }
-        let x_ticks = nice_ticks(
-            x.iter().copied().fold(f64::INFINITY, f64::min),
-            x.iter().copied().fold(f64::NEG_INFINITY, f64::max),
-            5,
-        );
-        let y_min = y.iter().copied().fold(f64::INFINITY, f64::min).min(0.0);
-        let y_ticks = nice_ticks(
-            y_min,
-            y.iter().copied().fold(f64::NEG_INFINITY, f64::max),
-            5,
-        );
-
-        self.draw_axes(&x_ticks.ticks, &y_ticks.ticks, &x_ticks, &y_ticks, style);
 
         let mut path = String::new();
-        let baseline_y = self.map_y(y_ticks.min.max(0.0), y_ticks.min, y_ticks.max);
-        let first_px = self.map_x(x[0], x_ticks.min, x_ticks.max);
+        let baseline_y = self.map_y(axes.y.min.max(0.0), axes.y.min, axes.y.max);
+        let first_px = self.map_x(x[0], axes.x.min, axes.x.max);
         path.push_str(&format!("M{:.1},{:.1}", first_px, baseline_y));
         for (&xi, &yi) in x.iter().zip(y.iter()) {
-            let px = self.map_x(xi, x_ticks.min, x_ticks.max);
-            let py = self.map_y(yi, y_ticks.min, y_ticks.max);
+            let px = self.map_x(xi, axes.x.min, axes.x.max);
+            let py = self.map_y(yi, axes.y.min, axes.y.max);
             path.push_str(&format!(" L{:.1},{:.1}", px, py));
         }
-        let last_px = self.map_x(x[x.len() - 1], x_ticks.min, x_ticks.max);
+        let last_px = self.map_x(x[x.len() - 1], axes.x.min, axes.x.max);
         path.push_str(&format!(" L{:.1},{:.1} Z", last_px, baseline_y));
 
         self.elements.push(format!(
