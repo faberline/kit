@@ -50,10 +50,7 @@ The package names `agentkit-graph` and `agentkit-tools` do not match their direc
 
 ## Known gaps in checks
 
-- `cargo clippy --workspace --all-targets -- -D warnings` does not pass yet. The copied
-  code has about 100 clippy warnings and a few deny-level lints in tests (`approx_constant`
-  in `frame` and `scikit` tests). CI runs `cargo clippy --workspace` on library targets only.
-- `cargo deny check` was not run.
+- CI runs `cargo clippy --workspace --all-targets -- -D warnings` (also with `--all-features`) and `cargo deny check`. Both must pass.
 
 ## Develop
 
