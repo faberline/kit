@@ -99,8 +99,9 @@ struct LoopbackTransport {
 #[async_trait]
 impl McpTransport for LoopbackTransport {
     async fn send(&self, message: Value) -> AgentResult<()> {
-        let response = self.server.handle_request(message).await;
-        *self.pending.lock().unwrap() = Some(response);
+        if let Some(response) = self.server.handle_message(message).await {
+            *self.pending.lock().unwrap() = Some(response);
+        }
         Ok(())
     }
 
