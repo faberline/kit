@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
-description = "Proc-macro derive for agent::Schema (pydantic-style typed I/O)"
+description = "Proc-macro derive for agent::Schema (typed input and output schemas)"
 repository.workspace = true
 readme = "README.md"
 

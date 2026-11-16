@@ -61,7 +61,7 @@ toml = "0.8"
 # JSON schema validation (for structured output)
 jsonschema = "0.45"
 
-# Proc-macro derive (companion crate, P4/#1952)
+# Proc-macro derive (companion crate)
 agent-derive = { path = "../agent-derive" }
 
 [dev-dependencies]
