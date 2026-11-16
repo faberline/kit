@@ -1,10 +1,12 @@
 [package]
 name = "agent"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
 description = "High-performance LLM agent framework with Rust core"
-license = "MIT"
 authors.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
 
 [lib]
 name = "agent"
@@ -37,8 +39,9 @@ tempfile = "3"
 # HTTP client (`kit-http` core)
 kit-http = { path = "../kit-http" }
 
-# URL encoding
+# URL encoding and parsing
 urlencoding = "2"
+url = "2"
 
 # HTML parsing and escaping
 html-escape = "0.2"
