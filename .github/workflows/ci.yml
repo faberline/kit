@@ -110,10 +110,11 @@ jobs:
           toolchain: 1.99.1
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - run: sh tools/bench-compare/selftest.sh
-      - run: cargo bench --workspace --locked -- --quick
+      - run: cargo bench --workspace --locked --bench arraykit --bench frame --bench scikit --features scikit/fft,scikit/stats -- --quick
       - run: sh tools/bench-compare/compare.sh
       - run: sh tools/bench-compare/compare.sh --update
         if: always()
+        continue-on-error: true
 
   test-publish-dry-run:
     name: "test: publish dry run"
