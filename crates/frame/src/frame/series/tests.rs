@@ -531,3 +531,303 @@ fn shift_by_more_than_len_gives_all_null() {
         assert!(backward.iloc(i).unwrap().is_null());
     }
 }
+
+#[test]
+fn min_and_max_skip_nulls() {
+    let s = Series::new(vec![
+        Value::Int(4),
+        Value::Null,
+        Value::Int(2),
+        Value::Int(9),
+    ]);
+    assert_eq!(s.min().unwrap(), Value::Int(2));
+    assert_eq!(s.max().unwrap(), Value::Int(9));
+}
+
+#[test]
+fn min_and_max_of_only_nulls_fail() {
+    let s = Series::new(vec![Value::Null, Value::Null]);
+    assert!(s.min().is_err());
+    assert!(s.max().is_err());
+}
+
+#[test]
+fn count_ignores_nulls() {
+    let s = Series::new(vec![Value::Int(1), Value::Null, Value::Int(3)]);
+    assert_eq!(s.count(), 2);
+}
+
+#[test]
+fn map_keeps_name_and_applies_function() {
+    let s = Series::with_name(vec![1, 2, 3], "n");
+    let doubled = s.map(|v| match v {
+        Value::Int(x) => Value::Int(x * 2),
+        other => other.clone(),
+    });
+    assert_eq!(doubled.name(), Some("n"));
+    assert_eq!(
+        doubled.values(),
+        &[Value::Int(2), Value::Int(4), Value::Int(6)]
+    );
+}
+
+#[test]
+fn to_dict_maps_labels_to_values() {
+    let s = Series::new(vec![10, 20]);
+    let d = s.to_dict();
+    assert_eq!(d.len(), 2);
+    assert_eq!(d.get(&Value::Int(0)), Some(&Value::Int(10)));
+    assert_eq!(d.get(&Value::Int(1)), Some(&Value::Int(20)));
+}
+
+#[test]
+fn arithmetic_rejects_length_mismatch() {
+    let a = Series::new(vec![1.0, 2.0]);
+    let b = Series::new(vec![1.0]);
+    assert!((&a + &b).is_err());
+    assert!((&a - &b).is_err());
+    assert!((&a * &b).is_err());
+    assert!((&a / &b).is_err());
+}
+
+#[test]
+fn division_by_zero_gives_null() {
+    let a = Series::new(vec![1.0, 4.0]);
+    let b = Series::new(vec![0.0, 2.0]);
+    let q = (&a / &b).unwrap();
+    assert_eq!(q.iloc(0).unwrap(), &Value::Null);
+    assert_eq!(q.iloc(1).unwrap(), &Value::Float(2.0));
+}
+
+#[test]
+fn with_index_rejects_length_mismatch() {
+    assert!(Series::with_index(vec![1, 2], Index::Range(3)).is_err());
+}
+
+#[test]
+fn is_empty_reports_zero_length() {
+    assert!(Series::new(Vec::<i32>::new()).is_empty());
+    assert!(!Series::new(vec![1]).is_empty());
+}
+
+#[test]
+fn loc_finds_label_and_rejects_missing_label() {
+    let s = Series::new(vec![1, 2]);
+    assert_eq!(s.loc(&Value::Int(1)).unwrap(), &Value::Int(2));
+    assert!(s.loc(&Value::Int(9)).is_err());
+}
+
+#[test]
+fn iloc_many_keeps_order_and_rejects_out_of_bounds() {
+    let s = Series::with_name(vec![10, 20, 30], "x");
+    let picked = s.iloc_many(&[2, 0]).unwrap();
+    assert_eq!(picked.name(), Some("x"));
+    assert_eq!(picked.values(), &[Value::Int(30), Value::Int(10)]);
+    assert!(s.iloc_many(&[0, 5]).is_err());
+}
+
+#[test]
+fn numeric_conversions_reject_text() {
+    let text = Series::new(vec![Value::String("a".to_string())]);
+    assert!(text.to_f64().is_err());
+    assert!(text.to_i64().is_err());
+    assert_eq!(
+        Series::new(vec![1, 2]).to_i64().unwrap(),
+        vec![1_i64, 2_i64]
+    );
+}
+
+#[test]
+fn reductions_reject_text_and_all_null_input() {
+    let text = Series::new(vec![Value::String("a".to_string())]);
+    assert!(text.sum().is_err());
+    assert!(text.mean().is_err());
+    let nulls = Series::new(vec![Value::Null]);
+    assert!(nulls.mean().is_err());
+}
+
+#[test]
+fn filter_rejects_mask_of_wrong_length() {
+    let s = Series::new(vec![1, 2]);
+    assert!(s.filter(&[true]).is_err());
+}
+
+#[test]
+fn clip_bounds_numbers_and_keeps_text() {
+    let s = Series::new(vec![
+        Value::Float(1.0),
+        Value::Float(5.0),
+        Value::Float(10.0),
+    ]);
+    assert_eq!(
+        s.clip(2.0, 8.0).values(),
+        &[Value::Float(2.0), Value::Float(5.0), Value::Float(8.0)]
+    );
+    let text = Series::new(vec![Value::String("x".to_string())]);
+    assert_eq!(
+        text.clip(0.0, 1.0).values(),
+        &[Value::String("x".to_string())]
+    );
+}
+
+#[test]
+fn std_and_var_use_sample_formula() {
+    let s = Series::new(vec![2.0, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.0]);
+    assert!((s.var().unwrap() - 32.0 / 7.0).abs() < 1e-12);
+    assert!((s.std().unwrap() - (32.0_f64 / 7.0).sqrt()).abs() < 1e-12);
+}
+
+#[test]
+fn std_and_var_need_two_values() {
+    let s = Series::new(vec![1.0]);
+    assert!(s.std().is_err());
+    assert!(s.var().is_err());
+}
+
+#[test]
+fn median_odd_even_and_empty() {
+    assert_eq!(Series::new(vec![3.0, 1.0, 2.0]).median().unwrap(), 2.0);
+    assert_eq!(Series::new(vec![1.0, 2.0, 3.0, 4.0]).median().unwrap(), 2.5);
+    assert!(Series::new(Vec::<f64>::new()).median().is_err());
+    assert!(Series::new(vec![Value::Null]).median().is_err());
+}
+
+#[test]
+fn duplicated_supports_last_and_all() {
+    let s = Series::new(vec![1, 2, 1, 3, 2]);
+    assert_eq!(s.duplicated("last"), vec![true, true, false, false, false]);
+    assert_eq!(s.duplicated("first"), vec![false, false, true, false, true]);
+    assert_eq!(s.duplicated("all"), vec![true, true, true, false, true]);
+}
+
+#[test]
+fn drop_duplicates_keeps_first_occurrence() {
+    let s = Series::new(vec![1, 2, 1, 3]);
+    assert_eq!(
+        s.drop_duplicates("first").values(),
+        &[Value::Int(1), Value::Int(2), Value::Int(3)]
+    );
+}
+
+#[test]
+fn quantile_interpolates_and_rejects_bad_input() {
+    let s = Series::new(vec![1.0, 2.0, 3.0, 4.0]);
+    assert_eq!(s.quantile(0.0).unwrap(), 1.0);
+    assert_eq!(s.quantile(0.5).unwrap(), 2.5);
+    assert_eq!(s.quantile(1.0).unwrap(), 4.0);
+    assert!(s.quantile(1.5).is_err());
+    assert!(Series::new(vec![Value::Null]).quantile(0.5).is_err());
+}
+
+#[test]
+fn corr_handles_linear_constant_and_bad_input() {
+    let x = Series::new(vec![1.0, 2.0, 3.0]);
+    let y = Series::new(vec![2.0, 4.0, 6.0]);
+    assert!((x.corr(&y).unwrap() - 1.0).abs() < 1e-12);
+
+    let flat = Series::new(vec![1.0, 1.0, 1.0]);
+    assert_eq!(flat.corr(&y).unwrap(), 0.0);
+
+    assert!(Series::new(vec![1.0])
+        .corr(&Series::new(vec![2.0]))
+        .is_err());
+    assert!(x.corr(&Series::new(vec![1.0])).is_err());
+    let text = Series::new(vec![Value::String("a".to_string()); 3]);
+    assert!(text.corr(&y).is_err());
+}
+
+#[test]
+fn astype_converts_each_dtype() {
+    assert_eq!(
+        Series::new(vec![Value::Int(3)]).astype("int").values(),
+        &[Value::Int(3)]
+    );
+    assert_eq!(
+        Series::new(vec![Value::Int(2), Value::Bool(true)])
+            .astype("f64")
+            .values(),
+        &[Value::Float(2.0), Value::Float(1.0)]
+    );
+    assert_eq!(
+        Series::new(vec![Value::Int(7)]).astype("str").values(),
+        &[Value::String("7".to_string())]
+    );
+    assert_eq!(
+        Series::new(vec![Value::Bool(false)])
+            .astype("bool")
+            .values(),
+        &[Value::Bool(false)]
+    );
+    assert_eq!(
+        Series::new(vec![Value::Int(5)]).astype("unknown").values(),
+        &[Value::Int(5)]
+    );
+}
+
+#[test]
+fn where_cond_keeps_true_and_replaces_false() {
+    let s = Series::new(vec![1, 2, 3]);
+    assert_eq!(
+        s.where_cond(&[true, false, true], &Value::Int(0)).values(),
+        &[Value::Int(1), Value::Int(0), Value::Int(3)]
+    );
+}
+
+#[test]
+fn abs_keeps_non_numbers() {
+    let s = Series::new(vec![
+        Value::Int(-2),
+        Value::Float(-1.5),
+        Value::String("t".to_string()),
+    ]);
+    assert_eq!(
+        s.abs().values(),
+        &[
+            Value::Int(2),
+            Value::Float(1.5),
+            Value::String("t".to_string())
+        ]
+    );
+}
+
+#[test]
+fn round_rounds_numbers_and_keeps_text() {
+    let s = Series::new(vec![Value::Float(1.2345), Value::String("t".to_string())]);
+    let r = s.round(2);
+    assert!(matches!(r.iloc(0).unwrap(), Value::Float(f) if (f - 1.23).abs() < 1e-12));
+    assert_eq!(r.iloc(1).unwrap(), &Value::String("t".to_string()));
+}
+
+#[test]
+fn sub_and_mul_compute_elementwise() {
+    let a = Series::new(vec![5.0, 3.0]);
+    let b = Series::new(vec![1.0, 1.0]);
+    assert_eq!(
+        (&a - &b).unwrap().values(),
+        &[Value::Float(4.0), Value::Float(2.0)]
+    );
+    let c = Series::new(vec![2.0, 3.0]);
+    let d = Series::new(vec![4.0, 5.0]);
+    assert_eq!(
+        (&c * &d).unwrap().values(),
+        &[Value::Float(8.0), Value::Float(15.0)]
+    );
+}
+
+#[test]
+fn arithmetic_gives_null_for_null_operands() {
+    let a = Series::new(vec![Value::Null, Value::Int(1)]);
+    let b = Series::new(vec![Value::Int(1), Value::Int(2)]);
+    assert_eq!(
+        (&a + &b).unwrap().values(),
+        &[Value::Null, Value::Float(3.0)]
+    );
+    assert_eq!(
+        (&a - &b).unwrap().values(),
+        &[Value::Null, Value::Float(-1.0)]
+    );
+    assert_eq!(
+        (&a * &b).unwrap().values(),
+        &[Value::Null, Value::Float(2.0)]
+    );
+}
