@@ -56,17 +56,17 @@ Names marked `(SciPy)` are SciPy functions, not NumPy functions.
 | `sum_axis` | `numpy.sum` (axis) | has | crates/arraykit/src/array/stats.rs |
 | `mean` | `numpy.mean` | partial; integer division for `Int32` and `Int64` (use `mean_f64`) | crates/arraykit/src/array/stats.rs |
 | `mean_f64` | `numpy.mean` (float result) | has | crates/arraykit/src/array/stats.rs |
-| `mean_axis` | `numpy.mean` (axis) | has | crates/arraykit/src/array/stats.rs |
+| `mean_axis` | `numpy.mean` (axis) | partial; integer division for `Int32` and `Int64` | crates/arraykit/src/array/stats.rs |
 | `min` | `numpy.min` | has | crates/arraykit/src/array/stats.rs |
 | `max` | `numpy.max` | has | crates/arraykit/src/array/stats.rs |
 | `min_axis` | `numpy.min` (axis) | has | crates/arraykit/src/array/stats.rs |
 | `max_axis` | `numpy.max` (axis) | has | crates/arraykit/src/array/stats.rs |
-| `var` | `numpy.var` (ddof=1) | has | crates/arraykit/src/array/stats.rs |
-| `var_pop` | `numpy.var` (ddof=0) | has | crates/arraykit/src/array/stats.rs |
-| `std` | `numpy.std` (ddof=1) | has | crates/arraykit/src/array/stats.rs |
-| `std_pop` | `numpy.std` (ddof=0) | has | crates/arraykit/src/array/stats.rs |
-| `var_axis` | `numpy.var` (axis) | has | crates/arraykit/src/array/stats.rs |
-| `std_axis` | `numpy.std` (axis) | has | crates/arraykit/src/array/stats.rs |
+| `var` | `numpy.var` (ddof=1) | partial; f32 and f64 only | crates/arraykit/src/array/stats.rs |
+| `var_pop` | `numpy.var` (ddof=0) | partial; f32 and f64 only | crates/arraykit/src/array/stats.rs |
+| `std` | `numpy.std` (ddof=1) | partial; f32 and f64 only | crates/arraykit/src/array/stats.rs |
+| `std_pop` | `numpy.std` (ddof=0) | partial; f32 and f64 only | crates/arraykit/src/array/stats.rs |
+| `var_axis` | `numpy.var` (axis, ddof=1) | partial; f32 and f64 only; an axis of length 1 gives 0 (NumPy gives nan) | crates/arraykit/src/array/stats.rs |
+| `std_axis` | `numpy.std` (axis, ddof=1) | partial; f32 and f64 only; an axis of length 1 gives 0 (NumPy gives nan) | crates/arraykit/src/array/stats.rs |
 | `argmin` | `numpy.argmin` | has | crates/arraykit/src/array/stats.rs |
 | `argmax` | `numpy.argmax` | has | crates/arraykit/src/array/stats.rs |
 | `cumsum` | `numpy.cumsum` | has | crates/arraykit/src/array/stats.rs |
