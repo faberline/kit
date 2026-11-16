@@ -68,8 +68,8 @@ Names marked `(SciPy)` are SciPy functions, not NumPy functions.
 | `std_pop` | `numpy.std` (ddof=0) | partial; f32 and f64 only | crates/arraykit/src/array/stats.rs |
 | `var_axis` | `numpy.var` (axis, ddof=1) | partial; f32 and f64 only; an axis of length 1 gives 0 (NumPy gives nan) | crates/arraykit/src/array/stats.rs |
 | `std_axis` | `numpy.std` (axis, ddof=1) | partial; f32 and f64 only; an axis of length 1 gives 0 (NumPy gives nan) | crates/arraykit/src/array/stats.rs |
-| `argmin` | `numpy.argmin` | has | crates/arraykit/src/array/stats.rs |
-| `argmax` | `numpy.argmax` | has | crates/arraykit/src/array/stats.rs |
+| `argmin` | `numpy.argmin` | partial; a NaN is not returned (NumPy returns the index of the first NaN) | crates/arraykit/src/array/stats.rs |
+| `argmax` | `numpy.argmax` | partial; a NaN is not returned (NumPy returns the index of the first NaN) | crates/arraykit/src/array/stats.rs |
 | `cumsum` | `numpy.cumsum` | has | crates/arraykit/src/array/stats.rs |
 | `cumprod` | `numpy.cumprod` | has | crates/arraykit/src/array/stats.rs |
 | `median` | `numpy.median` | partial; `f64` only | crates/arraykit/src/array/stats.rs |
@@ -120,7 +120,7 @@ Names marked `(SciPy)` are SciPy functions, not NumPy functions.
 | `argsort` | `numpy.argsort` | partial; NaN is not sorted last | crates/arraykit/src/array/manip.rs |
 | `all` | `numpy.all` | partial; `bool` only | crates/arraykit/src/array/manip.rs |
 | `any` | `numpy.any` | partial; `bool` only | crates/arraykit/src/array/manip.rs |
-| `allclose` | `numpy.allclose` | has | crates/arraykit/src/array/manip.rs |
+| `allclose` | `numpy.allclose` | partial; no `Int64` or `Bool`; shapes must be equal (no broadcasting) | crates/arraykit/src/array/manip.rs |
 | `fancy_index` | `ndarray[int array]` | has | crates/arraykit/src/array/indexing.rs |
 | `bool_index` | `ndarray[bool mask]` | has | crates/arraykit/src/array/indexing.rs |
 | `bool_index_array` | `ndarray[bool array]` | has | crates/arraykit/src/array/indexing.rs |
@@ -128,14 +128,14 @@ Names marked `(SciPy)` are SciPy functions, not NumPy functions.
 | `fancy_set` | `ndarray[int array] = values` | has | crates/arraykit/src/array/indexing.rs |
 | `advanced_index` | `ndarray[mixed index]` | has | crates/arraykit/src/array/indexing.rs |
 | `take` | `numpy.take` | has | crates/arraykit/src/array/indexing.rs |
-| `IndexMode` | `numpy.take` (`mode=`) | has | crates/arraykit/src/array/indexing.rs |
+| `IndexMode` | index kinds of `ndarray[...]` (integer array, boolean mask, per axis) | has | crates/arraykit/src/array/indexing.rs |
 | `AxisIndex` | index element of `advanced_index` | has | crates/arraykit/src/array/indexing.rs |
 | `searchsorted` | `numpy.searchsorted` | partial; `f64` only; `side` is a `&str` | crates/arraykit/src/array/search.rs |
 | `sort_axis` | `numpy.sort` (axis) | partial; `f64` only | crates/arraykit/src/array/search.rs |
 | `argsort_axis` | `numpy.argsort` (axis) | partial; `f64` only | crates/arraykit/src/array/search.rs |
 | `unique_full` | `numpy.unique` (with counts and indices) | partial; `f64` only | crates/arraykit/src/array/search.rs |
 | `where_select` | `numpy.where` (three arguments) | partial; `f64` only | crates/arraykit/src/array/search.rs |
-| `nonzero` | `numpy.nonzero` | has | crates/arraykit/src/array/search.rs |
+| `nonzero` | `numpy.nonzero` | partial; `bool` input only | crates/arraykit/src/array/search.rs |
 | `UniqueResult` | result of `numpy.unique` | has | crates/arraykit/src/array/search.rs |
 | `Rolling::new` | `pandas.DataFrame.rolling` | has | crates/arraykit/src/array/window.rs |
 | `Rolling::min_periods` | `pandas.DataFrame.rolling` (`min_periods`) | has | crates/arraykit/src/array/window.rs |
@@ -147,15 +147,15 @@ Names marked `(SciPy)` are SciPy functions, not NumPy functions.
 | `Rolling::std` | `pandas.DataFrame.rolling().std` | partial; `f64` only | crates/arraykit/src/array/window.rs |
 | `Rolling::var` | `pandas.DataFrame.rolling().var` | partial; `f64` only | crates/arraykit/src/array/window.rs |
 | `rolling` | `pandas.DataFrame.rolling` | has | crates/arraykit/src/array/window.rs |
-| `squeeze` | `numpy.squeeze` | has | crates/arraykit/src/array/window.rs |
+| `squeeze` | `numpy.squeeze` | partial; an all-ones shape gives shape `(1,)` (NumPy gives `()`) | crates/arraykit/src/array/window.rs |
 | `expand_dims` | `numpy.expand_dims` | has | crates/arraykit/src/array/window.rs |
 | `flip` | `numpy.flip` | has | crates/arraykit/src/array/window.rs |
 | `roll` | `numpy.roll` | has | crates/arraykit/src/array/window.rs |
-| `pad` | `numpy.pad` | has | crates/arraykit/src/array/window.rs |
+| `pad` | `numpy.pad` | partial; 1-D only; zeros, same width on both sides | crates/arraykit/src/array/window.rs |
 | `diff` | `numpy.diff` | partial; `f64` only | crates/arraykit/src/array/window.rs |
 | `interp` | `numpy.interp` | partial; `f64` only | crates/arraykit/src/array/window.rs |
 | `gradient` | `numpy.gradient` | partial; `f64` only | crates/arraykit/src/array/window.rs |
-| `rot90` | `numpy.rot90` | has | crates/arraykit/src/array/window.rs |
+| `rot90` | `numpy.rot90` | partial; 2-D only | crates/arraykit/src/array/window.rs |
 | `KitRng::new` | `numpy.random.Generator` (seed) | has | crates/arraykit/src/array/random.rs |
 | `with_stream` | `numpy.random.Generator` (stream) | has | crates/arraykit/src/array/random.rs |
 | `next_u64` | `numpy.random.Generator.integers` (raw bits) | has | crates/arraykit/src/array/random.rs |
