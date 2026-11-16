@@ -41,6 +41,9 @@ tempfile = "3"
 tokio-test = "0.4"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 
+[workspace.lints.clippy]
+mod_module_files = "deny"
+
 [profile.dev.package."*"]
 opt-level = 2
 
