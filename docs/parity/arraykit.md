@@ -15,9 +15,9 @@ Names marked `(SciPy)` are SciPy functions, not NumPy functions.
 | `ones` | `numpy.ones` | has | crates/arraykit/src/array/ndarray.rs |
 | `full` | `numpy.full` | has | crates/arraykit/src/array/ndarray.rs |
 | `arange` | `numpy.arange` | has | crates/arraykit/src/array/ndarray.rs |
-| `eye` | `numpy.eye` | has | crates/arraykit/src/array/ndarray.rs |
+| `eye` | `numpy.eye` | partial; square only, no `M` or `k` | crates/arraykit/src/array/ndarray.rs |
 | `identity` | `numpy.identity` | has | crates/arraykit/src/array/ndarray.rs |
-| `diag` | `numpy.diag` | has | crates/arraykit/src/array/ndarray.rs |
+| `diag` | `numpy.diag` | partial; no `k` offset | crates/arraykit/src/array/ndarray.rs |
 | `shape` | `ndarray.shape` | has | crates/arraykit/src/array/ndarray.rs |
 | `dims` | `ndarray.shape` | has | crates/arraykit/src/array/ndarray.rs |
 | `ndim` | `ndarray.ndim` | has | crates/arraykit/src/array/ndarray.rs |
@@ -69,9 +69,9 @@ Names marked `(SciPy)` are SciPy functions, not NumPy functions.
 | `var_axis` | `numpy.var` (axis, ddof=1) | partial; f32 and f64 only; an axis of length 1 gives 0 (NumPy gives nan) | crates/arraykit/src/array/stats.rs |
 | `std_axis` | `numpy.std` (axis, ddof=1) | partial; f32 and f64 only; an axis of length 1 gives 0 (NumPy gives nan) | crates/arraykit/src/array/stats.rs |
 | `argmin` | `numpy.argmin` | partial; a NaN is not returned (NumPy returns the index of the first NaN) | crates/arraykit/src/array/stats.rs |
-| `argmax` | `numpy.argmax` | partial; a NaN is not returned (NumPy returns the index of the first NaN) | crates/arraykit/src/array/stats.rs |
-| `cumsum` | `numpy.cumsum` | has | crates/arraykit/src/array/stats.rs |
-| `cumprod` | `numpy.cumprod` | has | crates/arraykit/src/array/stats.rs |
+| `argmax` | `numpy.argmax` | partial; a tie gives the last index (NumPy gives the first); a NaN is not returned (NumPy returns the index of the first NaN) | crates/arraykit/src/array/stats.rs |
+| `cumsum` | `numpy.cumsum` | partial; no axis; keeps the input shape (NumPy returns 1-D) | crates/arraykit/src/array/stats.rs |
+| `cumprod` | `numpy.cumprod` | partial; no axis; keeps the input shape (NumPy returns 1-D) | crates/arraykit/src/array/stats.rs |
 | `median` | `numpy.median` | partial; `f64` only | crates/arraykit/src/array/stats.rs |
 | `mode` | `scipy.stats.mode` (SciPy) | partial; `f64` only | crates/arraykit/src/array/stats.rs |
 | `skew` | `scipy.stats.skew` (SciPy) | partial; `f64` only; bias-corrected only (SciPy default is `bias=True`) | crates/arraykit/src/array/stats.rs |
@@ -89,11 +89,11 @@ Names marked `(SciPy)` are SciPy functions, not NumPy functions.
 | `corrcoef` | `numpy.corrcoef` | partial; `f64` only | crates/arraykit/src/array/stats.rs |
 | `cov` | `numpy.cov` | partial; `f64` only | crates/arraykit/src/array/stats.rs |
 | `histogram` | `numpy.histogram` | partial; `f64` only; constant input gives one bin (NumPy gives `bins` bins) | crates/arraykit/src/array/stats.rs |
-| `matmul` | `numpy.matmul` | has | crates/arraykit/src/array/linalg.rs |
-| `dot` | `numpy.dot` | has | crates/arraykit/src/array/linalg.rs |
-| `outer` | `numpy.outer` | has | crates/arraykit/src/array/linalg.rs |
-| `inner` | `numpy.inner` | has | crates/arraykit/src/array/linalg.rs |
-| `trace` | `numpy.trace` | has | crates/arraykit/src/array/linalg.rs |
+| `matmul` | `numpy.matmul` | partial; 2-D inputs only | crates/arraykit/src/array/linalg.rs |
+| `dot` | `numpy.dot` | partial; 1-D and 2-D only, no 1-D @ 2-D; a vector dot product gives shape `(1,)` (NumPy gives a scalar) | crates/arraykit/src/array/linalg.rs |
+| `outer` | `numpy.outer` | partial; 1-D inputs only (NumPy flattens) | crates/arraykit/src/array/linalg.rs |
+| `inner` | `numpy.inner` | partial; 1-D only; gives shape `(1,)` (NumPy gives a scalar) | crates/arraykit/src/array/linalg.rs |
+| `trace` | `numpy.trace` | partial; 2-D only; no offset | crates/arraykit/src/array/linalg.rs |
 | `det` | `numpy.linalg.det` | partial; `f64` only | crates/arraykit/src/array/linalg.rs |
 | `inv` | `numpy.linalg.inv` | partial; `f64` only | crates/arraykit/src/array/linalg.rs |
 | `solve` | `numpy.linalg.solve` | partial; `f64` only | crates/arraykit/src/array/linalg.rs |
@@ -110,9 +110,9 @@ Names marked `(SciPy)` are SciPy functions, not NumPy functions.
 | `LstsqResult` | result of `numpy.linalg.lstsq` | has | crates/arraykit/src/array/linalg_decomp.rs |
 | `concatenate` | `numpy.concatenate` | has | crates/arraykit/src/array/manip.rs |
 | `stack` | `numpy.stack` | has | crates/arraykit/src/array/manip.rs |
-| `vstack` | `numpy.vstack` | has | crates/arraykit/src/array/manip.rs |
+| `vstack` | `numpy.vstack` | partial; 1-D inputs are joined into one 1-D array (NumPy stacks them as rows) | crates/arraykit/src/array/manip.rs |
 | `hstack` | `numpy.hstack` | has | crates/arraykit/src/array/manip.rs |
-| `split` | `numpy.split` | has | crates/arraykit/src/array/manip.rs |
+| `split` | `numpy.split` | partial; empty pieces and indices past the end are dropped (NumPy returns empty arrays) | crates/arraykit/src/array/manip.rs |
 | `repeat` | `numpy.repeat` | has | crates/arraykit/src/array/manip.rs |
 | `tile` | `numpy.tile` | has | crates/arraykit/src/array/manip.rs |
 | `unique` | `numpy.unique` | partial; integer and bool only (no `f32`, `f64`); keeps first-seen order, not sorted | crates/arraykit/src/array/manip.rs |
@@ -125,7 +125,7 @@ Names marked `(SciPy)` are SciPy functions, not NumPy functions.
 | `bool_index` | `ndarray[bool mask]` | has | crates/arraykit/src/array/indexing.rs |
 | `bool_index_array` | `ndarray[bool array]` | has | crates/arraykit/src/array/indexing.rs |
 | `bool_set` | `ndarray[bool mask] = value` | has | crates/arraykit/src/array/indexing.rs |
-| `fancy_set` | `ndarray[int array] = values` | has | crates/arraykit/src/array/indexing.rs |
+| `fancy_set` | `ndarray[int array] = values` | partial; 1-D only | crates/arraykit/src/array/indexing.rs |
 | `advanced_index` | `ndarray[mixed index]` | has | crates/arraykit/src/array/indexing.rs |
 | `take` | `numpy.take` | has | crates/arraykit/src/array/indexing.rs |
 | `IndexMode` | index kinds of `ndarray[...]` (integer array, boolean mask, per axis) | has | crates/arraykit/src/array/indexing.rs |
