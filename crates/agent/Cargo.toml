@@ -37,8 +37,9 @@ tempfile = "3"
 # HTTP client (`kit-http` core)
 kit-http = { path = "../kit-http" }
 
-# URL encoding
+# URL encoding and parsing
 urlencoding = "2"
+url = "2"
 
 # HTML parsing and escaping
 html-escape = "0.2"

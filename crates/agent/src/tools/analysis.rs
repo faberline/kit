@@ -7,6 +7,7 @@
 //! - WebFetchTool: Fetch and parse web content
 
 use crate::error::{AgentError, AgentResult};
+use crate::security::SecurityPolicy;
 use crate::storage::{Finding, FindingSeverity, SessionState};
 use crate::tools::tool::{Tool, ToolParameter};
 use async_trait::async_trait;
@@ -386,27 +387,42 @@ fn parse_duckduckgo_results(html: &str, max_results: usize) -> Vec<serde_json::V
     results
 }
 
+/// Most redirects that one fetch follows, each checked against the policy.
+const MAX_REDIRECTS: usize = 3;
+
 /// Tool for fetching and parsing web content.
+///
+/// Deny by default: only the hosts that the policy allows are fetched, and
+/// redirects are not followed by the HTTP client.
 pub struct WebFetchTool {
     http_client: kit_http::client::HttpClient,
     max_content_length: usize,
+    policy: Arc<SecurityPolicy>,
 }
 
 impl WebFetchTool {
-    /// Create a new WebFetchTool.
+    /// Create a new WebFetchTool with the default policy (no host allowed).
     pub fn new() -> AgentResult<Self> {
-        let http_client = kit_http::client::HttpClient::default_client()
+        let config = kit_http::client::HttpClientConfig::default().follow_redirects(false);
+        let http_client = kit_http::client::HttpClient::new(config)
             .map_err(|e| AgentError::ConfigError(format!("Failed to create HTTP client: {}", e)))?;
 
         Ok(Self {
             http_client,
             max_content_length: 100_000, // 100KB default
+            policy: Arc::new(SecurityPolicy::default()),
         })
     }
 
     /// Set the maximum content length to fetch.
     pub fn with_max_content_length(mut self, max: usize) -> Self {
         self.max_content_length = max;
+        self
+    }
+
+    /// Set the security policy that decides which hosts may be fetched.
+    pub fn with_policy(mut self, policy: Arc<SecurityPolicy>) -> Self {
+        self.policy = policy;
         self
     }
 }
@@ -458,11 +474,42 @@ impl Tool for WebFetchTool {
         let args: WebFetchArgs = serde_json::from_value(arguments)?;
         let extract_text = args.extract_text.unwrap_or(true);
 
-        let response = self
-            .http_client
-            .get(&args.url)
-            .await
-            .map_err(|e| AgentError::HttpError(format!("Fetch request failed: {}", e)))?;
+        let mut current = self.policy.check_url(&args.url)?;
+        let mut redirects = 0;
+        let response = loop {
+            let response = self
+                .http_client
+                .get(current.as_str())
+                .await
+                .map_err(|e| AgentError::HttpError(format!("Fetch request failed: {}", e)))?;
+
+            let location = if response.is_redirect() {
+                response.header("location").map(|s| s.to_string())
+            } else {
+                None
+            };
+            let Some(location) = location else {
+                break response;
+            };
+
+            let next = current
+                .join(&location)
+                .map_err(|e| AgentError::HttpError(format!("Invalid redirect target: {}", e)))?;
+            if redirects >= MAX_REDIRECTS || self.policy.check_url(next.as_str()).is_err() {
+                // Return the target as data; do not request it.
+                return Ok(serde_json::json!({
+                    "url": args.url,
+                    "status": response.status_code,
+                    "content_type": null,
+                    "content": "",
+                    "length": 0,
+                    "truncated": false,
+                    "redirect_to": next.as_str()
+                }));
+            }
+            redirects += 1;
+            current = next;
+        };
 
         let status = response.status_code;
         let content_type = response.header("content-type").map(|s| s.to_string());
@@ -471,9 +518,11 @@ impl Tool for WebFetchTool {
             .text()
             .map_err(|e| AgentError::HttpError(format!("Failed to read response: {}", e)))?;
 
-        // Truncate if too long
-        let body = if body.len() > self.max_content_length {
-            let cut = crate::tools::text::floor_char_boundary(&body, self.max_content_length);
+        // Cap the body at the smaller of the policy limit and the content limit.
+        let limit = self.policy.max_fetch_bytes.min(self.max_content_length);
+        let truncated = body.len() > limit;
+        let body = if truncated {
+            let cut = crate::tools::text::floor_char_boundary(&body, limit);
             format!(
                 "{}... [truncated, {} bytes total]",
                 &body[..cut],
@@ -496,7 +545,8 @@ impl Tool for WebFetchTool {
             "status": status,
             "content_type": content_type,
             "content": content,
-            "length": content.len()
+            "length": content.len(),
+            "truncated": truncated
         }))
     }
 }
@@ -778,5 +828,137 @@ mod tests {
         assert_eq!(results.len(), 1);
         assert_eq!(results[0]["url"], "https://example.com");
         assert_eq!(results[0]["title"], "Example Title");
+    }
+}
+
+#[cfg(test)]
+mod web_fetch_tests {
+    use super::*;
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    /// Serve every connection with `response`; return the port and the count.
+    fn serve(response: String) -> (u16, Arc<AtomicUsize>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let count = Arc::new(AtomicUsize::new(0));
+        let seen = count.clone();
+        std::thread::spawn(move || {
+            for stream in listener.incoming() {
+                let Ok(mut stream) = stream else { continue };
+                seen.fetch_add(1, Ordering::SeqCst);
+                let mut buf = [0u8; 4096];
+                let _ = stream.read(&mut buf);
+                let _ = stream.write_all(response.as_bytes());
+            }
+        });
+        (port, count)
+    }
+
+    fn allow_loopback() -> Arc<SecurityPolicy> {
+        Arc::new(
+            SecurityPolicy::builder()
+                .with_allowed_hosts(vec!["127.0.0.1".into()])
+                .build(),
+        )
+    }
+
+    #[tokio::test]
+    async fn web_fetch_default_policy_refuses_and_sends_no_request() {
+        let (port, count) =
+            serve("HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok".into());
+        let tool = WebFetchTool::new().unwrap();
+        let result = tool
+            .execute(serde_json::json!({ "url": format!("http://127.0.0.1:{port}/") }))
+            .await;
+
+        assert!(matches!(result, Err(AgentError::SecurityViolation(_))));
+        assert_eq!(count.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn web_fetch_allowed_host_returns_body() {
+        let (port, _count) = serve(
+            "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 5\r\nConnection: close\r\n\r\nhello"
+                .into(),
+        );
+        let tool = WebFetchTool::new().unwrap().with_policy(allow_loopback());
+        let result = tool
+            .execute(serde_json::json!({ "url": format!("http://127.0.0.1:{port}/") }))
+            .await
+            .unwrap();
+
+        assert_eq!(result["content"], "hello");
+        assert_eq!(result["status"], 200);
+        assert_eq!(result["truncated"], false);
+    }
+
+    #[tokio::test]
+    async fn web_fetch_does_not_follow_redirect_to_disallowed_host() {
+        let (port_b, count_b) = serve(
+            "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 5\r\nConnection: close\r\n\r\nhello"
+                .into(),
+        );
+        let (port_a, count_a) = serve(format!(
+            "HTTP/1.1 302 Found\r\nLocation: http://localhost:{port_b}/\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+        ));
+        let tool = WebFetchTool::new().unwrap().with_policy(allow_loopback());
+        let result = tool
+            .execute(serde_json::json!({ "url": format!("http://127.0.0.1:{port_a}/") }))
+            .await
+            .unwrap();
+
+        assert_eq!(result["status"], 302);
+        assert!(result["redirect_to"]
+            .as_str()
+            .unwrap()
+            .contains(&port_b.to_string()));
+        assert_eq!(count_b.load(Ordering::SeqCst), 0);
+        assert_eq!(count_a.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn web_fetch_follows_allowed_redirect() {
+        let (port_b, count_b) = serve(
+            "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 5\r\nConnection: close\r\n\r\nhello"
+                .into(),
+        );
+        let (port_a, _count_a) = serve(format!(
+            "HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1:{port_b}/\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+        ));
+        let tool = WebFetchTool::new().unwrap().with_policy(allow_loopback());
+        let result = tool
+            .execute(serde_json::json!({ "url": format!("http://127.0.0.1:{port_a}/") }))
+            .await
+            .unwrap();
+
+        assert_eq!(result["content"], "hello");
+        assert_eq!(count_b.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn web_fetch_truncates_on_char_boundary() {
+        let body = "é".repeat(10);
+        let (port, _count) = serve(format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+            body.len(),
+            body
+        ));
+        let policy = Arc::new(
+            SecurityPolicy::builder()
+                .with_allowed_hosts(vec!["127.0.0.1".into()])
+                .with_max_fetch_bytes(5)
+                .build(),
+        );
+        let tool = WebFetchTool::new().unwrap().with_policy(policy);
+        let result = tool
+            .execute(serde_json::json!({ "url": format!("http://127.0.0.1:{port}/") }))
+            .await
+            .unwrap();
+
+        assert_eq!(result["truncated"], true);
+        assert_eq!(result["content"], "éé... [truncated, 20 bytes total]");
+        assert_eq!(result["length"], "éé... [truncated, 20 bytes total]".len());
     }
 }
