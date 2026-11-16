@@ -190,6 +190,9 @@ impl SvgRenderer {
         if groups.is_empty() {
             return;
         }
+        if groups.iter().all(|g| g.is_empty()) {
+            return;
+        }
 
         let mut all_min = f64::INFINITY;
         let mut all_max = f64::NEG_INFINITY;
@@ -197,8 +200,10 @@ impl SvgRenderer {
             .iter()
             .map(|g| {
                 let s = box_stats(g);
-                all_min = all_min.min(s.whisker_low);
-                all_max = all_max.max(s.whisker_high);
+                if !g.is_empty() {
+                    all_min = all_min.min(s.whisker_low);
+                    all_max = all_max.max(s.whisker_high);
+                }
                 s
             })
             .collect();
@@ -233,6 +238,18 @@ impl SvgRenderer {
         for (i, (s, label)) in stats.iter().zip(labels.iter()).enumerate() {
             let cx = self.margin.left + (i as f64 + 0.5) * group_w;
             let bx = cx - box_w / 2.0;
+
+            if groups[i].is_empty() {
+                self.text(
+                    cx,
+                    self.margin.top + self.plot_height() + 15.0,
+                    label,
+                    &style.text_color.to_hex(),
+                    style.font_size * 0.9,
+                    "middle",
+                );
+                continue;
+            }
 
             let y_q1 = self.map_y(s.q1, y_ticks.min, y_ticks.max);
             let y_q3 = self.map_y(s.q3, y_ticks.min, y_ticks.max);
@@ -534,6 +551,9 @@ impl SvgRenderer {
         if groups.is_empty() {
             return;
         }
+        if groups.iter().all(|g| g.is_empty()) {
+            return;
+        }
 
         // Global y range
         let mut all_min = f64::INFINITY;
@@ -579,10 +599,20 @@ impl SvgRenderer {
         let half_w = group_w * 0.4; // max half-width for the violin shape
 
         for (gi, group) in groups.iter().enumerate() {
+            let cx = self.margin.left + (gi as f64 + 0.5) * group_w;
             if group.is_empty() {
+                if gi < labels.len() {
+                    self.text(
+                        cx,
+                        self.margin.top + self.plot_height() + 15.0,
+                        &labels[gi],
+                        &style.text_color.to_hex(),
+                        style.font_size * 0.9,
+                        "middle",
+                    );
+                }
                 continue;
             }
-            let cx = self.margin.left + (gi as f64 + 0.5) * group_w;
             let color = &palette[gi % palette.len()];
 
             // Compute kernel density estimate at N evenly spaced points
@@ -705,5 +735,49 @@ mod tests {
             .unwrap()
             .0;
         assert!((peak_idx as i32 - mid_idx).unsigned_abs() <= 1);
+    }
+
+    fn render_series(series: crate::viz::series_data::DataSeries) -> String {
+        let mut r = SvgRenderer::new(400.0, 300.0);
+        r.render(&None, &[series], &ChartStyle::default())
+    }
+
+    #[test]
+    fn test_box_plot_empty_group() {
+        let svg = render_series(crate::viz::series_data::DataSeries::box_plot(
+            vec![vec![1.0, 2.0, 3.0], vec![]],
+            vec!["a".to_string(), "b".to_string()],
+        ));
+        assert!(svg.contains(">b</text>"));
+        assert!(!svg.contains("NaN"));
+    }
+
+    #[test]
+    fn test_box_plot_all_empty() {
+        let svg = render_series(crate::viz::series_data::DataSeries::box_plot(
+            vec![vec![], vec![]],
+            vec!["a".to_string(), "b".to_string()],
+        ));
+        assert!(svg.contains("<svg"));
+        assert!(!svg.contains("NaN"));
+    }
+
+    #[test]
+    fn test_violin_empty_group() {
+        let svg = render_series(crate::viz::series_data::DataSeries::violin(
+            vec![vec![1.0, 2.0], vec![]],
+            vec!["a".to_string(), "b".to_string()],
+        ));
+        assert!(svg.contains(">b</text>"));
+        assert!(!svg.contains("NaN"));
+    }
+
+    #[test]
+    fn test_violin_all_empty() {
+        let svg = render_series(crate::viz::series_data::DataSeries::violin(
+            vec![vec![], vec![]],
+            vec!["a".to_string(), "b".to_string()],
+        ));
+        assert!(!svg.contains("NaN"));
     }
 }
