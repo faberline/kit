@@ -60,15 +60,23 @@ pub fn nice_ticks(data_min: f64, data_max: f64, tick_count: usize) -> TickInfo {
         10.0 * mag
     };
 
-    let nice_min = (data_min / nice_step).floor() * nice_step;
-    let nice_max = (data_max / nice_step).ceil() * nice_step;
+    let nice_min = clean((data_min / nice_step).floor() * nice_step, nice_step);
+    let nice_max = clean((data_max / nice_step).ceil() * nice_step, nice_step);
 
-    let mut ticks = Vec::new();
-    let mut val = nice_min;
-    while val <= nice_max + nice_step * 0.01 {
-        ticks.push(val);
-        val += nice_step;
+    if !nice_step.is_finite() || nice_step <= 0.0 || !nice_min.is_finite() || !nice_max.is_finite()
+    {
+        return TickInfo {
+            min: nice_min,
+            max: nice_max,
+            ticks: Vec::new(),
+            step: nice_step,
+        };
     }
+
+    let n = ((nice_max - nice_min) / nice_step).round() as usize;
+    let ticks: Vec<f64> = (0..=n)
+        .map(|i| clean(nice_min + i as f64 * nice_step, nice_step))
+        .collect();
 
     TickInfo {
         min: nice_min,
@@ -76,6 +84,13 @@ pub fn nice_ticks(data_min: f64, data_max: f64, tick_count: usize) -> TickInfo {
         ticks,
         step: nice_step,
     }
+}
+
+/// Round `v` to a few decimals more than the step needs, to drop float noise.
+fn clean(v: f64, step: f64) -> f64 {
+    let decimals = (-step.log10().floor()).max(0.0) as i32 + 1;
+    let p = 10f64.powi(decimals);
+    (v * p).round() / p
 }
 
 /// Format a tick value for display.
@@ -87,7 +102,7 @@ pub fn format_tick(val: f64) -> String {
     } else if (val - val.round()).abs() < 1e-10 {
         format!("{:.0}", val)
     } else {
-        format!("{:.1}", val)
+        format!("{}", (val * 1e6).round() / 1e6)
     }
 }
 
@@ -130,5 +145,30 @@ mod tests {
         assert_eq!(format_tick(0.0), "0");
         assert_eq!(format_tick(100.0), "100");
         assert_eq!(format_tick(3.5), "3.5");
+    }
+
+    #[test]
+    fn test_nice_ticks_no_float_noise() {
+        let info = nice_ticks(0.0, 0.3, 5);
+        assert_eq!(info.ticks.len(), 7);
+        let labels: Vec<String> = info.ticks.iter().map(|&t| format_tick(t)).collect();
+        assert_eq!(labels, ["0", "0.05", "0.1", "0.15", "0.2", "0.25", "0.3"]);
+        assert_eq!(info.max, 0.3);
+    }
+
+    #[test]
+    fn test_format_tick_quarter() {
+        assert_eq!(format_tick(0.25), "0.25");
+    }
+
+    #[test]
+    fn test_format_tick_noise() {
+        assert_eq!(format_tick(0.1 + 0.2), "0.3");
+    }
+
+    #[test]
+    fn test_nice_ticks_non_finite() {
+        let info = nice_ticks(f64::INFINITY, f64::NEG_INFINITY, 5);
+        assert!(info.ticks.is_empty());
     }
 }
