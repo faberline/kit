@@ -5,6 +5,8 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 description = "HTTP toolkit: server-side route model + client-side async HTTP"
+repository.workspace = true
+readme = "README.md"
 
 [lib]
 name = "kit_http"
