@@ -115,9 +115,24 @@ impl McpServer {
         self.register(spec, FnHandler(f))
     }
 
+    /// Handle one incoming JSON-RPC message from a transport.
+    /// A message with a string `method` and no `id` (or `id: null`) is a
+    /// notification: the server does nothing and returns `None`.
+    /// Any other message is a request: returns `Some(reply)`.
+    pub async fn handle_message(&self, message: Value) -> Option<Value> {
+        let has_id = message.get("id").is_some_and(|id| !id.is_null());
+        let is_notification = !has_id && message.get("method").and_then(Value::as_str).is_some();
+        if is_notification {
+            return None;
+        }
+        Some(self.handle_request(message).await)
+    }
+
     /// Handle one JSON-RPC envelope. Always returns a JSON-RPC
     /// response envelope (success or error); transport errors raised
     /// from the carrier are the caller's problem.
+    /// A transport must call `handle_message`, not this method, so that a
+    /// notification gets no reply.
     pub async fn handle_request(&self, request: Value) -> Value {
         let id = request.get("id").cloned().unwrap_or(Value::Null);
         let method = match request.get("method").and_then(Value::as_str) {
@@ -215,6 +230,44 @@ mod tests {
         assert_eq!(resp["result"]["protocolVersion"], MCP_PROTOCOL_VERSION);
         assert_eq!(resp["result"]["serverInfo"]["name"], "agentkit");
         assert_eq!(resp["result"]["serverInfo"]["version"], "1.2.3");
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn notification_gets_no_reply() {
+        let server = McpServer::new("agentkit", "1.0.0");
+        let message = json!({ "jsonrpc": JSONRPC_VERSION, "method": "notifications/initialized" });
+        assert!(server.handle_message(message).await.is_none());
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn unknown_notification_gets_no_reply() {
+        let server = McpServer::new("agentkit", "1.0.0");
+        let message = json!({ "jsonrpc": JSONRPC_VERSION, "method": "notifications/foo" });
+        assert!(server.handle_message(message.clone()).await.is_none());
+        // handle_request answers the same message with an error envelope.
+        let err = server.handle_request(message).await;
+        assert_eq!(err["error"]["code"], ERR_METHOD_NOT_FOUND);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn request_gets_reply() {
+        let server = McpServer::new("agentkit", "1.0.0");
+        let reply = server
+            .handle_message(req(1, "tools/list", json!({})))
+            .await
+            .unwrap();
+        assert_eq!(reply["id"], 1);
+        assert!(reply["result"]["tools"].is_array());
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn request_with_id_zero_is_a_request() {
+        let server = McpServer::new("agentkit", "1.0.0");
+        let reply = server
+            .handle_message(req(0, "tools/list", json!({})))
+            .await
+            .unwrap();
+        assert_eq!(reply["id"], 0);
     }
 
     #[tokio::test(flavor = "current_thread")]
@@ -349,8 +402,9 @@ mod tests {
         #[async_trait]
         impl McpTransport for LoopbackTransport {
             async fn send(&self, message: Value) -> AgentResult<()> {
-                let response = self.server.handle_request(message).await;
-                *self.pending.lock().unwrap() = Some(response);
+                if let Some(response) = self.server.handle_message(message).await {
+                    *self.pending.lock().unwrap() = Some(response);
+                }
                 Ok(())
             }
             async fn recv(&self) -> AgentResult<Value> {
