@@ -35,22 +35,23 @@ Names marked `(SciPy)` are SciPy functions, not NumPy functions.
 | `add` | `numpy.add` | has | crates/arraykit/src/array/ops.rs |
 | `sub` | `numpy.subtract` | has | crates/arraykit/src/array/ops.rs |
 | `mul` | `numpy.multiply` | has | crates/arraykit/src/array/ops.rs |
-| `div` | `numpy.divide` | has | crates/arraykit/src/array/ops.rs |
+| `div` | `numpy.divide` | partial; integer division for `Int32` and `Int64` (truncates; a zero divisor panics) | crates/arraykit/src/array/ops.rs |
 | `add_scalar` | `numpy.add` (scalar) | has | crates/arraykit/src/array/ops.rs |
 | `mul_scalar` | `numpy.multiply` (scalar) | has | crates/arraykit/src/array/ops.rs |
-| operators `+ - * /` on `&NdArray` | `numpy` operators | has | crates/arraykit/src/array/ops.rs |
-| `linspace` | `numpy.linspace` | has | crates/arraykit/src/array/math.rs |
-| `sqrt` | `numpy.sqrt` | has | crates/arraykit/src/array/math.rs |
-| `exp` | `numpy.exp` | has | crates/arraykit/src/array/math.rs |
-| `log` | `numpy.log` | has | crates/arraykit/src/array/math.rs |
-| `abs` | `numpy.abs` | has | crates/arraykit/src/array/math.rs |
+| operators `+ - *` on `&NdArray` | `numpy` operators | has | crates/arraykit/src/array/ops.rs |
+| operator `/` on `&NdArray` | `numpy` operator `/` | partial; integer division for `Int32` and `Int64` (truncates; a zero divisor panics) | crates/arraykit/src/array/ops.rs |
+| `linspace` | `numpy.linspace` | partial; `f32` and `f64` only | crates/arraykit/src/array/math.rs |
+| `sqrt` | `numpy.sqrt` | partial; `f32` and `f64` only | crates/arraykit/src/array/math.rs |
+| `exp` | `numpy.exp` | partial; `f32` and `f64` only | crates/arraykit/src/array/math.rs |
+| `log` | `numpy.log` | partial; `f32` and `f64` only | crates/arraykit/src/array/math.rs |
+| `abs` | `numpy.abs` | partial; `f32` and `f64` only | crates/arraykit/src/array/math.rs |
 | `abs_int` | `numpy.abs` (integer) | partial; only `i32` and `i64` | crates/arraykit/src/array/math.rs |
-| `clip` | `numpy.clip` | has | crates/arraykit/src/array/math.rs |
-| `where_cond` | `numpy.where` (two arrays) | has | crates/arraykit/src/array/math.rs |
-| `pow` | `numpy.power` (scalar exponent) | has | crates/arraykit/src/array/math.rs |
-| `sin` | `numpy.sin` | has | crates/arraykit/src/array/math.rs |
-| `cos` | `numpy.cos` | has | crates/arraykit/src/array/math.rs |
-| `tan` | `numpy.tan` | has | crates/arraykit/src/array/math.rs |
+| `clip` | `numpy.clip` | partial; `f32` and `f64` only | crates/arraykit/src/array/math.rs |
+| `where_cond` | `numpy.where` (two arrays) | partial; `f32` and `f64` only | crates/arraykit/src/array/math.rs |
+| `pow` | `numpy.power` (scalar exponent) | partial; `f32` and `f64` only | crates/arraykit/src/array/math.rs |
+| `sin` | `numpy.sin` | partial; `f32` and `f64` only | crates/arraykit/src/array/math.rs |
+| `cos` | `numpy.cos` | partial; `f32` and `f64` only | crates/arraykit/src/array/math.rs |
+| `tan` | `numpy.tan` | partial; `f32` and `f64` only | crates/arraykit/src/array/math.rs |
 | `sum` | `numpy.sum` | has | crates/arraykit/src/array/stats.rs |
 | `checked_sum` | `numpy.sum` (overflow checked) | has | crates/arraykit/src/array/stats.rs |
 | `sum_axis` | `numpy.sum` (axis) | has | crates/arraykit/src/array/stats.rs |
@@ -114,9 +115,9 @@ Names marked `(SciPy)` are SciPy functions, not NumPy functions.
 | `split` | `numpy.split` | has | crates/arraykit/src/array/manip.rs |
 | `repeat` | `numpy.repeat` | has | crates/arraykit/src/array/manip.rs |
 | `tile` | `numpy.tile` | has | crates/arraykit/src/array/manip.rs |
-| `unique` | `numpy.unique` | has | crates/arraykit/src/array/manip.rs |
-| `sort` | `numpy.sort` | has | crates/arraykit/src/array/manip.rs |
-| `argsort` | `numpy.argsort` | has | crates/arraykit/src/array/manip.rs |
+| `unique` | `numpy.unique` | partial; integer and bool only (no `f32`, `f64`); keeps first-seen order, not sorted | crates/arraykit/src/array/manip.rs |
+| `sort` | `numpy.sort` | partial; integer and bool only (no `f32`, `f64`; use `sort_axis` for `f64`) | crates/arraykit/src/array/manip.rs |
+| `argsort` | `numpy.argsort` | partial; NaN is not sorted last | crates/arraykit/src/array/manip.rs |
 | `all` | `numpy.all` | partial; `bool` only | crates/arraykit/src/array/manip.rs |
 | `any` | `numpy.any` | partial; `bool` only | crates/arraykit/src/array/manip.rs |
 | `allclose` | `numpy.allclose` | has | crates/arraykit/src/array/manip.rs |
@@ -138,9 +139,9 @@ Names marked `(SciPy)` are SciPy functions, not NumPy functions.
 | `UniqueResult` | result of `numpy.unique` | has | crates/arraykit/src/array/search.rs |
 | `Rolling::new` | `pandas.DataFrame.rolling` | has | crates/arraykit/src/array/window.rs |
 | `Rolling::min_periods` | `pandas.DataFrame.rolling` (`min_periods`) | has | crates/arraykit/src/array/window.rs |
-| `Rolling::sum` | `pandas.DataFrame.rolling().sum` | has | crates/arraykit/src/array/window.rs |
-| `Rolling::count` | `pandas.DataFrame.rolling().count` | has | crates/arraykit/src/array/window.rs |
-| `Rolling::mean` | `pandas.DataFrame.rolling().mean` | has | crates/arraykit/src/array/window.rs |
+| `Rolling::sum` | `pandas.DataFrame.rolling().sum` | partial; `0` before `min_periods` (pandas gives NaN) | crates/arraykit/src/array/window.rs |
+| `Rolling::count` | `pandas.DataFrame.rolling().count` | partial; returns `Vec<usize>`; ignores `min_periods`; counts NaN as a value | crates/arraykit/src/array/window.rs |
+| `Rolling::mean` | `pandas.DataFrame.rolling().mean` | partial; integer division for `Int32` and `Int64`; `0` before `min_periods` (pandas gives NaN) | crates/arraykit/src/array/window.rs |
 | `Rolling::min` | `pandas.DataFrame.rolling().min` | partial; `f64` only | crates/arraykit/src/array/window.rs |
 | `Rolling::max` | `pandas.DataFrame.rolling().max` | partial; `f64` only | crates/arraykit/src/array/window.rs |
 | `Rolling::std` | `pandas.DataFrame.rolling().std` | partial; `f64` only | crates/arraykit/src/array/window.rs |
