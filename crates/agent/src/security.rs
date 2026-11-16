@@ -25,6 +25,10 @@ pub struct SecurityPolicy {
     pub max_file_bytes: usize,
     /// Largest body that the web fetch child reads, in bytes.
     pub max_fetch_bytes: usize,
+    /// Hosts that a web fetch may reach. Compared without case; no wildcard.
+    pub allowed_hosts: Vec<String>,
+    /// When true, `check_url` allows every host.
+    pub allow_all_hosts: bool,
 }
 
 impl Default for SecurityPolicy {
@@ -36,6 +40,8 @@ impl Default for SecurityPolicy {
             allow_all_commands: false,
             max_file_bytes: 1_048_576,
             max_fetch_bytes: 1_048_576,
+            allowed_hosts: vec![],
+            allow_all_hosts: false,
             blocked_paths: vec![
                 PathBuf::from("/etc"),
                 PathBuf::from("/var"),
@@ -88,7 +94,43 @@ impl SecurityPolicy {
             allow_all_commands: true,
             max_file_bytes: 1_048_576,
             max_fetch_bytes: 1_048_576,
+            allowed_hosts: vec![],
+            allow_all_hosts: true,
         }
+    }
+
+    /// Check if a URL is allowed for a web fetch.
+    ///
+    /// Deny by default: the scheme must be `http` or `https`, and the host
+    /// must equal one of `allowed_hosts` (compared without case), or
+    /// `allow_all_hosts` must be set. The port is not checked.
+    pub fn check_url(&self, url: &str) -> AgentResult<url::Url> {
+        let parsed = url::Url::parse(url)
+            .map_err(|e| AgentError::SecurityViolation(format!("invalid URL: {e}")))?;
+
+        if parsed.scheme() != "http" && parsed.scheme() != "https" {
+            return Err(AgentError::SecurityViolation(format!(
+                "scheme not allowed: {}",
+                parsed.scheme()
+            )));
+        }
+
+        if self.allow_all_hosts {
+            return Ok(parsed);
+        }
+
+        let host = parsed.host_str().unwrap_or_default().to_ascii_lowercase();
+        if self
+            .allowed_hosts
+            .iter()
+            .any(|allowed| allowed.to_ascii_lowercase() == host)
+        {
+            return Ok(parsed);
+        }
+
+        Err(AgentError::SecurityViolation(format!(
+            "host not allowed: {host}"
+        )))
     }
 
     /// Check if a path is allowed for file operations.
@@ -217,6 +259,11 @@ impl SecurityPolicyBuilder {
 
     pub fn with_max_fetch_bytes(mut self, bytes: usize) -> Self {
         self.policy.max_fetch_bytes = bytes;
+        self
+    }
+
+    pub fn with_allowed_hosts(mut self, hosts: Vec<String>) -> Self {
+        self.policy.allowed_hosts = hosts;
         self
     }
 
@@ -376,6 +423,31 @@ mod tests {
         let policy = SecurityPolicy::permissive();
         assert!(policy.blocked_paths.is_empty());
         assert!(policy.approval_required.is_empty());
+    }
+
+    #[test]
+    fn check_url_refuses_all_hosts_by_default() {
+        let result = SecurityPolicy::default().check_url("http://127.0.0.1:1/");
+        assert!(matches!(result, Err(AgentError::SecurityViolation(_))));
+    }
+
+    #[test]
+    fn check_url_allows_listed_host_case_insensitive() {
+        let policy = SecurityPolicy::builder()
+            .with_allowed_hosts(vec!["Example.com".into()])
+            .build();
+
+        assert!(policy.check_url("https://example.COM/x").is_ok());
+        assert!(policy.check_url("https://evil.example.com/").is_err());
+        assert!(policy.check_url("ftp://example.com/").is_err());
+        assert!(policy.check_url("not a url").is_err());
+    }
+
+    #[test]
+    fn permissive_allows_any_host() {
+        assert!(SecurityPolicy::permissive()
+            .check_url("http://anything.test/")
+            .is_ok());
     }
 
     #[test]
