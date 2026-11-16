@@ -21,7 +21,7 @@ arraykit = { path = "../arraykit", optional = true }
 frame = { path = "../frame", optional = true }
 
 [dev-dependencies]
-tempfile = "3"
+tempfile.workspace = true
 criterion = "=0.5.1"
 
 [features]
