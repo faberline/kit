@@ -12,6 +12,7 @@
 //! - Group-by drops rows whose key is null (later work; not yet in the code).
 //! - CSV: an empty field is `Null` (later work; not yet in the code).
 
+mod column;
 mod dataframe;
 mod error;
 mod index;
@@ -21,6 +22,7 @@ pub mod ops;
 mod series;
 mod value;
 
+pub use column::Column;
 pub use dataframe::DataFrame;
 pub use error::{FrameError, Result};
 pub use index::Index;
