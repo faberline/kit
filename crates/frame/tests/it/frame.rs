@@ -1651,3 +1651,93 @@ mod int_float_key_tests {
         assert_eq!(df.groupby(&["k"]).unwrap().ngroups(), 2);
     }
 }
+
+// ============================================================================
+// Nulls in typed columns: CSV round trip and groupby (issue #158)
+// ============================================================================
+
+#[cfg(test)]
+mod null_column_tests {
+    use super::*;
+    use frame::Column;
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+
+    fn null_frame() -> DataFrame {
+        DataFrame::from_columns(vec![
+            ("k", Series::new(vec!["a", "a", "b", "c"])),
+            (
+                "v",
+                Series::new(vec![Value::Int(1), Value::Null, Value::Null, Value::Int(3)]),
+            ),
+        ])
+        .unwrap()
+    }
+
+    #[test]
+    fn csv_null_survives_round_trip() {
+        let mut temp = NamedTempFile::new().unwrap();
+        write!(temp, "k,v\na,1\na,\nb,\nc,3\n").unwrap();
+        temp.flush().unwrap();
+
+        let df = read_csv(temp.path()).unwrap();
+        let v = df.get("v").unwrap();
+        assert_eq!(
+            v.values(),
+            &[Value::Int(1), Value::Null, Value::Null, Value::Int(3)]
+        );
+        assert_eq!(
+            v.column(),
+            &Column::Int(vec![1, 0, 0, 3], vec![false, true, true, false])
+        );
+
+        let output = NamedTempFile::new().unwrap();
+        write_csv(&df, output.path()).unwrap();
+        let back = read_csv(output.path()).unwrap();
+        assert_eq!(
+            back.get("v").unwrap().values(),
+            &[Value::Int(1), Value::Null, Value::Null, Value::Int(3)]
+        );
+    }
+
+    #[test]
+    fn groupby_mean_keeps_all_null_group_as_null() {
+        let df = null_frame();
+        let m = df.groupby(&["k"]).unwrap().mean().unwrap();
+        assert_eq!(
+            m.get("k").unwrap().values(),
+            &[
+                Value::String("a".into()),
+                Value::String("b".into()),
+                Value::String("c".into())
+            ]
+        );
+        assert_eq!(
+            m.get("v").unwrap().column(),
+            &Column::Float(vec![1.0, 0.0, 3.0], vec![false, true, false])
+        );
+    }
+
+    #[test]
+    fn groupby_count_skips_nulls() {
+        let df = null_frame();
+        let c = df.groupby(&["k"]).unwrap().count().unwrap();
+        assert_eq!(
+            c.get("v").unwrap().values(),
+            &[Value::Int(1), Value::Int(0), Value::Int(1)]
+        );
+    }
+
+    #[test]
+    fn groupby_drops_null_key_rows() {
+        let df = DataFrame::from_columns(vec![
+            (
+                "k",
+                Series::new(vec![Value::String("a".into()), Value::Null]),
+            ),
+            ("v", Series::new(vec![1, 2])),
+        ])
+        .unwrap();
+        assert_eq!(df.groupby(&["k"]).unwrap().ngroups(), 1);
+    }
+}

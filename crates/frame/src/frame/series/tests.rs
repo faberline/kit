@@ -743,10 +743,12 @@ fn astype_converts_each_dtype() {
         &[Value::Int(3)]
     );
     assert_eq!(
-        Series::new(vec![Value::Int(2), Value::Bool(true)])
-            .astype("f64")
-            .values(),
-        &[Value::Float(2.0), Value::Float(1.0)]
+        Series::new(vec![Value::Int(2)]).astype("f64").values(),
+        &[Value::Float(2.0)]
+    );
+    assert_eq!(
+        Series::new(vec![Value::Bool(true)]).astype("f64").values(),
+        &[Value::Float(1.0)]
     );
     assert_eq!(
         Series::new(vec![Value::Int(7)]).astype("str").values(),
@@ -775,6 +777,7 @@ fn where_cond_keeps_true_and_replaces_false() {
 
 #[test]
 fn abs_keeps_non_numbers() {
+    // A series of mixed types becomes all text, so the numbers are text too.
     let s = Series::new(vec![
         Value::Int(-2),
         Value::Float(-1.5),
@@ -783,8 +786,8 @@ fn abs_keeps_non_numbers() {
     assert_eq!(
         s.abs().values(),
         &[
-            Value::Int(2),
-            Value::Float(1.5),
+            Value::String("-2".to_string()),
+            Value::String("-1.5".to_string()),
             Value::String("t".to_string())
         ]
     );
@@ -792,10 +795,10 @@ fn abs_keeps_non_numbers() {
 
 #[test]
 fn round_rounds_numbers_and_keeps_text() {
-    let s = Series::new(vec![Value::Float(1.2345), Value::String("t".to_string())]);
-    let r = s.round(2);
+    let r = Series::new(vec![Value::Float(1.2345)]).round(2);
     assert!(matches!(r.iloc(0).unwrap(), Value::Float(f) if (f - 1.23).abs() < 1e-12));
-    assert_eq!(r.iloc(1).unwrap(), &Value::String("t".to_string()));
+    let t = Series::new(vec![Value::String("t".to_string())]).round(2);
+    assert_eq!(t.iloc(0).unwrap(), &Value::String("t".to_string()));
 }
 
 #[test]
@@ -830,4 +833,75 @@ fn arithmetic_gives_null_for_null_operands() {
         (&a * &b).unwrap().values(),
         &[Value::Null, Value::Float(2.0)]
     );
+}
+
+#[test]
+fn column_int_with_null() {
+    let s = Series::new(vec![Value::Int(1), Value::Null, Value::Int(3)]);
+    assert_eq!(
+        s.column(),
+        &Column::Int(vec![1, 0, 3], vec![false, true, false])
+    );
+    assert_eq!(s.values(), &[Value::Int(1), Value::Null, Value::Int(3)]);
+    assert_eq!(s.iloc(1).unwrap(), &Value::Null);
+}
+
+#[test]
+fn column_float_with_nan_and_null() {
+    let s = Series::new(vec![Value::Float(1.5), Value::Float(f64::NAN), Value::Null]);
+    match s.column() {
+        Column::Float(_, mask) => assert_eq!(mask, &vec![false, false, true]),
+        other => panic!("expected a Float column, got {other:?}"),
+    }
+}
+
+#[test]
+fn column_str_and_bool() {
+    assert_eq!(
+        Series::new(vec!["a", "b"]).column(),
+        &Column::Str(vec!["a".to_string(), "b".to_string()], vec![false, false])
+    );
+    assert_eq!(
+        Series::new(vec![true, false]).column(),
+        &Column::Bool(vec![true, false], vec![false, false])
+    );
+}
+
+#[test]
+fn mixed_int_float_series_is_float() {
+    assert_eq!(
+        Series::new(vec![Value::Int(1), Value::Float(2.5)]).values(),
+        &[Value::Float(1.0), Value::Float(2.5)]
+    );
+}
+
+#[test]
+fn mixed_text_series_is_text() {
+    assert_eq!(
+        Series::new(vec![Value::Int(1), Value::String("x".to_string())]).values(),
+        &[
+            Value::String("1".to_string()),
+            Value::String("x".to_string())
+        ]
+    );
+}
+
+#[test]
+fn null_survives_derived_series() {
+    let s = Series::new(vec![Value::Int(1), Value::Null]);
+    assert_eq!(s.cumsum().iloc(1).unwrap(), &Value::Null);
+    assert_eq!(
+        s.fillna(Value::Int(0)).values(),
+        &[Value::Int(1), Value::Int(0)]
+    );
+    assert_eq!(s.dropna().values(), &[Value::Int(1)]);
+}
+
+#[test]
+fn clone_keeps_column() {
+    let s = Series::new(vec![1, 2]);
+    let _ = s.values();
+    let c = s.clone();
+    assert_eq!(c.column(), s.column());
+    assert_eq!(c.values(), s.values());
 }
