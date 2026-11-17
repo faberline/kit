@@ -2,6 +2,7 @@
 
 mod claude;
 mod gemini;
+mod gemini_stream;
 mod openai;
 mod openai_stream;
 mod provider;

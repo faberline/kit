@@ -40,7 +40,7 @@ Report a vulnerability as described in [SECURITY.md](SECURITY.md).
 - No machine-learning estimators.
 - No loss functions, no `DataLoader`, and no `StandardScaler`, `PCA` or `train_test_split`.
 - `frame` is row-oriented, not columnar.
-- In `agent`, only the Claude and OpenAI providers stream. Gemini does not.
+- In `agent`, the Claude, OpenAI and Gemini providers stream.
 - No embeddings and no vector store.
 - The MCP support has no stdio transport and no SSE transport.
 - `arraykit` `pad`, `diff` and `gradient` support only 1-D arrays, and `rot90` supports only 2-D arrays. Other input returns an error.

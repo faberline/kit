@@ -1,3 +1,4 @@
+use super::gemini_stream::{parse_gemini_sse_stream, with_idle_timeout};
 use super::provider::{
     CompletionRequest, CompletionResponse, LLMProvider, StreamResponse, ToolDefinition,
 };
@@ -13,9 +14,12 @@ use tracing::debug;
 /// Google Gemini LLM provider
 pub struct GeminiProvider {
     client: Arc<HttpClient>,
+    /// Client for streams: a long ceiling, because the idle timeout is the real limit.
+    stream_client: Arc<HttpClient>,
     api_key: String,
     default_model: String,
     _base_url: String,
+    stream_idle_timeout: std::time::Duration,
 }
 
 impl GeminiProvider {
@@ -47,18 +51,29 @@ impl GeminiProvider {
             .timeout_secs(60.0)
             .retry(kit_http::client::config::RetryConfig::default());
 
+        let stream_config = HttpClientConfig::new().base_url(&base).timeout_secs(3600.0);
+
         let client = HttpClient::new(config)?;
+        let stream_client = HttpClient::new(stream_config)?;
 
         Ok(Self {
             client: Arc::new(client),
+            stream_client: Arc::new(stream_client),
             api_key: api_key.into(),
             default_model: "gemini-2.0-flash".to_string(),
             _base_url: base,
+            stream_idle_timeout: std::time::Duration::from_secs(60),
         })
     }
 
     pub fn with_default_model(mut self, model: impl Into<String>) -> Self {
         self.default_model = model.into();
+        self
+    }
+
+    /// Set the longest silence allowed between two chunks of a stream.
+    pub fn with_stream_idle_timeout(mut self, d: std::time::Duration) -> Self {
+        self.stream_idle_timeout = d;
         self
     }
 
@@ -216,7 +231,7 @@ impl GeminiProvider {
 }
 
 /// Replace every occurrence of `key` in `text` with `[redacted]`.
-fn redact_key(text: &str, key: &str) -> String {
+pub(super) fn redact_key(text: &str, key: &str) -> String {
     if key.is_empty() {
         text.to_string()
     } else {
@@ -225,7 +240,7 @@ fn redact_key(text: &str, key: &str) -> String {
 }
 
 /// Finish reasons that mean the candidate was blocked.
-const BLOCKED_FINISH_REASONS: [&str; 5] = [
+pub(super) const BLOCKED_FINISH_REASONS: [&str; 5] = [
     "SAFETY",
     "BLOCKLIST",
     "PROHIBITED_CONTENT",
@@ -373,10 +388,35 @@ impl LLMProvider for GeminiProvider {
         parse_response(&response.text()?, model)
     }
 
-    async fn complete_stream(&self, _request: CompletionRequest) -> AgentResult<StreamResponse> {
-        Err(AgentError::NotSupported(
-            "Gemini streaming is not supported yet; use complete()".to_string(),
-        ))
+    async fn complete_stream(&self, request: CompletionRequest) -> AgentResult<StreamResponse> {
+        let model = if request.model.is_empty() {
+            self.default_model.clone()
+        } else {
+            request.model.clone()
+        };
+
+        debug!("Gemini streaming request: model={}", model);
+
+        let body = self.build_body(&request)?;
+
+        // The key goes in a header, never in the URL, so it cannot reach an error string.
+        let url = format!("/v1beta/models/{}:streamGenerateContent?alt=sse", model);
+
+        let builder = RequestBuilder::new(HttpMethod::Post, &url)
+            .header("x-goog-api-key", self.api_key.clone())
+            .header("Content-Type", "application/json")
+            .json_value(body);
+
+        let byte_stream = self
+            .stream_client
+            .execute_builder_stream(builder)
+            .await
+            .map_err(|e| AgentError::HttpError(redact_key(&e.to_string(), &self.api_key)))?;
+
+        let chunk_stream = Box::pin(parse_gemini_sse_stream(byte_stream, self.api_key.clone()));
+        let chunk_stream = with_idle_timeout(chunk_stream, self.stream_idle_timeout);
+
+        Ok(Box::pin(chunk_stream))
     }
 }
 
@@ -393,7 +433,7 @@ struct GeminiContent {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
-enum GeminiPart {
+pub(super) enum GeminiPart {
     Text {
         text: String,
     },
@@ -411,15 +451,15 @@ enum GeminiPart {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct GeminiFunctionCall {
-    name: String,
-    args: serde_json::Value,
+pub(super) struct GeminiFunctionCall {
+    pub(super) name: String,
+    pub(super) args: serde_json::Value,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct GeminiFunctionResponse {
-    name: String,
-    response: serde_json::Value,
+pub(super) struct GeminiFunctionResponse {
+    pub(super) name: String,
+    pub(super) response: serde_json::Value,
 }
 
 #[derive(Debug, Serialize)]
@@ -436,33 +476,33 @@ struct GeminiFunctionDeclaration {
 }
 
 #[derive(Debug, Deserialize)]
-struct GeminiResponse {
+pub(super) struct GeminiResponse {
     #[serde(default)]
-    candidates: Vec<GeminiCandidate>,
+    pub(super) candidates: Vec<GeminiCandidate>,
     #[serde(rename = "usageMetadata")]
     usage_metadata: Option<GeminiUsageMetadata>,
     #[serde(rename = "promptFeedback", default)]
-    prompt_feedback: Option<GeminiPromptFeedback>,
+    pub(super) prompt_feedback: Option<GeminiPromptFeedback>,
 }
 
 #[derive(Debug, Deserialize)]
-struct GeminiPromptFeedback {
+pub(super) struct GeminiPromptFeedback {
     #[serde(rename = "blockReason")]
-    block_reason: Option<String>,
+    pub(super) block_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
-struct GeminiCandidate {
+pub(super) struct GeminiCandidate {
     #[serde(default)]
-    content: Option<GeminiCandidateContent>,
+    pub(super) content: Option<GeminiCandidateContent>,
     #[serde(rename = "finishReason")]
-    finish_reason: Option<String>,
+    pub(super) finish_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
-struct GeminiCandidateContent {
+pub(super) struct GeminiCandidateContent {
     #[serde(default)]
-    parts: Vec<GeminiPart>,
+    pub(super) parts: Vec<GeminiPart>,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -645,15 +685,17 @@ mod tests {
         assert_eq!(redact_key("a K b", ""), "a K b");
     }
 
-    #[tokio::test]
-    async fn complete_stream_returns_not_supported() {
-        let provider = GeminiProvider::new("k").unwrap();
-        let request = CompletionRequest::new(vec![Message::user("hi")], "gemini-2.0-flash");
-        match provider.complete_stream(request).await {
-            Err(AgentError::NotSupported(m)) => {
-                assert!(m.contains("not supported"), "message: {m}")
-            }
-            _ => panic!("expected NotSupported"),
-        }
+    #[test]
+    fn gemini_stream_idle_timeout_default_and_builder() {
+        let provider = GeminiProvider::new("test-key").unwrap();
+        assert_eq!(
+            provider.stream_idle_timeout,
+            std::time::Duration::from_secs(60)
+        );
+        let provider = provider.with_stream_idle_timeout(std::time::Duration::from_secs(7));
+        assert_eq!(
+            provider.stream_idle_timeout,
+            std::time::Duration::from_secs(7)
+        );
     }
 }
