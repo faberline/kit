@@ -6,9 +6,13 @@
 //! |---------------|--------|------------------------------------------|
 //! | `mcp_client`  | #2063  | Consume external MCP servers as tools    |
 //! | `mcp_server`  | #2064  | Publish agentkit tools as an MCP server  |
+//! | `bridge`      | #150   | Use MCP tools as agent tools            |
 
+pub mod bridge;
 pub mod mcp_client;
 pub mod mcp_server;
+
+pub use bridge::McpBridgeTool;
 
 pub use mcp_client::{
     McpClient, McpTool, McpToolCallResult, McpTransport, JSONRPC_VERSION, MCP_PROTOCOL_VERSION,
