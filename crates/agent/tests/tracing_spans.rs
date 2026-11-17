@@ -1,12 +1,13 @@
 //! Tracing span emission for `Agent::run` (#2057).
 //!
-//! This lives as its own integration test binary so its `tracing`
-//! callsite cache is isolated from the unit-test binary. Unit tests
-//! run in parallel and the first one to touch a callsite under a
-//! `NoSubscriber` thread caches it as `Interest::never`, which then
-//! starves a sibling test that installs a real subscriber via
-//! `set_default`. In a fresh binary the cache starts empty so the
-//! `set_default` subscriber sees every span we declare.
+//! This is a standalone integration test binary on purpose, not a module of
+//! `tests/it`. The `tracing` callsite cache is global to the process. In the
+//! shared `it` binary, sibling tests run the same agent code on other threads
+//! with no subscriber and can leave a callsite cached as never interested,
+//! so `set_default` here may miss a span (#221). With a single test in its
+//! own process nothing else touches the callsites.
+//! Do not move this file into `tests/it`, and do not add a second test that
+//! installs a subscriber to this binary without checking this note.
 
 use std::sync::{Arc, Mutex};
 
