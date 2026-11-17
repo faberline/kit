@@ -27,7 +27,7 @@ The threat model is in [docs/threat-model.md](docs/threat-model.md).
 | --- | --- |
 | `arraykit` | N-dimensional arrays (inspired by NumPy): shapes, broadcasting, linear algebra basics. |
 | `frame` | DataFrame and Series (inspired by pandas): grouping, joins, CSV and JSON I/O. |
-| `scikit` | Scientific computing (inspired by SciPy), by feature: `stats`, `fft`, `signal`, `interpolate`, `optimize`, `ts`, `spatial`, `sparse`, `integrate`. |
+| `scikit` | Scientific computing (inspired by SciPy), by feature: `stats`, `fft`, `signal`, `interpolate`, `optimize`, `ts`, `spatial`, `sparse`, `integrate`, `linear_model`. |
 | `plotkit` | Data visualization (inspired by Matplotlib) chart model and rendering. |
 | `agent` | LLM agent framework: agents, tools, LLM providers, MCP, structured output, integrations. |
 | `agent-derive` | `AgentSchema` derive macro for typed agent input and output. |
@@ -39,7 +39,7 @@ The threat model is in [docs/threat-model.md](docs/threat-model.md).
 ## Not there yet
 
 - No autograd, neural network layers, optimizers, GPU support or model file formats.
-- No machine-learning estimators.
+- Machine learning has only `LinearRegression` and `Ridge` (`scikit`, feature `linear_model`). Trees, clustering, classifiers, pipelines and model selection are missing.
 - No loss functions, no `DataLoader`, and no `StandardScaler`, `PCA` or `train_test_split`.
 - `frame` is row-oriented, not columnar.
 - In `agent`, the Claude, OpenAI and Gemini providers stream.
