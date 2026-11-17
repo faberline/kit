@@ -2,7 +2,7 @@
 //!
 //! Scientific computing: statistics, FFT, signal processing,
 //! interpolation, optimization, time-series analysis, spatial
-//! algorithms, sparse matrices, and numerical integration.
+//! algorithms, sparse matrices, numerical integration, and linear models.
 
 #[cfg(feature = "stats")]
 pub mod stats;
@@ -30,3 +30,6 @@ pub mod sparse;
 
 #[cfg(feature = "integrate")]
 pub mod integrate;
+
+#[cfg(feature = "linear_model")]
+pub mod linear_model;
