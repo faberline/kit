@@ -4,7 +4,7 @@ DataFrame and Series for Rust, inspired by pandas. Each cell holds a typed `Valu
 
 - `DataFrame`, `Series`, `Value`, `Index`, `MultiIndex`, `FrameError`: construction, indexing, selection, null handling, sorting and statistics.
 - Group-by, joins, pivot, stack and unstack, rolling, expanding and EWM windows (`frame::frame::ops`).
-- CSV, columnar and workbook files, and JSON with the Cargo feature `io-extra` (`frame::frame::io`).
+- CSV, binary and workbook files, and JSON with the Cargo feature `io-extra` (`frame::frame::io`).
 
 ## Example
 
