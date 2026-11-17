@@ -2327,3 +2327,68 @@ fn test_float_sort_axis_2d_nan_last() {
     assert_eq!(&d[3..5], &[0.0, 2.0]);
     assert!(d[5].is_nan());
 }
+
+// ============================================================================
+// ArrayView tests (borrowed strided view, transpose shares the buffer)
+// ============================================================================
+
+#[test]
+fn test_transpose_view_shares_buffer() {
+    let a = NdArray::new((0..6).map(|x| x as f64).collect::<Vec<f64>>(), vec![2, 3]).unwrap();
+    let t = a.view().transpose();
+    assert_eq!(t.dims(), &[3, 2]);
+    assert_eq!(t.strides(), &[1, 3]);
+    // Same buffer: no copy was made.
+    assert_eq!(t.data_ptr(), a.data().as_ptr());
+    // Element [2, 1] of the view is element [1, 2] of the source.
+    assert_eq!(t.get(&[2, 1]).unwrap(), 5.0);
+    assert_eq!(t.get(&[0, 1]).unwrap(), 3.0);
+}
+
+#[test]
+fn test_transpose_view_to_owned_matches_transpose() {
+    let a = NdArray::new((0..6).map(|x| x as f64).collect::<Vec<f64>>(), vec![2, 3]).unwrap();
+    let t = a.view().transpose();
+    let owned = t.to_owned();
+    let expected = a.transpose();
+    assert_eq!(owned.data(), expected.data());
+    assert_eq!(owned.dims(), expected.dims());
+}
+
+#[test]
+fn test_view_not_contiguous_after_transpose() {
+    let a = NdArray::new((0..6).map(|x| x as f64).collect::<Vec<f64>>(), vec![2, 3]).unwrap();
+    let t = a.view().transpose();
+    assert!(a.view().is_contiguous());
+    assert!(!t.is_contiguous());
+}
+
+#[test]
+fn test_view_transpose_axes_bad_axis_is_error() {
+    let a = NdArray::new(
+        (0..24).map(|x| x as f64).collect::<Vec<f64>>(),
+        vec![2, 3, 4],
+    )
+    .unwrap();
+    let v = a.view();
+    assert_eq!(
+        v.transpose_axes(&[0, 1, 3]).unwrap_err(),
+        ArrayError::InvalidAxis { axis: 3, ndim: 3 }
+    );
+    assert!(v.transpose_axes(&[0, 1]).is_err());
+    let p = v.transpose_axes(&[2, 0, 1]).unwrap();
+    assert_eq!(p.dims(), &[4, 2, 3]);
+    // View index [3, 1, 2] is source index [1, 2, 3]: 1*12 + 2*4 + 3 = 23.
+    assert_eq!(p.get(&[3, 1, 2]).unwrap(), 23.0);
+}
+
+#[test]
+fn test_view_get_out_of_bounds_is_error() {
+    let a = NdArray::new((0..6).map(|x| x as f64).collect::<Vec<f64>>(), vec![2, 3]).unwrap();
+    let v = a.view();
+    assert!(matches!(
+        v.get(&[2, 0]),
+        Err(ArrayError::IndexOutOfBounds { .. })
+    ));
+    assert!(v.get(&[0]).is_err());
+}
