@@ -10,8 +10,13 @@ no-default-features = false
 [advisories]
 db-path = "~/.cargo/advisory-db"
 version = 2
-# Ignore specific advisories (none currently)
-ignore = []
+# Ignore specific advisories. Each entry has a reason and an expiry date.
+ignore = [
+    # RUSTSEC-2026-0543: chrono 0.4.45 is unmaintained and no safe upgrade exists.
+    # chrono is used by agent and kit-http. Not a vulnerability.
+    # Expires 2027-02-17: re-check then, and replace chrono (jiff or time) if still unmaintained.
+    { id = "RUSTSEC-2026-0543", reason = "chrono unmaintained, no safe upgrade; expires 2027-02-17" },
+]
 
 [licenses]
 version = 2
