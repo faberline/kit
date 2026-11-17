@@ -3,6 +3,7 @@
 mod claude;
 mod gemini;
 mod openai;
+mod openai_stream;
 mod provider;
 
 pub use claude::ClaudeProvider;
