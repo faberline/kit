@@ -19,6 +19,8 @@ See [docs/stability.md](docs/stability.md), [docs/limits.md](docs/limits.md), [d
 
 Report a vulnerability as described in [SECURITY.md](SECURITY.md).
 
+The threat model is in [docs/threat-model.md](docs/threat-model.md).
+
 ## Crates
 
 | Crate | What it is |
