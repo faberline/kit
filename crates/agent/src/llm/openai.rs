@@ -1,10 +1,11 @@
+use super::openai_stream;
 use super::provider::{
     CompletionRequest, CompletionResponse, LLMProvider, StreamResponse, ToolDefinition,
 };
 use crate::error::{AgentError, AgentResult};
 use crate::types::{Message, Role, TokenUsage, ToolCall};
 use async_trait::async_trait;
-use kit_http::client::{HttpClient, HttpClientConfig, HttpMethod, RequestBuilder};
+use kit_http::client::{HttpClient, HttpClientConfig, HttpError, HttpMethod, RequestBuilder};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -13,8 +14,11 @@ use tracing::debug;
 /// OpenAI LLM provider
 pub struct OpenAIProvider {
     client: Arc<HttpClient>,
+    /// Client for streams: a long ceiling, because the idle timeout is the real limit.
+    stream_client: Arc<HttpClient>,
     api_key: String,
     default_model: String,
+    stream_idle_timeout: std::time::Duration,
 }
 
 impl OpenAIProvider {
@@ -29,21 +33,33 @@ impl OpenAIProvider {
     ) -> AgentResult<Self> {
         let base_url: String = base_url.into();
         let config = HttpClientConfig::new()
-            .base_url(base_url)
+            .base_url(base_url.clone())
             .timeout_secs(60.0)
             .retry(kit_http::client::config::RetryConfig::default());
+        let stream_config = HttpClientConfig::new()
+            .base_url(base_url)
+            .timeout_secs(3600.0);
 
         let client = HttpClient::new(config)?;
+        let stream_client = HttpClient::new(stream_config)?;
 
         Ok(Self {
             client: Arc::new(client),
+            stream_client: Arc::new(stream_client),
             api_key: api_key.into(),
             default_model: "gpt-4o".to_string(),
+            stream_idle_timeout: std::time::Duration::from_secs(60),
         })
     }
 
     pub fn with_default_model(mut self, model: impl Into<String>) -> Self {
         self.default_model = model.into();
+        self
+    }
+
+    /// Longest silence allowed inside a stream before it ends with an error.
+    pub fn with_stream_idle_timeout(mut self, d: std::time::Duration) -> Self {
+        self.stream_idle_timeout = d;
         self
     }
 
@@ -335,10 +351,40 @@ impl LLMProvider for OpenAIProvider {
         parse_response(&response.text()?)
     }
 
-    async fn complete_stream(&self, _request: CompletionRequest) -> AgentResult<StreamResponse> {
-        Err(AgentError::NotSupported(
-            "OpenAI streaming is not supported yet; use complete()".to_string(),
-        ))
+    async fn complete_stream(&self, request: CompletionRequest) -> AgentResult<StreamResponse> {
+        let model = if request.model.is_empty() {
+            self.default_model.clone()
+        } else {
+            request.model.clone()
+        };
+
+        debug!("OpenAI streaming request: model={}", model);
+
+        let mut body = self.build_body(&request, &model)?;
+        body["stream"] = serde_json::json!(true);
+
+        let builder = self.build_request("/v1/chat/completions", body);
+        let byte_stream = self
+            .stream_client
+            .execute_builder_stream(builder)
+            .await
+            .map_err(|e| match e {
+                HttpError::Status { code, message } => api_error(code, &message, &self.api_key),
+                other => {
+                    let text = other.to_string();
+                    let text = if self.api_key.is_empty() {
+                        text
+                    } else {
+                        text.replace(&self.api_key, "[redacted]")
+                    };
+                    AgentError::ApiError(text)
+                }
+            })?;
+
+        let chunk_stream = Box::pin(openai_stream::parse_openai_sse_stream(byte_stream));
+        let chunk_stream = super::claude::with_idle_timeout(chunk_stream, self.stream_idle_timeout);
+
+        Ok(Box::pin(chunk_stream))
     }
 }
 
@@ -693,18 +739,6 @@ mod tests {
         match api_error(500, "x", "") {
             AgentError::ApiError(m) => assert!(m.contains('x'), "message: {m}"),
             _ => panic!("expected ApiError"),
-        }
-    }
-
-    #[tokio::test]
-    async fn complete_stream_returns_not_supported() {
-        let provider = OpenAIProvider::new("k").unwrap();
-        let request = CompletionRequest::new(vec![Message::user("hi")], "gpt-4o");
-        match provider.complete_stream(request).await {
-            Err(AgentError::NotSupported(m)) => {
-                assert!(m.contains("not supported"), "message: {m}")
-            }
-            _ => panic!("expected NotSupported"),
         }
     }
 }

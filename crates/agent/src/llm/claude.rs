@@ -388,7 +388,7 @@ fn redact(text: &str, secret: &str) -> String {
 }
 
 /// Wrap a stream so that silence longer than `idle` ends it with one error.
-fn with_idle_timeout<S>(
+pub(super) fn with_idle_timeout<S>(
     stream: S,
     idle: std::time::Duration,
 ) -> impl futures::Stream<Item = AgentResult<StreamChunk>> + Send
