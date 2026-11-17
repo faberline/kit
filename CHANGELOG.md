@@ -4,6 +4,7 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+- frame: new `Column` type (typed values with a null mask), re-exported from the crate root.
 - arraykit: `ArrayView::reshape` and `ArrayView::slice` return views without a copy.
 - Added crate metadata, the release checklist in docs/release.md and a packaging check in CI.
 - Added SECURITY.md and a cargo audit step in CI.
