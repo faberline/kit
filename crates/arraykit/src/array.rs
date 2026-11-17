@@ -14,6 +14,7 @@ pub mod search;
 mod shape;
 mod slice;
 mod stats;
+mod view;
 mod window;
 
 pub use dtype::{ArrayElement, DType, RangeElement};
@@ -28,4 +29,5 @@ pub use random::{KitRng, RandomExt};
 pub use shape::Shape;
 pub use slice::{AxisSlice, NormalizedSlice, SliceInfo};
 pub use stats::{StatOps, VarOps};
+pub use view::ArrayView;
 pub use window::Rolling;

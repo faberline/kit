@@ -4,6 +4,7 @@ use super::dtype::{ArrayElement, RangeElement};
 use super::error::{ArrayError, Result};
 use super::shape::Shape;
 use super::slice::{AxisSlice, SliceInfo};
+use super::view::ArrayView;
 use std::fmt;
 
 /// N-dimensional array with contiguous storage and NumPy-like semantics.
@@ -402,6 +403,13 @@ impl<T: ArrayElement> NdArray<T> {
             data: result,
             shape: target.clone(),
         })
+    }
+}
+
+impl<T: ArrayElement> NdArray<T> {
+    /// Borrow this array as a strided view that shares its buffer.
+    pub fn view(&self) -> ArrayView<'_, T> {
+        ArrayView::new(&self.data, 0, self.shape.clone())
     }
 }
 

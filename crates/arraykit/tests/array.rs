@@ -2279,3 +2279,64 @@ fn svd_wide_rank_two_3x4() {
     assert_orthonormal(r.vt.data(), 4);
     assert_close_slice(&svd_reconstruct(&r, 3, 4), a.data(), 1e-12);
 }
+
+// ============================================================================
+// ArrayView tests (from view.rs)
+// ============================================================================
+
+#[test]
+fn test_transpose_view_shares_buffer() {
+    let a = NdArray::new((0..6).map(|x| x as f64).collect::<Vec<f64>>(), vec![2, 3]).unwrap();
+    let t = a.view().transpose();
+    assert_eq!(t.dims(), [3, 2]);
+    assert_eq!(t.strides(), [1, 3]);
+    assert_eq!(t.data_ptr(), a.data().as_ptr());
+    assert_eq!(t.get(&[2, 1]).unwrap(), 5.0);
+    assert_eq!(t.get(&[0, 1]).unwrap(), 3.0);
+}
+
+#[test]
+fn test_transpose_view_to_owned_matches_transpose() {
+    let a = NdArray::new((0..6).map(|x| x as f64).collect::<Vec<f64>>(), vec![2, 3]).unwrap();
+    let t = a.view().transpose();
+    let owned = t.to_owned();
+    assert_eq!(owned.dims(), a.transpose().dims());
+    assert_eq!(owned.data(), a.transpose().data());
+}
+
+#[test]
+fn test_view_not_contiguous_after_transpose() {
+    let a = NdArray::new((0..6).map(|x| x as f64).collect::<Vec<f64>>(), vec![2, 3]).unwrap();
+    let t = a.view().transpose();
+    assert!(a.view().is_contiguous());
+    assert!(!t.is_contiguous());
+}
+
+#[test]
+fn test_view_transpose_axes_bad_axis_is_error() {
+    let a = NdArray::new(
+        (0..24).map(|x| x as f64).collect::<Vec<f64>>(),
+        vec![2, 3, 4],
+    )
+    .unwrap();
+    let v = a.view();
+    assert_eq!(
+        v.transpose_axes(&[0, 1, 3]).unwrap_err(),
+        ArrayError::InvalidAxis { axis: 3, ndim: 3 }
+    );
+    assert!(v.transpose_axes(&[0, 1]).is_err());
+    let p = v.transpose_axes(&[2, 0, 1]).unwrap();
+    assert_eq!(p.dims(), [4, 2, 3]);
+    // element at [3, 1, 2] of the permuted view is element at [1, 2, 3] of `a`
+    assert_eq!(p.get(&[3, 1, 2]).unwrap(), a.data()[12 + 2 * 4 + 3]);
+}
+
+#[test]
+fn test_view_get_out_of_bounds_is_error() {
+    let a = NdArray::new((0..6).map(|x| x as f64).collect::<Vec<f64>>(), vec![2, 3]).unwrap();
+    assert!(matches!(
+        a.view().get(&[2, 0]),
+        Err(ArrayError::IndexOutOfBounds { .. })
+    ));
+    assert!(a.view().get(&[0]).is_err());
+}
