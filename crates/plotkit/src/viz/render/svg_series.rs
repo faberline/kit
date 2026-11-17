@@ -19,14 +19,27 @@ impl SvgRenderer {
         }
 
         let mut path = String::new();
-        for (i, (&xi, &yi)) in x.iter().zip(y.iter()).enumerate() {
+        let mut pen_down = false;
+        for (&xi, &yi) in x.iter().zip(y.iter()) {
+            // A non-finite point breaks the line: the next point starts a new sub-path.
+            if !xi.is_finite() || !yi.is_finite() {
+                pen_down = false;
+                continue;
+            }
             let px = self.map_x(xi, axes.x.min, axes.x.max);
             let py = self.map_y(yi, axes.y.min, axes.y.max);
-            if i == 0 {
-                path.push_str(&format!("M{:.1},{:.1}", px, py));
-            } else {
+            if pen_down {
                 path.push_str(&format!(" L{:.1},{:.1}", px, py));
+            } else {
+                if !path.is_empty() {
+                    path.push(' ');
+                }
+                path.push_str(&format!("M{:.1},{:.1}", px, py));
             }
+            pen_down = true;
+        }
+        if path.is_empty() {
+            return;
         }
         self.elements.push(format!(
             r#"<path d="{}" fill="none" stroke="{}" stroke-width="{}" />"#,
@@ -47,11 +60,12 @@ impl SvgRenderer {
         if labels.is_empty() {
             return;
         }
-        let y_ticks = nice_ticks(
-            0.0,
-            values.iter().copied().fold(f64::NEG_INFINITY, f64::max),
-            5,
-        );
+        // The axis spans zero and the finite values, so a negative bar fits.
+        let finite = values.iter().copied().filter(|v| v.is_finite());
+        let y_min = finite.clone().fold(0.0, f64::min);
+        let y_max = finite.fold(0.0, f64::max);
+        let y_ticks = nice_ticks(y_min, y_max, 5);
+        let zero_y = self.map_y(0.0, y_ticks.min, y_ticks.max);
 
         for &tick in &y_ticks.ticks {
             let py = self.map_y(tick, y_ticks.min, y_ticks.max);
@@ -80,9 +94,13 @@ impl SvgRenderer {
 
         for (i, (label, &val)) in labels.iter().zip(values.iter()).enumerate() {
             let bx = self.margin.left + gap + i as f64 * (bar_width + 2.0 * gap);
-            let bar_h = (val - y_ticks.min) / (y_ticks.max - y_ticks.min) * self.plot_height();
-            let by = self.margin.top + self.plot_height() - bar_h;
-            self.rect(bx, by, bar_width, bar_h, &color.to_hex(), opacity);
+            // A bar grows from the zero line: up for a positive value, down for a negative one.
+            if val.is_finite() {
+                let vy = self.map_y(val, y_ticks.min, y_ticks.max);
+                let by = zero_y.min(vy);
+                let bar_h = (zero_y - vy).abs();
+                self.rect(bx, by, bar_width, bar_h, &color.to_hex(), opacity);
+            }
 
             self.text(
                 bx + bar_width / 2.0,
@@ -93,6 +111,15 @@ impl SvgRenderer {
                 "middle",
             );
         }
+
+        self.line(
+            self.margin.left,
+            zero_y,
+            self.margin.left + self.plot_width(),
+            zero_y,
+            &style.text_color.to_hex(),
+            1.0,
+        );
     }
 
     pub(crate) fn render_scatter(
@@ -109,6 +136,9 @@ impl SvgRenderer {
         }
 
         for (&xi, &yi) in x.iter().zip(y.iter()) {
+            if !xi.is_finite() || !yi.is_finite() {
+                continue;
+            }
             let px = self.map_x(xi, axes.x.min, axes.x.max);
             let py = self.map_y(yi, axes.y.min, axes.y.max);
             self.circle(px, py, radius, &color.to_hex(), opacity);
@@ -353,16 +383,27 @@ impl SvgRenderer {
             return;
         }
 
+        // Only the finite points form the area; a non-finite point is left out.
+        let pts: Vec<(f64, f64)> = x
+            .iter()
+            .zip(y.iter())
+            .filter(|(xi, yi)| xi.is_finite() && yi.is_finite())
+            .map(|(&xi, &yi)| (xi, yi))
+            .collect();
+        if pts.is_empty() {
+            return;
+        }
+
         let mut path = String::new();
         let baseline_y = self.map_y(axes.y.min.max(0.0), axes.y.min, axes.y.max);
-        let first_px = self.map_x(x[0], axes.x.min, axes.x.max);
+        let first_px = self.map_x(pts[0].0, axes.x.min, axes.x.max);
         path.push_str(&format!("M{:.1},{:.1}", first_px, baseline_y));
-        for (&xi, &yi) in x.iter().zip(y.iter()) {
+        for &(xi, yi) in &pts {
             let px = self.map_x(xi, axes.x.min, axes.x.max);
             let py = self.map_y(yi, axes.y.min, axes.y.max);
             path.push_str(&format!(" L{:.1},{:.1}", px, py));
         }
-        let last_px = self.map_x(x[x.len() - 1], axes.x.min, axes.x.max);
+        let last_px = self.map_x(pts[pts.len() - 1].0, axes.x.min, axes.x.max);
         path.push_str(&format!(" L{:.1},{:.1} Z", last_px, baseline_y));
 
         self.elements.push(format!(

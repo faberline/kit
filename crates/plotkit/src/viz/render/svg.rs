@@ -766,4 +766,148 @@ mod tests {
         let svg = r.render(&None, &series, &style);
         assert!(svg.starts_with("<svg"));
     }
+
+    /// The `y` value of the first `<rect>` attribute list after `start`.
+    fn rect_y_after(svg: &str, start: usize) -> f64 {
+        let s = &svg[start..];
+        let i = s.find(" y=\"").expect("rect has a y attribute") + 4;
+        let j = s[i..].find('"').expect("y value is closed");
+        s[i..i + j].parse::<f64>().expect("y is a number")
+    }
+
+    /// Start offsets of the bar rects (the ones with the bar fill and opacity).
+    fn bar_rect_starts(svg: &str) -> Vec<usize> {
+        let bs = crate::viz::style::BarStyle::default();
+        let marker = format!(
+            r#"fill="{}" opacity="{:.2}" />"#,
+            bs.color.to_hex(),
+            bs.opacity
+        );
+        svg.match_indices(&marker)
+            .map(|(end, _)| svg[..end].rfind("<rect ").expect("bar rect start"))
+            .collect()
+    }
+
+    #[test]
+    fn test_bar_negative_below_zero_line() {
+        let style = ChartStyle::default();
+        let mut r = SvgRenderer::new(400.0, 300.0);
+        let series = vec![DataSeries::bar(
+            vec!["a".to_string(), "b".to_string()],
+            vec![2.0, -2.0],
+        )];
+        let svg = r.render(&None, &series, &style);
+
+        let ticks = crate::viz::axis::nice_ticks(-2.0, 2.0, 5);
+        let zero_y = r.map_y(0.0, ticks.min, ticks.max);
+        let zero_str = format!("{:.1}", zero_y);
+
+        let bars = bar_rect_starts(&svg);
+        assert_eq!(bars.len(), 2, "one rect per bar");
+        let y_a = rect_y_after(&svg, bars[0]);
+        let y_b = rect_y_after(&svg, bars[1]);
+
+        // The negative bar starts at the zero line and hangs below it.
+        assert_eq!(format!("{:.1}", y_b), zero_str);
+        // The positive bar ends at the zero line and rises above it.
+        assert!(y_a < zero_y, "positive bar above zero: {y_a} < {zero_y}");
+        assert!(!svg.contains("height=\"-"), "no negative bar height");
+
+        // One zero line across the plot, in the text colour.
+        let expected = format!(
+            r#"<line x1="{:.1}" y1="{}" x2="{:.1}" y2="{}" stroke="{}" stroke-width="1" />"#,
+            r.margin.left,
+            zero_str,
+            r.margin.left + r.plot_width(),
+            zero_str,
+            style.text_color.to_hex()
+        );
+        assert_eq!(svg.matches(&expected).count(), 1);
+    }
+
+    #[test]
+    fn test_bar_nan_value_skipped() {
+        let style = ChartStyle::default();
+        let mut r = SvgRenderer::new(400.0, 300.0);
+        let series = vec![DataSeries::bar(
+            vec!["a".to_string(), "b".to_string()],
+            vec![1.0, f64::NAN],
+        )];
+        let svg = r.render(&None, &series, &style);
+
+        assert!(!svg.contains("NaN"));
+        assert_eq!(bar_rect_starts(&svg).len(), 1, "NaN bar draws no rect");
+        assert!(svg.contains(">b</text>"), "label of the NaN bar is kept");
+    }
+
+    #[test]
+    fn test_line_skips_nan() {
+        let style = ChartStyle::default();
+        let mut r = SvgRenderer::new(400.0, 300.0);
+        let series = vec![DataSeries::line(
+            vec![0.0, 1.0, 2.0],
+            vec![0.0, f64::NAN, 2.0],
+        )];
+        let svg = r.render(&None, &series, &style);
+
+        assert!(!svg.contains("NaN"));
+        let d = svg
+            .split("<path d=\"")
+            .nth(1)
+            .expect("series path")
+            .split('"')
+            .next()
+            .unwrap();
+        // Two separate points: the gap starts a new sub-path, no segment joins them.
+        assert_eq!(d.matches('M').count(), 2);
+        assert_eq!(d.matches('L').count(), 0);
+    }
+
+    #[test]
+    fn test_scatter_skips_nan() {
+        let style = ChartStyle::default();
+        let mut r = SvgRenderer::new(400.0, 300.0);
+        let series = vec![DataSeries::scatter(
+            vec![0.0, 1.0, 2.0],
+            vec![0.0, f64::NAN, 2.0],
+        )];
+        let svg = r.render(&None, &series, &style);
+
+        assert!(!svg.contains("NaN"));
+        assert_eq!(svg.matches("<circle").count(), 2);
+    }
+
+    #[test]
+    fn test_area_skips_nan() {
+        let style = ChartStyle::default();
+        let mut r = SvgRenderer::new(400.0, 300.0);
+        let series = vec![DataSeries::area(
+            vec![0.0, 1.0, 2.0, 3.0],
+            vec![1.0, f64::NAN, 2.0, 3.0],
+        )];
+        let svg = r.render(&None, &series, &style);
+
+        assert!(!svg.contains("NaN"));
+        let d = svg
+            .split("<path d=\"")
+            .nth(1)
+            .expect("area path")
+            .split('"')
+            .next()
+            .unwrap();
+        // Three finite points, then the return to the baseline: four `L`.
+        assert_eq!(d.matches('L').count(), 4);
+    }
+
+    #[test]
+    fn test_all_nan_line_draws_nothing() {
+        let style = ChartStyle::default();
+        let mut r = SvgRenderer::new(400.0, 300.0);
+        let series = vec![DataSeries::line(vec![0.0, 1.0], vec![f64::NAN, f64::NAN])];
+        let svg = r.render(&None, &series, &style);
+
+        assert!(!svg.contains("NaN"));
+        assert!(!svg.contains("inf"));
+        assert!(!svg.contains("<path"));
+    }
 }
