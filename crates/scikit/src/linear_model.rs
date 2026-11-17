@@ -317,6 +317,16 @@ mod tests {
     }
 
     #[test]
+    fn ridge_alpha_one_exact() {
+        // Centred x: Sxx = 10, Sxy = 20, so coef = 20 / (10 + 1) = 20/11.
+        let mut r = Ridge::new(1.0);
+        r.fit(&line_x(), &line_y()).unwrap();
+        assert!((r.coef()[0] - 20.0 / 11.0).abs() < 1e-12);
+        // intercept = y_mean - coef * x_mean = 5 - (20/11) * 2 = 15/11.
+        assert!((r.intercept() - 15.0 / 11.0).abs() < 1e-12);
+    }
+
+    #[test]
     fn ridge_intercept_is_not_penalised() {
         let mut r = Ridge::new(1e9);
         r.fit(&line_x(), &line_y()).unwrap();
