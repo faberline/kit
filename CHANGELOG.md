@@ -15,3 +15,4 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Added criterion benchmarks for scikit fft and stats (`cargo bench -p scikit --features fft`).
 - Plain READMEs for frame and kit-core, and no private tracker ids in manifests and the listed comments.
 - Added CONTRIBUTING.md and docs/architecture.md, and removed the crate CONTRIBUTING files.
+- frame: the I/O files sheets.rs and columnar.rs are now workbook.rs and binary.rs. The old module paths frame::frame::io::sheets and frame::frame::io::columnar still work.

@@ -1,4 +1,4 @@
-//! Columnar serialization format (Parquet-like).
+//! Kit binary format for a DataFrame (magic `CCLF`; not Parquet).
 //!
 //! A simple binary columnar format for fast serialization/deserialization:
 //!
