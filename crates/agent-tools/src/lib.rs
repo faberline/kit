@@ -6,9 +6,13 @@
 //! |---------------|--------|------------------------------------------|
 //! | `mcp_client`  | #2063  | Consume external MCP servers as tools    |
 //! | `mcp_server`  | #2064  | Publish agentkit tools as an MCP server  |
+//! | stdio         | -      | Newline-delimited JSON over stdio        |
 
 pub mod mcp_client;
 pub mod mcp_server;
+pub mod stdio;
+
+pub use stdio::{serve_stdio, spawn_stdio_client, StdioTransport};
 
 pub use mcp_client::{
     McpClient, McpTool, McpToolCallResult, McpTransport, JSONRPC_VERSION, MCP_PROTOCOL_VERSION,
