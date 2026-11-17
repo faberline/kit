@@ -99,8 +99,9 @@ struct LoopbackTransport {
 #[async_trait]
 impl McpTransport for LoopbackTransport {
     async fn send(&self, message: Value) -> AgentResult<()> {
-        let response = self.server.handle_request(message).await;
-        *self.pending.lock().unwrap() = Some(response);
+        if let Some(response) = self.server.handle_message(message).await {
+            *self.pending.lock().unwrap() = Some(response);
+        }
         Ok(())
     }
 
@@ -270,15 +271,17 @@ async fn client_handshake_list_and_call() {
     assert!(!result.is_error);
 
     let sent = sent.lock().unwrap();
-    assert_eq!(sent.len(), 3);
+    assert_eq!(sent.len(), 4);
     assert_eq!(sent[0]["method"], "initialize");
     assert_eq!(sent[0]["id"], 1);
-    assert_eq!(sent[1]["method"], "tools/list");
-    assert_eq!(sent[1]["id"], 2);
-    assert_eq!(sent[2]["method"], "tools/call");
-    assert_eq!(sent[2]["id"], 3);
-    assert_eq!(sent[2]["params"]["name"], "echo");
-    assert_eq!(sent[2]["params"]["arguments"]["msg"], "x");
+    assert_eq!(sent[1]["method"], "notifications/initialized");
+    assert!(sent[1].get("id").is_none());
+    assert_eq!(sent[2]["method"], "tools/list");
+    assert_eq!(sent[2]["id"], 2);
+    assert_eq!(sent[3]["method"], "tools/call");
+    assert_eq!(sent[3]["id"], 3);
+    assert_eq!(sent[3]["params"]["name"], "echo");
+    assert_eq!(sent[3]["params"]["arguments"]["msg"], "x");
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -328,12 +331,12 @@ async fn client_maps_jsonrpc_error_to_tool_error() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn client_rejects_wrong_id_and_missing_jsonrpc() {
-    // A reply with the wrong id.
+    // A reply with the wrong id is skipped, so the script runs dry.
     let (transport, _sent) = fake(vec![Ok(ok(99, json!({"protocolVersion": "x"})))], false);
     let client = McpClient::new(transport);
     assert!(matches!(
         client.initialize().await,
-        Err(AgentError::InvalidRequest(_))
+        Err(AgentError::ConfigError(_))
     ));
 
     // A reply without the jsonrpc field.

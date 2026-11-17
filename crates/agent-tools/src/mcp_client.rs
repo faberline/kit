@@ -125,16 +125,25 @@ impl McpClient {
         });
         self.transport.send(envelope).await?;
 
-        let response = self.transport.recv().await?;
+        let mut skipped = 0usize;
+        let response = loop {
+            let msg = self.transport.recv().await?;
+            let unrelated =
+                msg.get("method").is_some() || msg.get("id").and_then(Value::as_u64) != Some(id);
+            if !unrelated {
+                break msg;
+            }
+            skipped += 1;
+            if skipped >= 100 {
+                return Err(AgentError::InvalidRequest(
+                    "MCP: too many unrelated messages".into(),
+                ));
+            }
+        };
 
         if response.get("jsonrpc").and_then(Value::as_str) != Some(JSONRPC_VERSION) {
             return Err(AgentError::InvalidRequest(format!(
                 "MCP response missing jsonrpc=\"{JSONRPC_VERSION}\""
-            )));
-        }
-        if response.get("id").and_then(Value::as_u64) != Some(id) {
-            return Err(AgentError::InvalidRequest(format!(
-                "MCP response id mismatch for method {method}"
             )));
         }
         if let Some(err) = response.get("error") {
@@ -154,6 +163,13 @@ impl McpClient {
             .ok_or_else(|| AgentError::MalformedLLMResponse(format!("{method} missing result")))
     }
 
+    /// Send a JSON-RPC notification (no `id`, no reply expected).
+    async fn notify(&self, method: &str, params: Value) -> AgentResult<()> {
+        self.transport
+            .send(json!({ "jsonrpc": JSONRPC_VERSION, "method": method, "params": params }))
+            .await
+    }
+
     /// Negotiate protocol version + capabilities with the server.
     ///
     /// Returns the protocol version the server selected (typically
@@ -165,7 +181,7 @@ impl McpClient {
             "clientInfo": { "name": "agentkit", "version": env!("CARGO_PKG_VERSION") },
         });
         let result = self.request("initialize", params).await?;
-        result
+        let version = result
             .get("protocolVersion")
             .and_then(Value::as_str)
             .map(str::to_owned)
@@ -173,21 +189,37 @@ impl McpClient {
                 AgentError::MalformedLLMResponse(
                     "initialize result missing protocolVersion".to_string(),
                 )
-            })
+            })?;
+        self.notify("notifications/initialized", json!({})).await?;
+        Ok(version)
     }
 
-    /// Fetch the server's tool catalog.
+    /// Fetch the server's tool catalog, following `nextCursor` pages.
     pub async fn list_tools(&self) -> AgentResult<Vec<McpTool>> {
-        let result = self.request("tools/list", json!({})).await?;
-        let tools = result
-            .get("tools")
-            .ok_or_else(|| {
-                AgentError::MalformedLLMResponse("tools/list missing tools array".to_string())
-            })?
-            .clone();
-        serde_json::from_value(tools).map_err(|e| {
-            AgentError::MalformedLLMResponse(format!("tools/list: bad tool entry: {e}"))
-        })
+        let mut all: Vec<McpTool> = Vec::new();
+        let mut cursor: Option<String> = None;
+        for _ in 0..100 {
+            let params = match &cursor {
+                Some(c) => json!({ "cursor": c }),
+                None => json!({}),
+            };
+            let result = self.request("tools/list", params).await?;
+            let tools = result
+                .get("tools")
+                .ok_or_else(|| {
+                    AgentError::MalformedLLMResponse("tools/list missing tools array".to_string())
+                })?
+                .clone();
+            let page: Vec<McpTool> = serde_json::from_value(tools).map_err(|e| {
+                AgentError::MalformedLLMResponse(format!("tools/list: bad tool entry: {e}"))
+            })?;
+            all.extend(page);
+            match result.get("nextCursor").and_then(Value::as_str) {
+                Some(c) => cursor = Some(c.to_owned()),
+                None => return Ok(all),
+            }
+        }
+        Err(AgentError::InvalidRequest("MCP: too many pages".into()))
     }
 
     /// Invoke a tool by name with `arguments` as the input payload.
@@ -209,6 +241,7 @@ impl McpClient {
 mod tests {
     use super::*;
     use std::collections::VecDeque;
+    use std::sync::Arc;
     use std::sync::Mutex as StdMutex;
 
     /// Scripted in-memory transport. Each `send()` records the
@@ -216,16 +249,22 @@ mod tests {
     /// response. Lets tests drive the full JSON-RPC roundtrip
     /// without spawning a child process.
     struct ScriptedTransport {
-        sent: StdMutex<Vec<Value>>,
+        sent: Arc<StdMutex<Vec<Value>>>,
         responses: StdMutex<VecDeque<Value>>,
     }
 
     impl ScriptedTransport {
         fn new(responses: Vec<Value>) -> Self {
             Self {
-                sent: StdMutex::new(Vec::new()),
+                sent: Arc::new(StdMutex::new(Vec::new())),
                 responses: StdMutex::new(VecDeque::from(responses)),
             }
+        }
+
+        /// A handle to the `sent` log that stays valid after the
+        /// transport moves into `McpClient::new`.
+        fn sent_handle(&self) -> Arc<StdMutex<Vec<Value>>> {
+            Arc::clone(&self.sent)
         }
     }
 
@@ -313,10 +352,83 @@ mod tests {
 
     #[tokio::test(flavor = "current_thread")]
     async fn response_id_mismatch_is_rejected() {
+        // A reply with a wrong id is skipped, so the script runs dry.
         let transport = ScriptedTransport::new(vec![ok_response(
             42,
             json!({ "protocolVersion": MCP_PROTOCOL_VERSION }),
         )]);
+        let client = McpClient::new(transport);
+        let err = client.initialize().await.unwrap_err();
+        assert!(matches!(err, AgentError::ConfigError(_)));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn initialized_notification_sent_after_initialize() {
+        let transport = ScriptedTransport::new(vec![ok_response(
+            1,
+            json!({ "protocolVersion": MCP_PROTOCOL_VERSION }),
+        )]);
+        let handle = transport.sent_handle();
+        let client = McpClient::new(transport);
+        client.initialize().await.unwrap();
+
+        let sent = handle.lock().unwrap();
+        assert_eq!(sent.len(), 2);
+        assert_eq!(sent[0]["method"], "initialize");
+        assert_eq!(sent[1]["method"], "notifications/initialized");
+        assert!(sent[1].get("id").is_none());
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn reply_with_other_id_is_skipped() {
+        let transport = ScriptedTransport::new(vec![
+            ok_response(99, json!({})),
+            ok_response(1, json!({ "protocolVersion": MCP_PROTOCOL_VERSION })),
+        ]);
+        let client = McpClient::new(transport);
+        let version = client.initialize().await.unwrap();
+        assert_eq!(version, MCP_PROTOCOL_VERSION);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn server_notification_is_skipped() {
+        let transport = ScriptedTransport::new(vec![
+            json!({ "jsonrpc": "2.0", "method": "notifications/message", "params": {} }),
+            ok_response(1, json!({ "protocolVersion": MCP_PROTOCOL_VERSION })),
+        ]);
+        let client = McpClient::new(transport);
+        let version = client.initialize().await.unwrap();
+        assert_eq!(version, MCP_PROTOCOL_VERSION);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn list_tools_follows_next_cursor() {
+        let transport = ScriptedTransport::new(vec![
+            ok_response(1, json!({ "protocolVersion": MCP_PROTOCOL_VERSION })),
+            ok_response(
+                2,
+                json!({ "tools": [ { "name": "a" } ], "nextCursor": "c1" }),
+            ),
+            ok_response(3, json!({ "tools": [ { "name": "b" } ] })),
+        ]);
+        let handle = transport.sent_handle();
+        let client = McpClient::new(transport);
+        client.initialize().await.unwrap();
+        let tools = client.list_tools().await.unwrap();
+        let names: Vec<&str> = tools.iter().map(|t| t.name.as_str()).collect();
+        assert_eq!(names, ["a", "b"]);
+
+        // sent[1] is the initialized notification.
+        let sent = handle.lock().unwrap();
+        assert_eq!(sent[2]["params"], json!({}));
+        assert_eq!(sent[3]["params"]["cursor"], "c1");
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn too_many_unrelated_messages_is_an_error() {
+        let notification =
+            json!({ "jsonrpc": "2.0", "method": "notifications/message", "params": {} });
+        let transport = ScriptedTransport::new(vec![notification; 101]);
         let client = McpClient::new(transport);
         let err = client.initialize().await.unwrap_err();
         assert!(matches!(err, AgentError::InvalidRequest(_)));
