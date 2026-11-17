@@ -38,6 +38,7 @@ use crate::error::{AgentError, AgentResult};
 use crate::events::{AgentEvent, EventEmitter};
 use crate::llm::{CompletionRequest, CompletionResponse, LLMProvider, ToolDefinition};
 use crate::schema::Schema;
+use crate::tools::{Tool, ToolRegistry};
 use crate::types::{Message, TokenUsage, ToolCall};
 
 /// Boxed async handler returned by [`ToolSpec`] handlers. The handler is
@@ -85,6 +86,26 @@ where
             parameters,
             handler,
         }
+    }
+
+    /// Build a tool spec from a [`Tool`]. The tool is described to the model
+    /// with its own definition and executed with the call arguments; it does
+    /// not use the `Deps` bag. Missing required arguments fail with
+    /// `AgentError::InvalidArguments` before `execute`.
+    pub fn from_tool(tool: Arc<dyn Tool>) -> Self {
+        let definition = tool.definition();
+        ToolSpec::new(
+            definition.name.clone(),
+            definition.description.clone(),
+            definition.to_json_schema(),
+            move |_deps: Deps, args: serde_json::Value| {
+                let tool = tool.clone();
+                async move {
+                    tool.validate_arguments(&args)?;
+                    tool.execute(args).await
+                }
+            },
+        )
     }
 }
 
@@ -499,6 +520,19 @@ where
 
     pub fn tool(mut self, spec: ToolSpec<Deps>) -> Self {
         self.tools.insert(spec.name.clone(), spec);
+        self
+    }
+
+    /// Add a [`Tool`]: the model is told about it and the agent runs it.
+    pub fn tool_impl(self, tool: Arc<dyn Tool>) -> Self {
+        self.tool(ToolSpec::from_tool(tool))
+    }
+
+    /// Add every tool of a [`ToolRegistry`], in name order.
+    pub fn tool_registry(mut self, registry: &ToolRegistry) -> Self {
+        for tool in registry.tools() {
+            self = self.tool(ToolSpec::from_tool(tool));
+        }
         self
     }
 

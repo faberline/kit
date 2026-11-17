@@ -24,6 +24,31 @@ pub struct ToolDefinition {
     pub parameters: Vec<ToolParameter>,
 }
 
+impl ToolDefinition {
+    /// The tool's parameters as a JSON Schema object. `required` keeps the parameter order.
+    pub fn to_json_schema(&self) -> serde_json::Value {
+        let mut properties = serde_json::Map::new();
+        let mut required = Vec::new();
+        for param in &self.parameters {
+            properties.insert(
+                param.name.clone(),
+                serde_json::json!({
+                    "type": param.parameter_type,
+                    "description": param.description,
+                }),
+            );
+            if param.required {
+                required.push(param.name.clone());
+            }
+        }
+        serde_json::json!({
+            "type": "object",
+            "properties": properties,
+            "required": required,
+        })
+    }
+}
+
 /// Tool trait - all tools must implement this
 #[async_trait]
 pub trait Tool: Send + Sync {
@@ -180,6 +205,37 @@ mod tests {
         async fn execute(&self, arguments: serde_json::Value) -> AgentResult<serde_json::Value> {
             Ok(arguments)
         }
+    }
+
+    #[test]
+    fn definition_to_json_schema_lists_properties_and_required() {
+        assert_eq!(
+            EchoTool.definition().to_json_schema(),
+            serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "message": {"type": "string", "description": "Message to echo"}
+                },
+                "required": ["message"]
+            })
+        );
+    }
+
+    #[test]
+    fn definition_to_json_schema_without_required_has_empty_array() {
+        let definition = ToolDefinition {
+            name: "optional".to_string(),
+            description: "Optional only".to_string(),
+            parameters: vec![ToolParameter {
+                name: "note".to_string(),
+                description: "A note".to_string(),
+                required: false,
+                parameter_type: "string".to_string(),
+            }],
+        };
+        let schema = definition.to_json_schema();
+        assert_eq!(schema["required"], serde_json::json!([]));
+        assert_eq!(schema["properties"]["note"]["type"], "string");
     }
 
     #[tokio::test]

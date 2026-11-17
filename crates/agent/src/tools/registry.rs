@@ -48,6 +48,17 @@ impl ToolRegistry {
         self.tools.iter().map(|entry| entry.key().clone()).collect()
     }
 
+    /// Every registered tool, sorted by name.
+    pub fn tools(&self) -> Vec<Arc<dyn Tool>> {
+        let mut tools: Vec<Arc<dyn Tool>> = self
+            .tools
+            .iter()
+            .map(|entry| entry.value().clone())
+            .collect();
+        tools.sort_by(|a, b| a.name().cmp(b.name()));
+        tools
+    }
+
     pub fn count(&self) -> usize {
         self.tools.len()
     }
@@ -91,6 +102,50 @@ mod tests {
         ) -> crate::error::AgentResult<serde_json::Value> {
             Ok(serde_json::json!({}))
         }
+    }
+
+    struct NamedTool {
+        name: &'static str,
+    }
+
+    #[async_trait]
+    impl Tool for NamedTool {
+        fn name(&self) -> &str {
+            self.name
+        }
+
+        fn description(&self) -> &str {
+            "Named test tool"
+        }
+
+        fn parameters(&self) -> Vec<ToolParameter> {
+            vec![]
+        }
+
+        async fn execute(
+            &self,
+            _arguments: serde_json::Value,
+        ) -> crate::error::AgentResult<serde_json::Value> {
+            Ok(serde_json::json!({}))
+        }
+    }
+
+    #[test]
+    fn tools_are_sorted_by_name() {
+        let registry = ToolRegistry::new();
+        registry
+            .register(Arc::new(NamedTool { name: "b" }))
+            .unwrap();
+        registry
+            .register(Arc::new(NamedTool { name: "a" }))
+            .unwrap();
+
+        let names: Vec<String> = registry
+            .tools()
+            .iter()
+            .map(|tool| tool.name().to_string())
+            .collect();
+        assert_eq!(names, vec!["a".to_string(), "b".to_string()]);
     }
 
     #[test]
