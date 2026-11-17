@@ -1,4 +1,4 @@
-//! Multi-sheet CSV I/O (Excel-like).
+//! Workbook file: several named CSV sheets in one text file (kit format, not xlsx).
 //!
 //! Stores multiple DataFrames in a single file with sheet separators.
 //!

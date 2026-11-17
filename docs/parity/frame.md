@@ -29,7 +29,7 @@ A pandas name of `none` means a kit helper with no pandas name; its state is `ha
 | CsvOptions | read_csv arguments | partial | crates/frame/src/frame/io/csv.rs; options are delimiter, header and quote only |
 | JsonOrient | to_json(orient=) | partial, feature io-extra | crates/frame/src/frame/io/json.rs; orient records, columns or values |
 | JsonOptions | read_json and to_json arguments | partial, feature io-extra | crates/frame/src/frame/io/json.rs; see the JSON rows |
-| Workbook | pandas.ExcelWriter | partial | crates/frame/src/frame/io/sheets.rs; kit text format, not xlsx |
+| Workbook | pandas.ExcelWriter | partial | crates/frame/src/frame/io/workbook.rs; kit text format, not xlsx |
 
 
 ## DataFrame
@@ -318,35 +318,35 @@ A pandas name of `none` means a kit helper with no pandas name; its state is `ha
 | DataFrame::to_json | DataFrame.to_json | partial, feature io-extra | crates/frame/src/frame/io/json.rs; orient records, columns or values; no index argument |
 | DataFrame::save_json | DataFrame.to_json (file) | partial, feature io-extra | crates/frame/src/frame/io/json.rs; orient records, columns or values; no index argument |
 
-## Sheets
+## Workbook
 
 | Function | pandas name | State | Evidence |
 |---|---|---|---|
-| Workbook::new | pd.ExcelWriter | partial | crates/frame/src/frame/io/sheets.rs; kit text format, not xlsx |
-| Workbook::add_sheet | ExcelWriter sheet write | partial | crates/frame/src/frame/io/sheets.rs; kit text format; a name that exists is replaced |
-| Workbook::get_sheet | pd.read_excel(sheet_name=) | partial | crates/frame/src/frame/io/sheets.rs; kit text format, not xlsx |
-| Workbook::nsheets | len(ExcelFile.sheet_names) | partial | crates/frame/src/frame/io/sheets.rs; kit text format, not xlsx |
-| Workbook::sheet_names | ExcelFile.sheet_names | partial | crates/frame/src/frame/io/sheets.rs; kit text format, not xlsx |
-| Workbook::iter | none (kit helper) | partial | crates/frame/src/frame/io/sheets.rs; kit text format, not xlsx |
-| Workbook::save | ExcelWriter.save | partial | crates/frame/src/frame/io/sheets.rs; kit text format, not xlsx |
-| Workbook::load | pd.ExcelFile | partial | crates/frame/src/frame/io/sheets.rs; kit text format, not xlsx |
-| Workbook::to_string | none (kit text format) | partial | crates/frame/src/frame/io/sheets.rs; kit text format, not xlsx |
-| Workbook::from_string | none (kit text format) | partial | crates/frame/src/frame/io/sheets.rs; kit text format, not xlsx |
-| save_workbook | ExcelWriter.save | partial | crates/frame/src/frame/io/sheets.rs; kit text format, not xlsx |
-| load_workbook | pd.ExcelFile | partial | crates/frame/src/frame/io/sheets.rs; kit text format, not xlsx |
+| Workbook::new | pd.ExcelWriter | partial | crates/frame/src/frame/io/workbook.rs; kit text format, not xlsx |
+| Workbook::add_sheet | ExcelWriter sheet write | partial | crates/frame/src/frame/io/workbook.rs; kit text format; a name that exists is replaced |
+| Workbook::get_sheet | pd.read_excel(sheet_name=) | partial | crates/frame/src/frame/io/workbook.rs; kit text format, not xlsx |
+| Workbook::nsheets | len(ExcelFile.sheet_names) | partial | crates/frame/src/frame/io/workbook.rs; kit text format, not xlsx |
+| Workbook::sheet_names | ExcelFile.sheet_names | partial | crates/frame/src/frame/io/workbook.rs; kit text format, not xlsx |
+| Workbook::iter | none (kit helper) | partial | crates/frame/src/frame/io/workbook.rs; kit text format, not xlsx |
+| Workbook::save | ExcelWriter.save | partial | crates/frame/src/frame/io/workbook.rs; kit text format, not xlsx |
+| Workbook::load | pd.ExcelFile | partial | crates/frame/src/frame/io/workbook.rs; kit text format, not xlsx |
+| Workbook::to_string | none (kit text format) | partial | crates/frame/src/frame/io/workbook.rs; kit text format, not xlsx |
+| Workbook::from_string | none (kit text format) | partial | crates/frame/src/frame/io/workbook.rs; kit text format, not xlsx |
+| save_workbook | ExcelWriter.save | partial | crates/frame/src/frame/io/workbook.rs; kit text format, not xlsx |
+| load_workbook | pd.ExcelFile | partial | crates/frame/src/frame/io/workbook.rs; kit text format, not xlsx |
 
-## Columnar
+## Binary format
 
 | Function | pandas name | State | Evidence |
 |---|---|---|---|
-| write_columnar | DataFrame.to_parquet | partial | crates/frame/src/frame/io/columnar.rs; kit binary format, not Parquet |
-| read_columnar | pd.read_parquet | partial | crates/frame/src/frame/io/columnar.rs; kit binary format, not Parquet |
-| save_columnar | DataFrame.to_parquet (file) | partial | crates/frame/src/frame/io/columnar.rs; kit binary format, not Parquet |
-| load_columnar | pd.read_parquet (file) | partial | crates/frame/src/frame/io/columnar.rs; kit binary format, not Parquet |
-| DataFrame::to_columnar | DataFrame.to_parquet | partial | crates/frame/src/frame/io/columnar.rs; kit binary format, not Parquet |
-| DataFrame::read_columnar | pd.read_parquet | partial | crates/frame/src/frame/io/columnar.rs; kit binary format, not Parquet |
-| DataFrame::to_columnar_bytes | DataFrame.to_parquet (bytes) | partial | crates/frame/src/frame/io/columnar.rs; kit binary format, not Parquet |
-| DataFrame::from_columnar_bytes | pd.read_parquet (bytes) | partial | crates/frame/src/frame/io/columnar.rs; kit binary format, not Parquet |
+| write_columnar | DataFrame.to_parquet | partial | crates/frame/src/frame/io/binary.rs; kit binary format, not Parquet |
+| read_columnar | pd.read_parquet | partial | crates/frame/src/frame/io/binary.rs; kit binary format, not Parquet |
+| save_columnar | DataFrame.to_parquet (file) | partial | crates/frame/src/frame/io/binary.rs; kit binary format, not Parquet |
+| load_columnar | pd.read_parquet (file) | partial | crates/frame/src/frame/io/binary.rs; kit binary format, not Parquet |
+| DataFrame::to_columnar | DataFrame.to_parquet | partial | crates/frame/src/frame/io/binary.rs; kit binary format, not Parquet |
+| DataFrame::read_columnar | pd.read_parquet | partial | crates/frame/src/frame/io/binary.rs; kit binary format, not Parquet |
+| DataFrame::to_columnar_bytes | DataFrame.to_parquet (bytes) | partial | crates/frame/src/frame/io/binary.rs; kit binary format, not Parquet |
+| DataFrame::from_columnar_bytes | pd.read_parquet (bytes) | partial | crates/frame/src/frame/io/binary.rs; kit binary format, not Parquet |
 
 ## Table 2: pandas features that kit lacks
 
