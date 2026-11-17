@@ -2279,3 +2279,51 @@ fn svd_wide_rank_two_3x4() {
     assert_orthonormal(r.vt.data(), 4);
     assert_close_slice(&svd_reconstruct(&r, 3, 4), a.data(), 1e-12);
 }
+
+#[test]
+fn test_float_sort_nan_last() {
+    let arr: NdArray<f64> =
+        NdArray::new(vec![3.0, f64::NAN, 1.0, -f64::NAN, 2.0], vec![5]).unwrap();
+    let sorted = arr.sort_axis(0).unwrap();
+    let d = sorted.data();
+    assert_eq!(&d[..3], &[1.0, 2.0, 3.0]);
+    assert!(d[3].is_nan());
+    assert!(d[4].is_nan());
+}
+
+#[test]
+fn test_float_unique_keeps_one_nan() {
+    let arr: NdArray<f64> = NdArray::new(vec![1.0, f64::NAN, 1.0, f64::NAN], vec![4]).unwrap();
+    let r = arr.unique_full(false, false, false);
+    assert_eq!(r.values.data().len(), 2);
+    assert_eq!(r.values.data()[0], 1.0);
+    assert!(r.values.data()[1].is_nan());
+}
+
+#[test]
+fn test_float_unique_counts_nan() {
+    let arr: NdArray<f64> = NdArray::new(vec![1.0, f64::NAN, 1.0, f64::NAN], vec![4]).unwrap();
+    let r = arr.unique_full(true, true, true);
+    assert_eq!(r.counts, Some(vec![2, 2]));
+    assert_eq!(r.indices, Some(vec![0, 1]));
+    assert_eq!(r.inverse, Some(vec![0, 1, 0, 1]));
+}
+
+#[test]
+fn test_float_argsort_nan_last() {
+    let arr: NdArray<f64> = NdArray::new(vec![2.0, f64::NAN, 1.0], vec![3]).unwrap();
+    let idx = arr.argsort_axis(0).unwrap();
+    assert_eq!(idx.data(), &[2.0, 0.0, 1.0]);
+}
+
+#[test]
+fn test_float_sort_axis_2d_nan_last() {
+    let arr: NdArray<f64> =
+        NdArray::new(vec![3.0, f64::NAN, 1.0, f64::NAN, 2.0, 0.0], vec![2, 3]).unwrap();
+    let sorted = arr.sort_axis(1).unwrap();
+    let d = sorted.data();
+    assert_eq!(&d[0..2], &[1.0, 3.0]);
+    assert!(d[2].is_nan());
+    assert_eq!(&d[3..5], &[0.0, 2.0]);
+    assert!(d[5].is_nan());
+}

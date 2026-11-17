@@ -20,6 +20,16 @@ pub struct UniqueResult<T: ArrayElement> {
     pub counts: Option<Vec<usize>>,
 }
 
+/// Total order for sorting floats: NaN (any sign) is greater than every number.
+fn nan_last(a: &f64, b: &f64) -> std::cmp::Ordering {
+    match (a.is_nan(), b.is_nan()) {
+        (true, true) => std::cmp::Ordering::Equal,
+        (true, false) => std::cmp::Ordering::Greater,
+        (false, true) => std::cmp::Ordering::Less,
+        (false, false) => a.partial_cmp(b).unwrap(),
+    }
+}
+
 impl NdArray<f64> {
     /// Binary search in a sorted 1D array.
     ///
@@ -86,7 +96,7 @@ impl NdArray<f64> {
 
         if self.ndim() == 1 {
             let mut sorted = self.data.clone();
-            sorted.sort_by(|a, b| a.total_cmp(b));
+            sorted.sort_by(nan_last);
             return Ok(NdArray {
                 data: sorted,
                 shape: self.shape.clone(),
@@ -144,7 +154,7 @@ impl NdArray<f64> {
                 })
                 .collect();
 
-            line.sort_by(|a, b| a.0.total_cmp(&b.0));
+            line.sort_by(|a, b| nan_last(&a.0, &b.0));
 
             // Write back sorted values
             for (i, (val, _)) in line.iter().enumerate() {
@@ -180,7 +190,7 @@ impl NdArray<f64> {
 
         if self.ndim() == 1 {
             let mut indices: Vec<usize> = (0..self.size()).collect();
-            indices.sort_by(|&a, &b| self.data[a].total_cmp(&self.data[b]));
+            indices.sort_by(|&a, &b| nan_last(&self.data[a], &self.data[b]));
             let data: Vec<f64> = indices.iter().map(|&i| i as f64).collect();
             return Ok(NdArray {
                 data,
@@ -231,8 +241,10 @@ impl NdArray<f64> {
 
             let mut indices: Vec<usize> = (0..axis_len).collect();
             indices.sort_by(|&a, &b| {
-                self.data[base_offset + a * axis_stride]
-                    .total_cmp(&self.data[base_offset + b * axis_stride])
+                nan_last(
+                    &self.data[base_offset + a * axis_stride],
+                    &self.data[base_offset + b * axis_stride],
+                )
             });
 
             for (i, &idx) in indices.iter().enumerate() {
@@ -275,7 +287,7 @@ impl NdArray<f64> {
             .enumerate()
             .map(|(i, v)| (v, i))
             .collect();
-        indexed.sort_by(|a, b| a.0.total_cmp(&b.0));
+        indexed.sort_by(|a, b| nan_last(&a.0, &b.0));
 
         let mut unique_vals: Vec<f64> = Vec::new();
         let mut first_indices: Vec<usize> = Vec::new();
@@ -286,7 +298,7 @@ impl NdArray<f64> {
 
         let mut prev: Option<f64> = None;
         for &(val, orig_idx) in &indexed {
-            if prev.is_none_or(|p| (val - p).abs() > f64::EPSILON || val != p) {
+            if prev.is_none_or(|p| !(p == val || (p.is_nan() && val.is_nan()))) {
                 unique_vals.push(val);
                 first_indices.push(orig_idx);
                 counts.push(1);
