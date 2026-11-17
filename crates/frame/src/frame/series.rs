@@ -1,5 +1,8 @@
 //! Series - one-dimensional labeled array.
 
+use std::sync::OnceLock;
+
+use super::column::Column;
 use super::error::{FrameError, Result};
 use super::index::Index;
 use super::value::{cmp_nulls_last, Value};
@@ -12,22 +15,30 @@ mod window_ops;
 pub struct Series {
     /// Series name.
     name: Option<String>,
-    /// Data values.
-    data: Vec<Value>,
+    /// Typed data with a null mask.
+    column: Column,
+    /// Cell values of `column`, built on the first call of `values()`.
+    values: OnceLock<Vec<Value>>,
     /// Row index.
     index: Index,
 }
 
 impl Series {
+    /// Build a Series from its parts. All constructors go through here.
+    pub(crate) fn from_parts(name: Option<String>, data: Vec<Value>, index: Index) -> Series {
+        Series {
+            name,
+            column: Column::from_values(&data),
+            values: OnceLock::new(),
+            index,
+        }
+    }
+
     /// Create a new Series from values.
     pub fn new<V: Into<Value>>(data: Vec<V>) -> Self {
         let data: Vec<Value> = data.into_iter().map(|v| v.into()).collect();
         let len = data.len();
-        Self {
-            name: None,
-            data,
-            index: Index::Range(len),
-        }
+        Self::from_parts(None, data, Index::Range(len))
     }
 
     /// Create a Series with a name.
@@ -46,11 +57,12 @@ impl Series {
                 actual: data.len(),
             });
         }
-        Ok(Self {
-            name: None,
-            data,
-            index,
-        })
+        Ok(Self::from_parts(None, data, index))
+    }
+
+    /// Get the typed column that stores the data.
+    pub fn column(&self) -> &Column {
+        &self.column
     }
 
     /// Get the series name.
@@ -65,12 +77,12 @@ impl Series {
 
     /// Get the length of the series.
     pub fn len(&self) -> usize {
-        self.data.len()
+        self.column.len()
     }
 
     /// Check if the series is empty.
     pub fn is_empty(&self) -> bool {
-        self.data.is_empty()
+        self.column.is_empty()
     }
 
     /// Get the index.
@@ -80,7 +92,7 @@ impl Series {
 
     /// Get value by positional index (iloc).
     pub fn iloc(&self, pos: usize) -> Result<&Value> {
-        self.data.get(pos).ok_or(FrameError::IndexOutOfBounds {
+        self.values().get(pos).ok_or(FrameError::IndexOutOfBounds {
             index: pos,
             length: self.len(),
         })
@@ -89,28 +101,26 @@ impl Series {
     /// Get value by label (loc).
     pub fn loc(&self, label: &Value) -> Result<&Value> {
         let pos = self.index.get_loc(label)?;
-        Ok(&self.data[pos])
+        Ok(&self.values()[pos])
     }
 
     /// Get multiple values by positions (iloc).
     pub fn iloc_many(&self, positions: &[usize]) -> Result<Series> {
         let data: Result<Vec<_>> = positions.iter().map(|&p| self.iloc(p).cloned()).collect();
         let new_index = self.index.slice(positions)?;
-        Ok(Series {
-            name: self.name.clone(),
-            data: data?,
-            index: new_index,
-        })
+        Ok(Series::from_parts(self.name.clone(), data?, new_index))
     }
 
     /// Get the underlying data as a slice.
     pub fn values(&self) -> &[Value] {
-        &self.data
+        self.values
+            .get_or_init(|| self.column.to_values())
+            .as_slice()
     }
 
     /// Convert to Vec of f64 (for numeric operations).
     pub fn to_f64(&self) -> Result<Vec<f64>> {
-        self.data
+        self.values()
             .iter()
             .map(|v| {
                 v.as_float()
@@ -121,7 +131,7 @@ impl Series {
 
     /// Convert the non-null values to Vec of f64. Nulls are skipped.
     pub(crate) fn non_null_f64(&self) -> Result<Vec<f64>> {
-        self.data
+        self.values()
             .iter()
             .filter(|v| !v.is_null())
             .map(|v| {
@@ -133,7 +143,7 @@ impl Series {
 
     /// Convert to Vec of i64 (for integer operations).
     pub fn to_i64(&self) -> Result<Vec<i64>> {
-        self.data
+        self.values()
             .iter()
             .map(|v| {
                 v.as_int()
@@ -158,7 +168,7 @@ impl Series {
 
     /// Minimum value.
     pub fn min(&self) -> Result<Value> {
-        self.data
+        self.values()
             .iter()
             .filter(|v| !v.is_null())
             .min()
@@ -168,7 +178,7 @@ impl Series {
 
     /// Maximum value.
     pub fn max(&self) -> Result<Value> {
-        self.data
+        self.values()
             .iter()
             .filter(|v| !v.is_null())
             .max()
@@ -178,7 +188,7 @@ impl Series {
 
     /// Count non-null values.
     pub fn count(&self) -> usize {
-        self.data.iter().filter(|v| !v.is_null()).count()
+        self.values().iter().filter(|v| !v.is_null()).count()
     }
 
     /// Filter by boolean mask.
@@ -204,11 +214,11 @@ impl Series {
     where
         F: Fn(&Value) -> Value,
     {
-        Series {
-            name: self.name.clone(),
-            data: self.data.iter().map(f).collect(),
-            index: self.index.clone(),
-        }
+        Series::from_parts(
+            self.name.clone(),
+            self.values().iter().map(f).collect(),
+            self.index.clone(),
+        )
     }
 
     /// Reset index to range.
@@ -218,7 +228,7 @@ impl Series {
 
     /// Sort values.
     pub fn sort(&self, ascending: bool) -> Series {
-        let mut indexed: Vec<(usize, &Value)> = self.data.iter().enumerate().collect();
+        let mut indexed: Vec<(usize, &Value)> = self.values().iter().enumerate().collect();
         indexed.sort_by(|a, b| cmp_nulls_last(a.1, b.1, ascending));
 
         let positions: Vec<usize> = indexed.iter().map(|(i, _)| *i).collect();
@@ -229,7 +239,7 @@ impl Series {
     /// Get unique values.
     pub fn unique(&self) -> Vec<Value> {
         let mut seen = std::collections::HashSet::new();
-        self.data
+        self.values()
             .iter()
             .filter(|v| seen.insert((*v).clone()))
             .cloned()
@@ -239,7 +249,7 @@ impl Series {
     /// Count occurrences of each value.
     pub fn value_counts(&self) -> std::collections::HashMap<Value, usize> {
         let mut counts = std::collections::HashMap::new();
-        for v in &self.data {
+        for v in self.values() {
             *counts.entry(v.clone()).or_insert(0) += 1;
         }
         counts
@@ -268,7 +278,7 @@ impl Series {
     /// Clip values to a range.
     pub fn clip(&self, lower: f64, upper: f64) -> Series {
         let data: Vec<Value> = self
-            .data
+            .values()
             .iter()
             .map(|v| {
                 if let Some(val) = v.as_float() {
@@ -285,11 +295,7 @@ impl Series {
             })
             .collect();
 
-        Series {
-            name: self.name.clone(),
-            data,
-            index: self.index.clone(),
-        }
+        Series::from_parts(self.name.clone(), data, self.index.clone())
     }
 
     /// Standard deviation.
@@ -342,7 +348,7 @@ impl Series {
     /// Rank values, 1-based, ascending. Tied values get the average of their ranks (pandas `method='average'`).
     pub fn rank(&self) -> Series {
         let n = self.len();
-        let mut indexed: Vec<(usize, &Value)> = self.data.iter().enumerate().collect();
+        let mut indexed: Vec<(usize, &Value)> = self.values().iter().enumerate().collect();
         indexed.sort_by(|a, b| a.1.cmp(b.1));
 
         let mut ranks = vec![Value::Null; n];
@@ -360,11 +366,7 @@ impl Series {
             start = end;
         }
 
-        Series {
-            name: self.name.clone(),
-            data: ranks,
-            index: self.index.clone(),
-        }
+        Series::from_parts(self.name.clone(), ranks, self.index.clone())
     }
 
     /// Check if values are duplicated.
@@ -374,7 +376,7 @@ impl Series {
 
         match keep {
             "first" => {
-                for (i, v) in self.data.iter().enumerate() {
+                for (i, v) in self.values().iter().enumerate() {
                     if seen.contains_key(v) {
                         result[i] = true;
                     } else {
@@ -384,7 +386,7 @@ impl Series {
             }
             "last" => {
                 // First pass: mark all as duplicated
-                for (i, v) in self.data.iter().enumerate() {
+                for (i, v) in self.values().iter().enumerate() {
                     if let Some(&prev_idx) = seen.get(v) {
                         result[prev_idx] = true;
                     }
@@ -394,10 +396,10 @@ impl Series {
             _ => {
                 // Mark all duplicates
                 let mut counts = std::collections::HashMap::new();
-                for v in &self.data {
+                for v in self.values() {
                     *counts.entry(v.clone()).or_insert(0) += 1;
                 }
-                for (i, v) in self.data.iter().enumerate() {
+                for (i, v) in self.values().iter().enumerate() {
                     if counts.get(v).map(|&c| c > 1).unwrap_or(false) {
                         result[i] = true;
                     }
@@ -417,12 +419,12 @@ impl Series {
     /// Check if values are in a set.
     pub fn isin(&self, values: &[Value]) -> Vec<bool> {
         let set: std::collections::HashSet<_> = values.iter().collect();
-        self.data.iter().map(|v| set.contains(v)).collect()
+        self.values().iter().map(|v| set.contains(v)).collect()
     }
 
     /// Check if values are between lower and upper (inclusive).
     pub fn between(&self, lower: f64, upper: f64) -> Vec<bool> {
-        self.data
+        self.values()
             .iter()
             .map(|v| {
                 v.as_float()
@@ -435,7 +437,7 @@ impl Series {
     /// Replace values.
     pub fn replace(&self, to_replace: &Value, value: &Value) -> Series {
         let data: Vec<Value> = self
-            .data
+            .values()
             .iter()
             .map(|v| {
                 if v == to_replace {
@@ -446,32 +448,24 @@ impl Series {
             })
             .collect();
 
-        Series {
-            name: self.name.clone(),
-            data,
-            index: self.index.clone(),
-        }
+        Series::from_parts(self.name.clone(), data, self.index.clone())
     }
 
     /// Replace multiple values.
     pub fn replace_map(&self, mapping: &std::collections::HashMap<Value, Value>) -> Series {
         let data: Vec<Value> = self
-            .data
+            .values()
             .iter()
             .map(|v| mapping.get(v).cloned().unwrap_or_else(|| v.clone()))
             .collect();
 
-        Series {
-            name: self.name.clone(),
-            data,
-            index: self.index.clone(),
-        }
+        Series::from_parts(self.name.clone(), data, self.index.clone())
     }
 
     /// Convert to dict (index -> value).
     pub fn to_dict(&self) -> std::collections::HashMap<Value, Value> {
         let mut result = std::collections::HashMap::new();
-        for (i, v) in self.data.iter().enumerate() {
+        for (i, v) in self.values().iter().enumerate() {
             let key = self.index.get_label(i).unwrap_or(Value::Int(i as i64));
             result.insert(key, v.clone());
         }
@@ -556,71 +550,59 @@ impl Series {
     pub fn astype(&self, dtype: &str) -> Series {
         let data: Vec<Value> = match dtype {
             "int" | "i64" => self
-                .data
+                .values()
                 .iter()
                 .map(|v| v.as_int().map(Value::Int).unwrap_or(Value::Null))
                 .collect(),
             "float" | "f64" => self
-                .data
+                .values()
                 .iter()
                 .map(|v| v.as_float().map(Value::Float).unwrap_or(Value::Null))
                 .collect(),
             "str" | "string" => self
-                .data
+                .values()
                 .iter()
                 .map(|v| Value::String(v.to_string()))
                 .collect(),
             "bool" => self
-                .data
+                .values()
                 .iter()
                 .map(|v| v.as_bool().map(Value::Bool).unwrap_or(Value::Null))
                 .collect(),
-            _ => self.data.clone(),
+            _ => self.values().to_vec(),
         };
 
-        Series {
-            name: self.name.clone(),
-            data,
-            index: self.index.clone(),
-        }
+        Series::from_parts(self.name.clone(), data, self.index.clone())
     }
 
     /// Conditional replacement: where condition is false, replace with other.
     pub fn where_cond(&self, cond: &[bool], other: &Value) -> Series {
         let data: Vec<Value> = self
-            .data
+            .values()
             .iter()
             .zip(cond.iter())
             .map(|(v, &c)| if c { v.clone() } else { other.clone() })
             .collect();
 
-        Series {
-            name: self.name.clone(),
-            data,
-            index: self.index.clone(),
-        }
+        Series::from_parts(self.name.clone(), data, self.index.clone())
     }
 
     /// Mask: where condition is true, replace with other.
     pub fn mask(&self, cond: &[bool], other: &Value) -> Series {
         let data: Vec<Value> = self
-            .data
+            .values()
             .iter()
             .zip(cond.iter())
             .map(|(v, &c)| if c { other.clone() } else { v.clone() })
             .collect();
 
-        Series {
-            name: self.name.clone(),
-            data,
-            index: self.index.clone(),
-        }
+        Series::from_parts(self.name.clone(), data, self.index.clone())
     }
 
     /// Absolute value.
     pub fn abs(&self) -> Series {
         let data: Vec<Value> = self
-            .data
+            .values()
             .iter()
             .map(|v| match v {
                 Value::Int(i) => Value::Int(i.abs()),
@@ -629,18 +611,14 @@ impl Series {
             })
             .collect();
 
-        Series {
-            name: self.name.clone(),
-            data,
-            index: self.index.clone(),
-        }
+        Series::from_parts(self.name.clone(), data, self.index.clone())
     }
 
     /// Round values.
     pub fn round(&self, decimals: i32) -> Series {
         let factor = 10f64.powi(decimals);
         let data: Vec<Value> = self
-            .data
+            .values()
             .iter()
             .map(|v| match v.as_float() {
                 Some(f) => Value::Float((f * factor).round() / factor),
@@ -648,11 +626,7 @@ impl Series {
             })
             .collect();
 
-        Series {
-            name: self.name.clone(),
-            data,
-            index: self.index.clone(),
-        }
+        Series::from_parts(self.name.clone(), data, self.index.clone())
     }
 }
 
@@ -669,20 +643,20 @@ impl std::ops::Add for &Series {
         }
 
         let data: Vec<Value> = self
-            .data
+            .values()
             .iter()
-            .zip(other.data.iter())
+            .zip(other.values().iter())
             .map(|(a, b)| match (a.as_float(), b.as_float()) {
                 (Some(x), Some(y)) => Value::Float(x + y),
                 _ => Value::Null,
             })
             .collect();
 
-        Ok(Series {
-            name: self.name.clone(),
+        Ok(Series::from_parts(
+            self.name.clone(),
             data,
-            index: self.index.clone(),
-        })
+            self.index.clone(),
+        ))
     }
 }
 
@@ -698,20 +672,20 @@ impl std::ops::Sub for &Series {
         }
 
         let data: Vec<Value> = self
-            .data
+            .values()
             .iter()
-            .zip(other.data.iter())
+            .zip(other.values().iter())
             .map(|(a, b)| match (a.as_float(), b.as_float()) {
                 (Some(x), Some(y)) => Value::Float(x - y),
                 _ => Value::Null,
             })
             .collect();
 
-        Ok(Series {
-            name: self.name.clone(),
+        Ok(Series::from_parts(
+            self.name.clone(),
             data,
-            index: self.index.clone(),
-        })
+            self.index.clone(),
+        ))
     }
 }
 
@@ -727,20 +701,20 @@ impl std::ops::Mul for &Series {
         }
 
         let data: Vec<Value> = self
-            .data
+            .values()
             .iter()
-            .zip(other.data.iter())
+            .zip(other.values().iter())
             .map(|(a, b)| match (a.as_float(), b.as_float()) {
                 (Some(x), Some(y)) => Value::Float(x * y),
                 _ => Value::Null,
             })
             .collect();
 
-        Ok(Series {
-            name: self.name.clone(),
+        Ok(Series::from_parts(
+            self.name.clone(),
             data,
-            index: self.index.clone(),
-        })
+            self.index.clone(),
+        ))
     }
 }
 
@@ -756,20 +730,20 @@ impl std::ops::Div for &Series {
         }
 
         let data: Vec<Value> = self
-            .data
+            .values()
             .iter()
-            .zip(other.data.iter())
+            .zip(other.values().iter())
             .map(|(a, b)| match (a.as_float(), b.as_float()) {
                 (Some(x), Some(y)) if y != 0.0 => Value::Float(x / y),
                 _ => Value::Null,
             })
             .collect();
 
-        Ok(Series {
-            name: self.name.clone(),
+        Ok(Series::from_parts(
+            self.name.clone(),
             data,
-            index: self.index.clone(),
-        })
+            self.index.clone(),
+        ))
     }
 }
 

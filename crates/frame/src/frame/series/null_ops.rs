@@ -16,12 +16,12 @@ impl Series {
     /// assert_eq!(s.isna(), vec![false, true, false]);
     /// ```
     pub fn isna(&self) -> Vec<bool> {
-        self.data.iter().map(|v| v.is_null()).collect()
+        self.values().iter().map(|v| v.is_null()).collect()
     }
 
     /// Return a boolean mask indicating which values are not null.
     pub fn notna(&self) -> Vec<bool> {
-        self.data.iter().map(|v| !v.is_null()).collect()
+        self.values().iter().map(|v| !v.is_null()).collect()
     }
 
     /// Fill null values with the given value.
@@ -36,7 +36,7 @@ impl Series {
     /// ```
     pub fn fillna(&self, value: Value) -> Series {
         let data: Vec<Value> = self
-            .data
+            .values()
             .iter()
             .map(|v| {
                 if v.is_null() {
@@ -47,19 +47,15 @@ impl Series {
             })
             .collect();
 
-        Series {
-            name: self.name.clone(),
-            data,
-            index: self.index.clone(),
-        }
+        Series::from_parts(self.name.clone(), data, self.index.clone())
     }
 
     /// Fill null values using forward fill (propagate last valid value).
     pub fn ffill(&self) -> Series {
-        let mut data = Vec::with_capacity(self.data.len());
+        let mut data = Vec::with_capacity(self.values().len());
         let mut last_valid: Option<Value> = None;
 
-        for v in &self.data {
+        for v in self.values() {
             if v.is_null() {
                 data.push(last_valid.clone().unwrap_or(Value::Null));
             } else {
@@ -68,19 +64,15 @@ impl Series {
             }
         }
 
-        Series {
-            name: self.name.clone(),
-            data,
-            index: self.index.clone(),
-        }
+        Series::from_parts(self.name.clone(), data, self.index.clone())
     }
 
     /// Fill null values using backward fill (propagate next valid value).
     pub fn bfill(&self) -> Series {
-        let mut data = vec![Value::Null; self.data.len()];
+        let mut data = vec![Value::Null; self.values().len()];
         let mut next_valid: Option<Value> = None;
 
-        for (i, v) in self.data.iter().enumerate().rev() {
+        for (i, v) in self.values().iter().enumerate().rev() {
             if v.is_null() {
                 data[i] = next_valid.clone().unwrap_or(Value::Null);
             } else {
@@ -89,11 +81,7 @@ impl Series {
             }
         }
 
-        Series {
-            name: self.name.clone(),
-            data,
-            index: self.index.clone(),
-        }
+        Series::from_parts(self.name.clone(), data, self.index.clone())
     }
 
     /// Drop null values, returning a new Series.
@@ -146,12 +134,12 @@ impl Series {
     ///
     /// Only interpolates Null values. Non-null values (including non-numeric) are preserved.
     fn interpolate_linear(&self) -> Series {
-        let n = self.data.len();
-        let mut result = self.data.clone();
+        let n = self.values().len();
+        let mut result = self.values().to_vec();
 
         // Find valid numeric indices and values (non-null and numeric)
         let valid: Vec<(usize, f64)> = self
-            .data
+            .values()
             .iter()
             .enumerate()
             .filter_map(|(i, v)| {
@@ -165,11 +153,7 @@ impl Series {
 
         if valid.len() < 2 {
             // Not enough points to interpolate
-            return Series {
-                name: self.name.clone(),
-                data: result,
-                index: self.index.clone(),
-            };
+            return Series::from_parts(self.name.clone(), result, self.index.clone());
         }
 
         // Only interpolate Null values, preserve non-null non-numeric values
@@ -201,23 +185,19 @@ impl Series {
             // Non-null values (including non-numeric) are preserved as-is
         }
 
-        Series {
-            name: self.name.clone(),
-            data: result,
-            index: self.index.clone(),
-        }
+        Series::from_parts(self.name.clone(), result, self.index.clone())
     }
 
     /// Nearest value interpolation.
     ///
     /// Only interpolates Null values. Non-null values (including non-numeric) are preserved.
     fn interpolate_nearest(&self) -> Series {
-        let n = self.data.len();
-        let mut result = self.data.clone();
+        let n = self.values().len();
+        let mut result = self.values().to_vec();
 
         // Find valid numeric indices and values (non-null and numeric)
         let valid: Vec<(usize, f64)> = self
-            .data
+            .values()
             .iter()
             .enumerate()
             .filter_map(|(i, v)| {
@@ -230,11 +210,7 @@ impl Series {
             .collect();
 
         if valid.is_empty() {
-            return Series {
-                name: self.name.clone(),
-                data: result,
-                index: self.index.clone(),
-            };
+            return Series::from_parts(self.name.clone(), result, self.index.clone());
         }
 
         // Only interpolate Null values
@@ -253,21 +229,17 @@ impl Series {
             // Non-null values are preserved as-is
         }
 
-        Series {
-            name: self.name.clone(),
-            data: result,
-            index: self.index.clone(),
-        }
+        Series::from_parts(self.name.clone(), result, self.index.clone())
     }
 
     /// Count null values.
     pub fn null_count(&self) -> usize {
-        self.data.iter().filter(|v| v.is_null()).count()
+        self.values().iter().filter(|v| v.is_null()).count()
     }
 
     /// Check if any values are null.
     pub fn has_nulls(&self) -> bool {
-        self.data.iter().any(|v| v.is_null())
+        self.values().iter().any(|v| v.is_null())
     }
 
     /// Apply a function to each value.
@@ -284,10 +256,10 @@ impl Series {
     where
         F: Fn(&Value) -> Value,
     {
-        Series {
-            name: self.name.clone(),
-            data: self.data.iter().map(f).collect(),
-            index: self.index.clone(),
-        }
+        Series::from_parts(
+            self.name.clone(),
+            self.values().iter().map(f).collect(),
+            self.index.clone(),
+        )
     }
 }
