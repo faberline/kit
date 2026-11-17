@@ -4,6 +4,7 @@ use super::dtype::ArrayElement;
 use super::error::{ArrayError, Result};
 use super::ndarray::NdArray;
 use super::shape::Shape;
+use super::slice::SliceInfo;
 
 /// A borrowed, strided view of an array. It shares the buffer of its source.
 #[derive(Clone, Debug)]
@@ -133,6 +134,62 @@ impl<'a, T: ArrayElement> ArrayView<'a, T> {
         Ok(ArrayView {
             data: self.data,
             offset: self.offset,
+            shape,
+        })
+    }
+
+    /// Reshape the view without a copy. The new size must match and the view
+    /// must be contiguous.
+    pub fn reshape(&self, new_dims: impl Into<Shape>) -> Result<ArrayView<'a, T>> {
+        let new_shape: Shape = new_dims.into();
+        if new_shape.size() != self.size() {
+            return Err(ArrayError::ShapeMismatch {
+                expected: new_shape.dims().to_vec(),
+                got: self.dims().to_vec(),
+            });
+        }
+        if !self.is_contiguous() {
+            return Err(ArrayError::InvalidOperation(
+                "reshape of a non-contiguous view needs a copy; call to_owned first".into(),
+            ));
+        }
+        Ok(ArrayView {
+            data: self.data,
+            offset: self.offset,
+            shape: new_shape,
+        })
+    }
+
+    /// Slice the view without a copy. The result shares the same buffer.
+    pub fn slice(&self, info: &SliceInfo) -> Result<ArrayView<'a, T>> {
+        // Checks the slice count and the index bounds before normalizing.
+        let out_dims = info.output_shape(self.dims())?;
+        let normalized = info.normalize_all(self.dims())?;
+
+        let mut offset = self.offset;
+        let mut dims = Vec::with_capacity(out_dims.len());
+        let mut strides = Vec::with_capacity(out_dims.len());
+        for (axis, norm) in normalized.iter().enumerate() {
+            if norm.step < 0 {
+                return Err(ArrayError::InvalidOperation(
+                    "view slice with a negative step needs a copy; use NdArray::slice".into(),
+                ));
+            }
+            let stride = self.strides()[axis];
+            if norm.output_len > 0 {
+                offset += norm.start * stride;
+            }
+            if !norm.is_index {
+                dims.push(norm.output_len);
+                strides.push(stride * norm.step as usize);
+            }
+        }
+        debug_assert_eq!(dims, out_dims);
+
+        let shape = Shape::with_strides(dims, strides).expect("same length");
+        Ok(ArrayView {
+            data: self.data,
+            offset,
             shape,
         })
     }

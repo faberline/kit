@@ -2392,3 +2392,131 @@ fn test_view_get_out_of_bounds_is_error() {
     ));
     assert!(v.get(&[0]).is_err());
 }
+
+// ============================================================================
+// Views: reshape and slice without a copy (#153)
+// ============================================================================
+
+fn view_base() -> NdArray<f64> {
+    NdArray::new(vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0], vec![2, 3]).unwrap()
+}
+
+#[test]
+fn test_reshape_view_shares_buffer() {
+    let a = view_base();
+    let v = a.view().reshape(vec![3, 2]).unwrap();
+    assert_eq!(v.dims(), &[3, 2]);
+    assert_eq!(v.data_ptr(), a.data().as_ptr());
+    assert_eq!(v.get(&[2, 1]).unwrap(), 5.0);
+}
+
+#[test]
+fn test_reshape_view_wrong_size_is_error() {
+    let a = view_base();
+    assert!(matches!(
+        a.view().reshape(vec![4]),
+        Err(ArrayError::ShapeMismatch { .. })
+    ));
+}
+
+#[test]
+fn test_reshape_view_of_transpose_is_error() {
+    let a = view_base();
+    let t = a.view().transpose();
+    assert!(matches!(
+        t.reshape(vec![6]),
+        Err(ArrayError::InvalidOperation(_))
+    ));
+}
+
+#[test]
+fn test_slice_view_shares_buffer() {
+    let a = view_base();
+    let info = SliceInfo::new(vec![
+        AxisSlice::Full,
+        AxisSlice::Slice {
+            start: Some(1),
+            stop: None,
+            step: None,
+        },
+    ]);
+    let v = a.view().slice(&info).unwrap();
+    assert_eq!(v.dims(), &[2, 2]);
+    assert_eq!(v.get(&[1, 0]).unwrap(), 4.0);
+    assert_eq!(v.data_ptr(), a.data().as_ptr().wrapping_add(1));
+}
+
+#[test]
+fn test_slice_view_index_drops_axis() {
+    let a = view_base();
+    let info = SliceInfo::new(vec![AxisSlice::Index(1), AxisSlice::Full]);
+    let v = a.view().slice(&info).unwrap();
+    assert_eq!(v.dims(), &[3]);
+    assert_eq!(v.get(&[0]).unwrap(), 3.0);
+    assert_eq!(v.get(&[1]).unwrap(), 4.0);
+    assert_eq!(v.get(&[2]).unwrap(), 5.0);
+}
+
+#[test]
+fn test_slice_view_to_owned_matches_slice() {
+    let a = view_base();
+    let info = SliceInfo::new(vec![
+        AxisSlice::Full,
+        AxisSlice::Slice {
+            start: Some(0),
+            stop: Some(3),
+            step: Some(2),
+        },
+    ]);
+    let owned = a.view().slice(&info).unwrap().to_owned();
+    assert_eq!(owned.data(), a.slice(&info).unwrap().data());
+}
+
+#[test]
+fn test_slice_view_negative_step_is_error() {
+    let a = view_base();
+    let info = SliceInfo::new(vec![
+        AxisSlice::Full,
+        AxisSlice::Slice {
+            start: None,
+            stop: None,
+            step: Some(-1),
+        },
+    ]);
+    assert!(matches!(
+        a.view().slice(&info),
+        Err(ArrayError::InvalidOperation(_))
+    ));
+}
+
+#[test]
+fn test_slice_of_transpose_view() {
+    let a = view_base();
+    let t = a.view().transpose();
+    let info = SliceInfo::new(vec![AxisSlice::Index(2), AxisSlice::Full]);
+    let v = t.slice(&info).unwrap();
+    assert_eq!(v.dims(), &[2]);
+    assert_eq!(v.get(&[0]).unwrap(), 2.0);
+    assert_eq!(v.get(&[1]).unwrap(), 5.0);
+    assert_eq!(v.data_ptr(), a.data().as_ptr().wrapping_add(2));
+}
+
+#[test]
+fn test_slice_view_too_many_slices_is_error() {
+    let a = view_base();
+    let info = SliceInfo::new(vec![AxisSlice::Full, AxisSlice::Full, AxisSlice::Full]);
+    assert!(matches!(
+        a.view().slice(&info),
+        Err(ArrayError::InvalidAxis { .. })
+    ));
+}
+
+#[test]
+fn test_slice_view_index_out_of_bounds_is_error() {
+    let a = view_base();
+    let info = SliceInfo::new(vec![AxisSlice::Index(2), AxisSlice::Full]);
+    assert!(matches!(
+        a.view().slice(&info),
+        Err(ArrayError::InvalidSlice { .. })
+    ));
+}
