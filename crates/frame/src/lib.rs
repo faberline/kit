@@ -5,4 +5,4 @@
 pub mod frame;
 
 // Re-export commonly used types
-pub use frame::{DataFrame, Series};
+pub use frame::{Column, DataFrame, Series};
