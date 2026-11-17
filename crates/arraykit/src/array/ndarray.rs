@@ -4,6 +4,7 @@ use super::dtype::{ArrayElement, RangeElement};
 use super::error::{ArrayError, Result};
 use super::shape::Shape;
 use super::slice::{AxisSlice, SliceInfo};
+use super::view::ArrayView;
 use std::fmt;
 
 /// N-dimensional array with contiguous storage and NumPy-like semantics.
@@ -156,6 +157,11 @@ impl<T: ArrayElement> NdArray<T> {
     /// Get dimensions as a slice.
     pub fn dims(&self) -> &[usize] {
         self.shape.dims()
+    }
+
+    /// Borrow this array as a view. The view shares the buffer; nothing is copied.
+    pub fn view(&self) -> ArrayView<'_, T> {
+        ArrayView::new(&self.data, 0, self.shape.clone())
     }
 
     /// Get the number of dimensions (rank).
