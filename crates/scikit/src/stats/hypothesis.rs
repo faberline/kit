@@ -466,9 +466,25 @@ pub fn mannwhitneyu(x: &[f64], y: &[f64]) -> TestResult {
     let u2 = n1 * n2 - u1;
     let u = u1.min(u2);
 
-    // Normal approximation for p-value
+    // Normal approximation for p-value. The variance has a tie correction
+    // (as in SciPy's asymptotic method): t is the size of each tie group.
     let mean_u = n1 * n2 / 2.0;
-    let std_u = (n1 * n2 * (n1 + n2 + 1.0) / 12.0).sqrt();
+    let n = n1 + n2;
+    let mut sorted = all.clone();
+    sorted.sort_by(|a, b| a.total_cmp(b));
+    let mut tie_sum = 0.0;
+    let mut i = 0;
+    while i < sorted.len() {
+        let mut j = i;
+        while j < sorted.len() && sorted[j].total_cmp(&sorted[i]) == Ordering::Equal {
+            j += 1;
+        }
+        let t = (j - i) as f64;
+        tie_sum += t * t * t - t;
+        i = j;
+    }
+    let var_u = n1 * n2 / 12.0 * ((n + 1.0) - tie_sum / (n * (n - 1.0)));
+    let std_u = var_u.sqrt();
 
     let z = (u - mean_u) / std_u;
     let normal = Normal::standard();

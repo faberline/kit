@@ -4,3 +4,6 @@ mod bench_smoke;
 mod fft;
 #[cfg(feature = "stats")]
 mod stats;
+
+#[cfg(feature = "stats")]
+mod reference_stats;
