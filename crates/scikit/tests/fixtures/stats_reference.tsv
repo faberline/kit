@@ -1,0 +1,28 @@
+key	value	source
+lgamma_200	857.9336698258575	scipy.special.gammaln(200)
+lgamma_1000	5905.220423209181	scipy.special.gammaln(1000)
+erf_0p5	0.5204998778130465	scipy.special.erf(0.5)
+erf_2	0.9953222650189527	scipy.special.erf(2.0)
+norm_cdf_1p96	0.9750021048517795	scipy.stats.norm.cdf(1.96)
+norm_cdf_5p5_mu2_s3	0.8783274954256188	scipy.stats.norm.cdf(5.5, 2, 3)
+t_cdf_2_df5	0.9490302605850708	scipy.stats.t.cdf(2.0, 5)
+t_cdf_m1p5_df10	0.08225366322272007	scipy.stats.t.cdf(-1.5, 10)
+chi2_cdf_3_df4	0.4421745996289252	scipy.stats.chi2.cdf(3.0, 4)
+chi2_cdf_10_df7	0.8114265324865501	scipy.stats.chi2.cdf(10.0, 7)
+t1_400_stat	3.406735592449151	scipy.stats.ttest_1samp(x, 1.0).statistic, x = [((i%20)*10+(i%7)*5)/100.0 for i in range(400)]
+t1_400_p	0.0007242475136984189	scipy.stats.ttest_1samp(x, 1.0).pvalue, same x
+t1_8_stat	1.277132710866435	scipy.stats.ttest_1samp(s, 3.0).statistic, s = [2.1,3.4,1.9,5.6,4.4,3.8,2.7,4.9]
+t1_8_p	0.24228308628118986	scipy.stats.ttest_1samp(s, 3.0).pvalue
+ind_eq_stat	2.086822024263946	scipy.stats.ttest_ind(a, b, equal_var=True).statistic, a = s, b = [1.2,2.8,2.2,3.1,2.5,3.3,1.8]
+ind_eq_p	0.05716247879188758	scipy.stats.ttest_ind(a, b, equal_var=True).pvalue
+ind_welch_stat	2.166651378096586	scipy.stats.ttest_ind(a, b, equal_var=False).statistic
+ind_welch_p	0.0526158405619671	scipy.stats.ttest_ind(a, b, equal_var=False).pvalue
+pearson_r	0.9760070924438541	scipy.stats.pearsonr(xs, ys).statistic, xs = [1,2,3,4,5,6,7,8], ys = [2.1,2.9,4.2,3.8,6.1,5.9,7.7,8.4]
+pearson_p	3.391100628937624e-05	scipy.stats.pearsonr(xs, ys).pvalue
+anova_f	9.264705882352942	scipy.stats.f_oneway(g1, g2, g3).statistic, g1 = [6,8,4,5,3,4], g2 = [8,12,9,11,6,8], g3 = [13,9,11,8,7,12]
+anova_p	0.0023987773293929083	scipy.stats.f_oneway(g1, g2, g3).pvalue
+chisq_stat	3.5	scipy.stats.chisquare([16,18,16,14,12,12], [16,16,16,16,16,8]).statistic
+chisq_p	0.6233876277495822	scipy.stats.chisquare([16,18,16,14,12,12], [16,16,16,16,16,8]).pvalue
+spearman_rho	0.7745966692414834	scipy.stats.spearmanr([1,1,1,2], [1,2,3,4]).statistic
+mw_u	10.5	scipy.stats.mannwhitneyu(x, y, use_continuity=False, method='asymptotic').statistic, x = [1,2,2,3,5,6], y = [2,3,4,4,7,8,9]
+mw_p	0.1304022381333741	scipy.stats.mannwhitneyu(x, y, use_continuity=False, method='asymptotic').pvalue
