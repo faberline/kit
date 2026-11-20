@@ -11,3 +11,6 @@ mod fft;
 mod reference_numeric;
 #[cfg(feature = "stats")]
 mod stats;
+
+#[cfg(feature = "stats")]
+mod reference_stats;
