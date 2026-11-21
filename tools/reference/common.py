@@ -16,6 +16,17 @@ def stable(value, digits=12):
     return float(f"{value:.{digits}g}")
 
 
+def stable_value(value, digits=12):
+    """Round a float, or each float of a list or array, with `stable`; leave other values unchanged."""
+    if hasattr(value, "tolist"):
+        value = value.tolist()
+    if isinstance(value, (list, tuple)):
+        return [stable(item, digits) if isinstance(item, float) else item for item in value]
+    if isinstance(value, float):
+        return stable(value, digits)
+    return value
+
+
 def _format_scalar(value):
     # float() first: numpy float64 is a float subclass, but its repr is not a plain number.
     if isinstance(value, float):
