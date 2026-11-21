@@ -142,4 +142,101 @@ def series_rows():
     return rows
 
 
-common.main({"crates/frame/tests/fixtures/series_reference.tsv": series_rows})
+# Window and null inputs. SMALL_W has nulls at positions 0, 3, 4 and 9, and every
+# value is above zero, so pct_change has no zero divisor. LARGE_W has a null where
+# i % 7 == 3; it is not large_values(), which can give 0.0.
+SMALL_W = [None if i in (0, 3, 4, 9) else ((i * 3) % 7 + 1) / 2 for i in range(10)]
+LARGE_W = [None if i % 7 == 3 else (((i * 37 + 11) % 101) + 1) / 4 for i in range(N)]
+
+
+def large_stats(result):
+    """Count, sum and position-weighted sum of the non-null values of a result."""
+    weights = pd.Series(range(1, len(result) + 1), index=result.index, dtype="float64")
+    return float(result.count()), float(result.sum()), float((result * weights).sum())
+
+
+def series_window_rows():
+    s = pd.Series(SMALL_W, dtype="float64")
+    big = pd.Series(LARGE_W, dtype="float64")
+    rows = []
+
+    def add(key, value, source):
+        rows.append((key, value, source))
+
+    def add_result(prefix, expr, small_result, large_result):
+        # expr is a template: {x} is the input series, s or big.
+        if small_result is not None:
+            add(f"{prefix}.small", small_result, expr.format(x="s"))
+        if large_result is not None:
+            count, total, wsum = large_stats(large_result)
+            add(f"{prefix}.large.count", count, expr.format(x="big"))
+            add(f"{prefix}.large.sum", total, expr.format(x="big"))
+            add(f"{prefix}.large.wsum", wsum, expr.format(x="big"))
+
+    def both(prefix, expr, fn, with_large=True):
+        add_result(prefix, expr, fn(s), fn(big) if with_large else None)
+
+    # Cumulative operations. cumprod is small only: the large product overflows.
+    both("window.cumsum", "{x}.cumsum()", lambda x: x.cumsum())
+    both("window.cummax", "{x}.cummax()", lambda x: x.cummax())
+    both("window.cummin", "{x}.cummin()", lambda x: x.cummin())
+    both("window.cumprod", "{x}.cumprod()", lambda x: x.cumprod(), with_large=False)
+
+    # Differences, percentage changes and shifts.
+    both("window.diff1", "{x}.diff(1)", lambda x: x.diff(1))
+    both("window.diff2", "{x}.diff(2)", lambda x: x.diff(2))
+    both("window.pct_change1", "{x}.pct_change(1)", lambda x: x.pct_change(1))
+    both("window.pct_change2", "{x}.pct_change(2)", lambda x: x.pct_change(2))
+    both("window.shift2", "{x}.shift(2)", lambda x: x.shift(2))
+    both("window.shift_neg2", "{x}.shift(-2)", lambda x: x.shift(-2))
+
+    # Rolling windows: default min_periods (= window), min_periods 2, and min_periods 40 of 50.
+    for name in ["sum", "mean", "min", "max", "std", "var"]:
+        both(
+            f"rolling.{name}.w3",
+            "{x}.rolling(3)." + name + "()",
+            lambda x, n=name: getattr(x.rolling(3), n)(),
+        )
+        add_result(
+            f"rolling.{name}.w3mp2",
+            "{x}.rolling(3, min_periods=2)." + name + "()",
+            getattr(s.rolling(3, min_periods=2), name)(),
+            None,
+        )
+        add_result(
+            f"rolling.{name}.w50",
+            "{x}.rolling(50, min_periods=40)." + name + "()",
+            None,
+            getattr(big.rolling(50, min_periods=40), name)(),
+        )
+
+    # Null handling.
+    both("null.ffill", "{x}.ffill()", lambda x: x.ffill())
+    both("null.bfill", "{x}.bfill()", lambda x: x.bfill())
+    both("null.fillna", "{x}.fillna(-1.5)", lambda x: x.fillna(-1.5))
+    both("null.apply", "{x} * 2 + 1", lambda x: x * 2 + 1)
+    add("null.dropna.small", s.dropna(), "s.dropna()")
+    add("null.dropna.large.count", float(big.dropna().count()), "big.dropna().count()")
+    add("null.dropna.large.sum", float(big.dropna().sum()), "big.dropna().sum()")
+    add("null.null_count.small", float(s.isna().sum()), "s.isna().sum()")
+    add("null.null_count.large", float(big.isna().sum()), "big.isna().sum()")
+    add("null.isna.small", s.isna().astype(float), "s.isna().astype(float)")
+    add("null.isna.large.count", float(big.isna().sum()), "big.isna().sum()")
+    add("null.notna.small", s.notna().astype(float), "s.notna().astype(float)")
+    add("null.notna.large.count", float(big.notna().sum()), "big.notna().sum()")
+    both("null.interpolate", "{x}.interpolate()", lambda x: x.interpolate())
+    nearest = s.interpolate(method="nearest")
+    add(
+        "null.interpolate_nearest.small",
+        [float(nearest.iloc[3]), float(nearest.iloc[4])],
+        's.interpolate(method="nearest").iloc[3:5]',
+    )
+    return rows
+
+
+common.main(
+    {
+        "crates/frame/tests/fixtures/series_reference.tsv": series_rows,
+        "crates/frame/tests/fixtures/series_window_reference.tsv": series_window_rows,
+    }
+)
