@@ -351,42 +351,42 @@ Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` l
 | scikit | scikit::spatial/hull::convex_hull_area | - | - | - | not covered |
 | scikit | scikit::spatial/kdtree::query | - | - | - | not covered |
 | scikit | scikit::spatial/kdtree::query_ball | - | - | - | not covered |
-| scikit | scikit::stats/descriptive::describe | - | - | - | not covered |
-| scikit | scikit::stats/descriptive::geometric_mean | - | - | - | not covered |
-| scikit | scikit::stats/descriptive::harmonic_mean | - | - | - | not covered |
-| scikit | scikit::stats/descriptive::iqr | - | - | - | not covered |
-| scikit | scikit::stats/descriptive::kurtosis | - | - | - | not covered |
-| scikit | scikit::stats/descriptive::median | - | - | - | not covered |
-| scikit | scikit::stats/descriptive::median_abs_deviation | - | - | - | not covered |
-| scikit | scikit::stats/descriptive::mode | - | - | - | not covered |
-| scikit | scikit::stats/descriptive::moment | - | - | - | not covered |
-| scikit | scikit::stats/descriptive::percentile | - | - | - | not covered |
-| scikit | scikit::stats/descriptive::raw_moment | - | - | - | not covered |
-| scikit | scikit::stats/descriptive::sem | - | - | - | not covered |
-| scikit | scikit::stats/descriptive::skew | - | - | - | not covered |
-| scikit | scikit::stats/descriptive::trim_mean | - | - | - | not covered |
-| scikit | scikit::stats/descriptive::variation | - | - | - | not covered |
-| scikit | scikit::stats/descriptive::zscore | - | - | - | not covered |
-| scikit | scikit::stats/distributions::beta_fn | - | - | - | not covered |
-| scikit | scikit::stats/distributions::binomial_coef | - | - | - | not covered |
-| scikit | scikit::stats/distributions::erf | - | - | - | not covered |
-| scikit | scikit::stats/distributions::factorial | - | - | - | not covered |
-| scikit | scikit::stats/distributions::gamma_fn | - | - | - | not covered |
-| scikit | scikit::stats/distributions::incomplete_beta | - | - | - | not covered |
-| scikit | scikit::stats/distributions::ln_gamma | - | - | - | not covered |
-| scikit | scikit::stats/distributions::lower_incomplete_gamma | - | - | - | not covered |
-| scikit | scikit::stats/distributions::standard | - | - | - | not covered |
-| scikit | scikit::stats/hypothesis::chi2_contingency | - | - | - | not covered |
-| scikit | scikit::stats/hypothesis::chisquare | - | - | - | not covered |
-| scikit | scikit::stats/hypothesis::f_oneway | - | - | - | not covered |
-| scikit | scikit::stats/hypothesis::is_significant | - | - | - | not covered |
-| scikit | scikit::stats/hypothesis::kstest_normal | - | - | - | not covered |
-| scikit | scikit::stats/hypothesis::mannwhitneyu | - | - | - | not covered |
-| scikit | scikit::stats/hypothesis::pearsonr | - | - | - | not covered |
-| scikit | scikit::stats/hypothesis::spearmanr | - | - | - | not covered |
-| scikit | scikit::stats/hypothesis::ttest_1samp | - | - | - | not covered |
-| scikit | scikit::stats/hypothesis::ttest_ind | - | - | - | not covered |
-| scikit | scikit::stats/hypothesis::ttest_rel | - | - | - | not covered |
+| scikit | scikit::stats/descriptive::describe | np.mean, np.std(ddof=1), np.min, np.percentile, np.median, np.max; scipy.stats.skew, kurtosis (bias=False) | 1e-9 rel | describe_matches_numpy_scipy | covered |
+| scikit | scikit::stats/descriptive::geometric_mean | scipy.stats.gmean(X) | 1e-9 rel | geometric_mean_matches_scipy | covered |
+| scikit | scikit::stats/descriptive::harmonic_mean | scipy.stats.hmean(X) | 1e-9 rel | harmonic_mean_matches_scipy | covered |
+| scikit | scikit::stats/descriptive::iqr | scipy.stats.iqr(X) | 1e-9 rel | iqr_matches_scipy | covered |
+| scikit | scikit::stats/descriptive::kurtosis | scipy.stats.kurtosis(X, fisher=True, bias=False) | 1e-9 rel | kurtosis_matches_scipy | covered |
+| scikit | scikit::stats/descriptive::median | np.median(X) | 1e-9 rel | median_matches_numpy | covered |
+| scikit | scikit::stats/descriptive::median_abs_deviation | scipy.stats.median_abs_deviation(X) | 1e-9 rel | median_abs_deviation_matches_scipy | covered |
+| scikit | scikit::stats/descriptive::mode | scipy.stats.mode(M).mode | 1e-9 rel | mode_matches_scipy | covered |
+| scikit | scikit::stats/descriptive::moment | scipy.stats.moment(X, order=k), k = 2, 3, 4 | 1e-9 rel | moment_matches_scipy | covered |
+| scikit | scikit::stats/descriptive::percentile | np.percentile(X, p), p in 0, 10, 25, 50, 90, 100 | 1e-9 rel | percentile_matches_numpy | covered |
+| scikit | scikit::stats/descriptive::raw_moment | np.mean(X**k), k = 2, 3 | 1e-9 rel | raw_moment_matches_numpy | covered |
+| scikit | scikit::stats/descriptive::sem | scipy.stats.sem(X) | 1e-9 rel | sem_matches_scipy | covered |
+| scikit | scikit::stats/descriptive::skew | scipy.stats.skew(X, bias=False) | 1e-9 rel | skew_matches_scipy | covered |
+| scikit | scikit::stats/descriptive::trim_mean | scipy.stats.trim_mean(X, 0.1), (X, 0.25) | 1e-9 rel | trim_mean_matches_scipy | covered |
+| scikit | scikit::stats/descriptive::variation | scipy.stats.variation(X, ddof=1) | 1e-9 rel | variation_matches_scipy | covered |
+| scikit | scikit::stats/descriptive::zscore | scipy.stats.zscore(X, ddof=1) | 1e-9 rel | zscore_matches_scipy | covered |
+| scikit | scikit::stats/distributions::beta_fn | scipy.special.beta(a, b) | 1e-9 rel | beta_fn_matches_scipy | covered |
+| scikit | scikit::stats/distributions::binomial_coef | math.comb(n, k) | 1e-12 rel | binomial_coef_matches_python | covered |
+| scikit | scikit::stats/distributions::erf | scipy.special.erf(x) | 1e-12 rel + 1e-15 abs | erf_matches_scipy | covered |
+| scikit | scikit::stats/distributions::factorial | math.factorial(n) | 1e-15 rel | factorial_matches_python | covered |
+| scikit | scikit::stats/distributions::gamma_fn | scipy.special.gamma(x) | 1e-9 rel | gamma_fn_matches_scipy | covered |
+| scikit | scikit::stats/distributions::incomplete_beta | scipy.special.betainc(a, b, x) | 1e-9 rel | incomplete_beta_matches_scipy | covered |
+| scikit | scikit::stats/distributions::ln_gamma | scipy.special.gammaln(x) | 1e-12 rel | ln_gamma_matches_scipy | covered |
+| scikit | scikit::stats/distributions::lower_incomplete_gamma | scipy.special.gammainc(s, x) * scipy.special.gamma(s) | 1e-9 rel | lower_incomplete_gamma_matches_scipy | covered |
+| scikit | scikit::stats/distributions::standard | scipy.stats.norm(0.0, 1.0): cdf, pdf, mean, variance on a grid | 1e-9 rel + 1e-12 abs | normal_standard_matches_scipy | covered |
+| scikit | scikit::stats/hypothesis::chi2_contingency | scipy.stats.chi2_contingency(table, correction=False) | 1e-9 rel | chi2_contingency_matches_scipy | covered |
+| scikit | scikit::stats/hypothesis::chisquare | scipy.stats.chisquare(O, expected) | 1e-9 rel | chisquare_matches_scipy | covered |
+| scikit | scikit::stats/hypothesis::f_oneway | scipy.stats.f_oneway(X, Y, Z) | 1e-9 rel | f_oneway_matches_scipy | covered |
+| scikit | scikit::stats/hypothesis::is_significant | closed form: pvalue < alpha | exact | is_significant_follows_the_pvalue_rule | covered |
+| scikit | scikit::stats/hypothesis::kstest_normal | scipy.stats.kstest(z, 'norm').statistic; scipy.stats.kstwobign.sf(...) for the p-value | 1e-9 rel (statistic); 1e-6 abs (p-value: one-term series) | kstest_normal_matches_scipy | covered |
+| scikit | scikit::stats/hypothesis::mannwhitneyu | scipy.stats.mannwhitneyu(X, Y, use_continuity=False, method='asymptotic') | 1e-9 rel | mannwhitneyu_matches_scipy | covered |
+| scikit | scikit::stats/hypothesis::pearsonr | scipy.stats.pearsonr(X, Y) | 1e-9 rel | pearsonr_matches_scipy | covered |
+| scikit | scikit::stats/hypothesis::spearmanr | scipy.stats.spearmanr(X, Y) | 1e-9 rel | spearmanr_matches_scipy | covered |
+| scikit | scikit::stats/hypothesis::ttest_1samp | scipy.stats.ttest_1samp(X, 13.0) | 1e-9 rel | ttest_1samp_matches_scipy | covered |
+| scikit | scikit::stats/hypothesis::ttest_ind | scipy.stats.ttest_ind(X, Y, equal_var=True / False) | 1e-9 rel | ttest_ind_matches_scipy | covered |
+| scikit | scikit::stats/hypothesis::ttest_rel | scipy.stats.ttest_rel(X, Y) | 1e-9 rel | ttest_rel_matches_scipy | covered |
 | scikit | scikit::ts/acf::acf | - | - | - | not covered |
 | scikit | scikit::ts/acf::is_significant | - | - | - | not covered |
 | scikit | scikit::ts/acf::ljung_box | - | - | - | not covered |
