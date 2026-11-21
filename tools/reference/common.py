@@ -11,6 +11,11 @@ import sys
 import tempfile
 
 
+def stable(value, digits=12):
+    """Round a CPU-dependent float to `digits` significant digits, so a 1 ulp difference between BLAS kernels does not change the fixture text."""
+    return float(f"{value:.{digits}g}")
+
+
 def _format_scalar(value):
     # float() first: numpy float64 is a float subclass, but its repr is not a plain number.
     if isinstance(value, float):

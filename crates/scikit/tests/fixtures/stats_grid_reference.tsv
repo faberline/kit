@@ -342,7 +342,7 @@ chi2c_3x4_stat	7.95899435804041	scipy.stats.chi2_contingency(table 3x4, correcti
 chi2c_3x4_p	0.2411229083807126	scipy.stats.chi2_contingency(table 3x4, correction=False).pvalue
 chi2c_2x2_stat	7.946867309676909	scipy.stats.chi2_contingency(table 2x2, correction=False).statistic
 chi2c_2x2_p	0.004817068831291139	scipy.stats.chi2_contingency(table 2x2, correction=False).pvalue
-pearson_stat	0.0468601372192772	scipy.stats.pearsonr(X, Y).statistic
+pearson_stat	0.0468601372193	scipy.stats.pearsonr(X, Y).statistic
 pearson_p	0.29566423120122337	scipy.stats.pearsonr(X, Y).pvalue
 spearman_stat	0.04674204164889176	scipy.stats.spearmanr(X, Y).statistic
 spearman_p	0.2968843461289615	scipy.stats.spearmanr(X, Y).pvalue

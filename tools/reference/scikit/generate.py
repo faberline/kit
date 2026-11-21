@@ -83,7 +83,7 @@ def stats_rows():
     ys = [2.1, 2.9, 4.2, 3.8, 6.1, 5.9, 7.7, 8.4]
     add(
         "pearson_r",
-        float(st.pearsonr(xs, ys).statistic),
+        common.stable(float(st.pearsonr(xs, ys).statistic)),
         "scipy.stats.pearsonr(xs, ys).statistic, xs = [1,2,3,4,5,6,7,8], ys = [2.1,2.9,4.2,3.8,6.1,5.9,7.7,8.4]",
     )
     add("pearson_p", float(st.pearsonr(xs, ys).pvalue), "scipy.stats.pearsonr(xs, ys).pvalue")
@@ -253,7 +253,8 @@ def stats_grid_rows():
 
     # D. Hypothesis tests on 500-value samples with ties.
     def test_pair(name, res, desc):
-        add(f"{name}_stat", float(res.statistic), f"{desc}.statistic")
+        stat = common.stable(float(res.statistic)) if name == "pearson" else float(res.statistic)
+        add(f"{name}_stat", stat, f"{desc}.statistic")
         add(f"{name}_p", float(res.pvalue), f"{desc}.pvalue")
 
     test_pair("ttest1", st.ttest_1samp(X, 13.0), "scipy.stats.ttest_1samp(X, 13.0)")

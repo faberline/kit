@@ -36,6 +36,13 @@ fi
 echo "ok main --check"
 cd "$root" || fail "cd root"
 
+# (d) stable rounds a CPU-dependent float to 12 significant digits; write_tsv does not round.
+printf 'key\tvalue\tsource\na\t0.976007092444\ts\nb\t0.976007092444\ts\nc\t1.5\ts\nd\t126410606437752.0\ts\n' > "$tmp/d.expected"
+python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); import common; common.write_tsv(sys.argv[2], [("a", common.stable(0.9760070924438541), "s"), ("b", common.stable(0.976007092443854), "s"), ("c", 1.5, "s"), ("d", 126410606437752.0, "s")])' \
+  "$here" "$tmp/d.tsv" || fail "stable"
+cmp -s "$tmp/d.expected" "$tmp/d.tsv" || fail "stable"
+echo "ok stable"
+
 # (c) check_table.sh exits 1 on a table with a `not covered` row, 0 on a table with none.
 header='| Crate | Function | Reference expression | Tolerance | Test | Status |'
 sep='|---|---|---|---|---|---|'
