@@ -88,43 +88,43 @@ Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` l
 | arraykit | arraykit::array/search::sort_axis | - | - | - | not covered |
 | arraykit | arraykit::array/search::unique_full | - | - | - | not covered |
 | arraykit | arraykit::array/search::where_select | - | - | - | not covered |
-| arraykit | arraykit::array/stats::argmax | - | - | - | not covered |
-| arraykit | arraykit::array/stats::argmin | - | - | - | not covered |
-| arraykit | arraykit::array/stats::checked_sum | - | - | - | not covered |
-| arraykit | arraykit::array/stats::coefficient_of_variation | - | - | - | not covered |
-| arraykit | arraykit::array/stats::corrcoef | - | - | - | not covered |
-| arraykit | arraykit::array/stats::cov | - | - | - | not covered |
-| arraykit | arraykit::array/stats::cumprod | - | - | - | not covered |
-| arraykit | arraykit::array/stats::cumsum | - | - | - | not covered |
-| arraykit | arraykit::array/stats::geometric_mean | - | - | - | not covered |
-| arraykit | arraykit::array/stats::harmonic_mean | - | - | - | not covered |
-| arraykit | arraykit::array/stats::histogram | - | - | - | not covered |
-| arraykit | arraykit::array/stats::iqr | - | - | - | not covered |
-| arraykit | arraykit::array/stats::kurtosis | - | - | - | not covered |
-| arraykit | arraykit::array/stats::max | - | - | - | not covered |
-| arraykit | arraykit::array/stats::max_axis | - | - | - | not covered |
-| arraykit | arraykit::array/stats::mean | - | - | - | not covered |
-| arraykit | arraykit::array/stats::mean_axis | - | - | - | not covered |
-| arraykit | arraykit::array/stats::mean_f64 | - | - | - | not covered |
-| arraykit | arraykit::array/stats::median | - | - | - | not covered |
-| arraykit | arraykit::array/stats::min | - | - | - | not covered |
-| arraykit | arraykit::array/stats::min_axis | - | - | - | not covered |
-| arraykit | arraykit::array/stats::mode | - | - | - | not covered |
-| arraykit | arraykit::array/stats::moment | - | - | - | not covered |
-| arraykit | arraykit::array/stats::percentile | - | - | - | not covered |
-| arraykit | arraykit::array/stats::quantile | - | - | - | not covered |
-| arraykit | arraykit::array/stats::sem | - | - | - | not covered |
-| arraykit | arraykit::array/stats::skew | - | - | - | not covered |
-| arraykit | arraykit::array/stats::std | - | - | - | not covered |
-| arraykit | arraykit::array/stats::std_axis | - | - | - | not covered |
-| arraykit | arraykit::array/stats::std_pop | - | - | - | not covered |
-| arraykit | arraykit::array/stats::sum | - | - | - | not covered |
-| arraykit | arraykit::array/stats::sum_axis | - | - | - | not covered |
-| arraykit | arraykit::array/stats::trim_mean | - | - | - | not covered |
-| arraykit | arraykit::array/stats::var | - | - | - | not covered |
-| arraykit | arraykit::array/stats::var_axis | - | - | - | not covered |
-| arraykit | arraykit::array/stats::var_pop | - | - | - | not covered |
-| arraykit | arraykit::array/stats::zscore | - | - | - | not covered |
+| arraykit | arraykit::array/stats::argmax | `numpy.argmax(x)` | 1e-9 rel | `argmax_matches_numpy` | covered |
+| arraykit | arraykit::array/stats::argmin | `numpy.argmin(x)` | 1e-9 rel | `argmin_matches_numpy` | covered |
+| arraykit | arraykit::array/stats::checked_sum | `numpy.sum(x) for int32 (NumPy widens to int64; checked_sum errors instead)` | 1e-9 rel | `checked_sum_matches_numpy` | covered |
+| arraykit | arraykit::array/stats::coefficient_of_variation | `scipy.stats.variation(x, ddof=1)` | 1e-9 rel | `coefficient_of_variation_matches_scipy` | covered |
+| arraykit | arraykit::array/stats::corrcoef | `numpy.corrcoef(x)` | 1e-9 rel | `corrcoef_matches_numpy` | covered |
+| arraykit | arraykit::array/stats::cov | `numpy.cov(x)` | 1e-9 rel | `cov_matches_numpy` | covered |
+| arraykit | arraykit::array/stats::cumprod | `numpy.cumprod(x)` | 1e-9 rel | `cumprod_matches_numpy` | covered |
+| arraykit | arraykit::array/stats::cumsum | `numpy.cumsum(x)` | 1e-9 rel | `cumsum_matches_numpy` | covered |
+| arraykit | arraykit::array/stats::geometric_mean | `scipy.stats.gmean(x)` | 1e-9 rel | `geometric_mean_matches_scipy` | covered |
+| arraykit | arraykit::array/stats::harmonic_mean | `scipy.stats.hmean(x)` | 1e-9 rel | `harmonic_mean_matches_scipy` | covered |
+| arraykit | arraykit::array/stats::histogram | `numpy.histogram(x, bins=5)` | 1e-9 rel | `histogram_matches_numpy` | covered |
+| arraykit | arraykit::array/stats::iqr | `scipy.stats.iqr(x)` | 1e-9 rel | `iqr_matches_scipy` | covered |
+| arraykit | arraykit::array/stats::kurtosis | `scipy.stats.kurtosis(x, bias=False)` | 1e-9 rel | `kurtosis_matches_scipy` | covered |
+| arraykit | arraykit::array/stats::max | `numpy.max(x)` | 1e-9 rel | `max_matches_numpy` | covered |
+| arraykit | arraykit::array/stats::max_axis | `numpy.max(x, axis)` | 1e-9 rel | `max_axis_matches_numpy` | covered |
+| arraykit | arraykit::array/stats::mean | `numpy.mean(x)` | 1e-9 rel | `mean_matches_numpy` | covered |
+| arraykit | arraykit::array/stats::mean_axis | `numpy.mean(x, axis)` | 1e-9 rel | `mean_axis_matches_numpy` | covered |
+| arraykit | arraykit::array/stats::mean_f64 | `numpy.mean(x)` | 1e-9 rel | `mean_f64_matches_numpy` | covered |
+| arraykit | arraykit::array/stats::median | `numpy.median(x)` | 1e-9 rel | `median_matches_numpy` | covered |
+| arraykit | arraykit::array/stats::min | `numpy.min(x)` | 1e-9 rel | `min_matches_numpy` | covered |
+| arraykit | arraykit::array/stats::min_axis | `numpy.min(x, axis)` | 1e-9 rel | `min_axis_matches_numpy` | covered |
+| arraykit | arraykit::array/stats::mode | `scipy.stats.mode(x, keepdims=False).mode` | 1e-9 rel | `mode_matches_scipy` | covered |
+| arraykit | arraykit::array/stats::moment | `scipy.stats.moment(x, moment=n)` | 1e-9 rel | `moment_matches_scipy` | covered |
+| arraykit | arraykit::array/stats::percentile | `numpy.percentile(x, q)` | 1e-9 rel | `percentile_matches_numpy` | covered |
+| arraykit | arraykit::array/stats::quantile | `numpy.quantile(x, q)` | 1e-9 rel | `quantile_matches_numpy` | covered |
+| arraykit | arraykit::array/stats::sem | `scipy.stats.sem(x)` | 1e-9 rel | `sem_matches_scipy` | covered |
+| arraykit | arraykit::array/stats::skew | `scipy.stats.skew(x, bias=False)` | 1e-9 rel | `skew_matches_scipy` | covered |
+| arraykit | arraykit::array/stats::std | `numpy.std(x, ddof=1)` | 1e-9 rel | `std_matches_numpy` | covered |
+| arraykit | arraykit::array/stats::std_axis | `numpy.std(x, axis, ddof=1)` | 1e-9 rel | `std_axis_matches_numpy` | covered |
+| arraykit | arraykit::array/stats::std_pop | `numpy.std(x)` | 1e-9 rel | `std_pop_matches_numpy` | covered |
+| arraykit | arraykit::array/stats::sum | `numpy.sum(x)` | 1e-9 rel | `sum_matches_numpy` | covered |
+| arraykit | arraykit::array/stats::sum_axis | `numpy.sum(x, axis)` | 1e-9 rel | `sum_axis_matches_numpy` | covered |
+| arraykit | arraykit::array/stats::trim_mean | `scipy.stats.trim_mean(x, 0.25)` | 1e-9 rel | `trim_mean_matches_scipy` | covered |
+| arraykit | arraykit::array/stats::var | `numpy.var(x, ddof=1)` | 1e-9 rel | `var_matches_numpy` | covered |
+| arraykit | arraykit::array/stats::var_axis | `numpy.var(x, axis, ddof=1)` | 1e-9 rel | `var_axis_matches_numpy` | covered |
+| arraykit | arraykit::array/stats::var_pop | `numpy.var(x)` | 1e-9 rel | `var_pop_matches_numpy` | covered |
+| arraykit | arraykit::array/stats::zscore | `scipy.stats.zscore(x, ddof=1)` | 1e-9 rel | `zscore_matches_scipy` | covered |
 | arraykit | arraykit::array/window::count | - | - | - | not covered |
 | arraykit | arraykit::array/window::diff | - | - | - | not covered |
 | arraykit | arraykit::array/window::expand_dims | - | - | - | not covered |
