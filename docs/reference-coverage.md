@@ -259,30 +259,30 @@ Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` l
 | frame | frame::frame/series::value_counts | keys.value_counts()[0] | 1e-9 rel | value_counts_matches_pandas | covered |
 | frame | frame::frame/series::var | s.var() | 1e-9 rel | var_matches_pandas | covered |
 | frame | frame::frame/series::where_cond | s.where(cond, 0).sum() | 1e-9 rel | where_cond_matches_pandas | covered |
-| frame | frame::frame/series/null_ops::apply | - | - | - | not covered |
-| frame | frame::frame/series/null_ops::bfill | - | - | - | not covered |
-| frame | frame::frame/series/null_ops::dropna | - | - | - | not covered |
-| frame | frame::frame/series/null_ops::ffill | - | - | - | not covered |
-| frame | frame::frame/series/null_ops::fillna | - | - | - | not covered |
-| frame | frame::frame/series/null_ops::interpolate | - | - | - | not covered |
-| frame | frame::frame/series/null_ops::interpolate_method | - | - | - | not covered |
-| frame | frame::frame/series/null_ops::isna | - | - | - | not covered |
-| frame | frame::frame/series/null_ops::notna | - | - | - | not covered |
-| frame | frame::frame/series/null_ops::null_count | - | - | - | not covered |
-| frame | frame::frame/series/window_ops::cummax | - | - | - | not covered |
-| frame | frame::frame/series/window_ops::cummin | - | - | - | not covered |
-| frame | frame::frame/series/window_ops::cumprod | - | - | - | not covered |
-| frame | frame::frame/series/window_ops::cumsum | - | - | - | not covered |
-| frame | frame::frame/series/window_ops::diff | - | - | - | not covered |
-| frame | frame::frame/series/window_ops::max | - | - | - | not covered |
-| frame | frame::frame/series/window_ops::mean | - | - | - | not covered |
-| frame | frame::frame/series/window_ops::min | - | - | - | not covered |
-| frame | frame::frame/series/window_ops::pct_change | - | - | - | not covered |
-| frame | frame::frame/series/window_ops::rolling | - | - | - | not covered |
-| frame | frame::frame/series/window_ops::shift | - | - | - | not covered |
-| frame | frame::frame/series/window_ops::std | - | - | - | not covered |
-| frame | frame::frame/series/window_ops::sum | - | - | - | not covered |
-| frame | frame::frame/series/window_ops::var | - | - | - | not covered |
+| frame | frame::frame/series/null_ops::apply | s * 2 + 1 | 1e-9 rel | apply_matches_pandas | covered |
+| frame | frame::frame/series/null_ops::bfill | s.bfill() | 1e-9 rel | bfill_matches_pandas | covered |
+| frame | frame::frame/series/null_ops::dropna | s.dropna() | 1e-9 rel | dropna_matches_pandas | covered |
+| frame | frame::frame/series/null_ops::ffill | s.ffill() | 1e-9 rel | ffill_matches_pandas | covered |
+| frame | frame::frame/series/null_ops::fillna | s.fillna(-1.5) | 1e-9 rel | fillna_matches_pandas | covered |
+| frame | frame::frame/series/null_ops::interpolate | s.interpolate() | 1e-9 rel | interpolate_matches_pandas | covered |
+| frame | frame::frame/series/null_ops::interpolate_method | s.interpolate(method="linear" / "ffill" / "bfill" / "nearest") | 1e-9 rel | interpolate_method_matches_pandas | covered |
+| frame | frame::frame/series/null_ops::isna | s.isna() | 1e-9 rel | isna_matches_pandas | covered |
+| frame | frame::frame/series/null_ops::notna | s.notna() | 1e-9 rel | notna_matches_pandas | covered |
+| frame | frame::frame/series/null_ops::null_count | s.isna().sum() | 1e-9 rel | null_count_matches_pandas | covered |
+| frame | frame::frame/series/window_ops::cummax | s.cummax() | 1e-9 rel | cummax_matches_pandas | covered |
+| frame | frame::frame/series/window_ops::cummin | s.cummin() | 1e-9 rel | cummin_matches_pandas | covered |
+| frame | frame::frame/series/window_ops::cumprod | s.cumprod() | 1e-9 rel | cumprod_matches_pandas | covered |
+| frame | frame::frame/series/window_ops::cumsum | s.cumsum() | 1e-9 rel | cumsum_matches_pandas | covered |
+| frame | frame::frame/series/window_ops::diff | s.diff(1), s.diff(2) | 1e-9 rel | diff_matches_pandas | covered |
+| frame | frame::frame/series/window_ops::max | s.rolling(3).max() | 1e-9 rel | rolling_max_matches_pandas | covered |
+| frame | frame::frame/series/window_ops::mean | s.rolling(3).mean() | 1e-9 rel | rolling_mean_matches_pandas | covered |
+| frame | frame::frame/series/window_ops::min | s.rolling(3).min() | 1e-9 rel | rolling_min_matches_pandas | covered |
+| frame | frame::frame/series/window_ops::pct_change | s.pct_change(1), s.pct_change(2) | 1e-9 rel | pct_change_matches_pandas | covered |
+| frame | frame::frame/series/window_ops::rolling | s.rolling(3).sum() | 1e-9 rel | rolling_matches_pandas | covered |
+| frame | frame::frame/series/window_ops::shift | s.shift(2), s.shift(-2) | 1e-9 rel | shift_matches_pandas | covered |
+| frame | frame::frame/series/window_ops::std | s.rolling(3).std() | 1e-9 rel | rolling_std_matches_pandas | covered |
+| frame | frame::frame/series/window_ops::sum | s.rolling(3).sum() | 1e-9 rel | rolling_sum_matches_pandas | covered |
+| frame | frame::frame/series/window_ops::var | s.rolling(3).var() | 1e-9 rel | rolling_var_matches_pandas | covered |
 | scikit | scikit::fft/transform::conj | - | - | - | not covered |
 | scikit | scikit::fft/transform::fft | - | - | - | not covered |
 | scikit | scikit::fft/transform::fftfreq | - | - | - | not covered |
