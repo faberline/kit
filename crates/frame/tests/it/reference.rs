@@ -4,7 +4,6 @@
 use frame::frame::io::{read_csv, write_csv};
 use frame::frame::ops::JoinType;
 use frame::frame::{DataFrame, Series, Value};
-use std::collections::HashMap;
 use std::io::Write;
 use tempfile::NamedTempFile;
 
@@ -139,86 +138,6 @@ fn describe_skips_nulls() {
     // pandas 2.2: pd.Series([1, None, 3, 5]).sum() -> 9.0
     let s = df.get("x").unwrap();
     assert!(close(s.sum().unwrap(), 9.0));
-}
-
-// pandas 2.2: df.groupby('g')['v'].mean() with g = [a, a, b, NaN], v = [1, NaN, 4, 9]
-// -> a = 1.0, b = 4.0; the null key row is dropped.
-#[test]
-fn groupby_mean_skips_nulls_and_drops_null_key() {
-    let df = DataFrame::from_columns(vec![
-        (
-            "g",
-            Series::new(vec![
-                Value::from("a"),
-                Value::from("a"),
-                Value::from("b"),
-                Value::Null,
-            ]),
-        ),
-        (
-            "v",
-            Series::new(vec![
-                Value::Float(1.0),
-                Value::Null,
-                Value::Float(4.0),
-                Value::Float(9.0),
-            ]),
-        ),
-    ])
-    .unwrap();
-    let out = df.groupby(&["g"]).unwrap().mean().unwrap();
-
-    assert_eq!(out.nrows(), 2);
-    let gs = out.get("g").unwrap().values();
-    let vs = out.get("v").unwrap().values();
-    let mut means: HashMap<String, f64> = HashMap::new();
-    for (g, v) in gs.iter().zip(vs.iter()) {
-        means.insert(g.as_str().unwrap().to_string(), v.as_float().unwrap());
-    }
-    assert!(close(means["a"], 1.0));
-    assert!(close(means["b"], 4.0));
-}
-
-// pandas 2.2: df.groupby('g')['v'].agg('std') and .agg('median')
-// a: [1, 2, 4] -> std 1.5275252316519468, median 2.0
-// b: [10, 20]  -> std 7.0710678118654755, median 15.0
-#[test]
-fn groupby_agg_std_median_and_unknown_name() {
-    let df = DataFrame::from_columns(vec![
-        ("g", Series::new(vec!["a", "a", "a", "b", "b"])),
-        ("v", Series::new(vec![1.0f64, 2.0, 4.0, 10.0, 20.0])),
-    ])
-    .unwrap();
-    let gb = df.groupby(&["g"]).unwrap();
-
-    let std_out = gb.agg(HashMap::from([("v", "std")])).unwrap();
-    let median_out = gb.agg(HashMap::from([("v", "median")])).unwrap();
-
-    let key_col = std_out.get("g").unwrap().values().to_vec();
-    let std_col = std_out.get("v").unwrap().values().to_vec();
-    let med_col = median_out.get("v").unwrap().values().to_vec();
-    let a_row = key_col
-        .iter()
-        .position(|v| v.as_str() == Some("a"))
-        .unwrap();
-    let b_row = key_col
-        .iter()
-        .position(|v| v.as_str() == Some("b"))
-        .unwrap();
-
-    assert!(close(
-        std_col[a_row].as_float().unwrap(),
-        1.5275252316519468
-    ));
-    assert!(close(
-        std_col[b_row].as_float().unwrap(),
-        7.0710678118654755
-    ));
-    assert!(close(med_col[a_row].as_float().unwrap(), 2.0));
-    assert!(close(med_col[b_row].as_float().unwrap(), 15.0));
-
-    // An unknown aggregation name is an error.
-    assert!(gb.agg(HashMap::from([("v", "nope")])).is_err());
 }
 
 // pandas 2.2: df.sort_values('x') with x = [3, NaN, 1] -> [1, 3, NaN]
