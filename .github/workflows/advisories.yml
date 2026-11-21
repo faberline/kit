@@ -1,0 +1,15 @@
+name: advisories
+
+on:
+  schedule:
+    - cron: "23 3 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  advisories:
+    permissions:
+      contents: read
+      issues: write
+    uses: faberline/aw/.github/workflows/advisories.yml@f93b0079e84df30764545bc1c8e0cec89cc4bba0
