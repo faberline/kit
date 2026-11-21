@@ -84,7 +84,7 @@ def stats_rows():
     ys = [2.1, 2.9, 4.2, 3.8, 6.1, 5.9, 7.7, 8.4]
     add(
         "pearson_r",
-        float(st.pearsonr(xs, ys).statistic),
+        common.stable(float(st.pearsonr(xs, ys).statistic)),
         "scipy.stats.pearsonr(xs, ys).statistic, xs = [1,2,3,4,5,6,7,8], ys = [2.1,2.9,4.2,3.8,6.1,5.9,7.7,8.4]",
     )
     add("pearson_p", float(st.pearsonr(xs, ys).pvalue), "scipy.stats.pearsonr(xs, ys).pvalue")
@@ -148,10 +148,16 @@ TAB33 = [float(((r * 5 + c * 3) % 11) + 8) for r in range(3) for c in range(4)]
 TAB22 = [12.0, 5.0, 7.0, 19.0]
 
 
+# The Rust tests compare these keys at 1e-12 or tighter, so they keep the full repr.
+EXACT_PREFIXES = ("erf_", "ln_gamma_", "factorial_", "binomial_coef_")
+
+
 def stats_grid_rows():
     rows = []
 
     def add(key, value, source):
+        if not key.startswith(EXACT_PREFIXES):
+            value = common.stable_value(value)
         rows.append((key, value, source))
 
     xa = np.array(X)
@@ -254,7 +260,8 @@ def stats_grid_rows():
 
     # D. Hypothesis tests on 500-value samples with ties.
     def test_pair(name, res, desc):
-        add(f"{name}_stat", float(res.statistic), f"{desc}.statistic")
+        stat = float(res.statistic)
+        add(f"{name}_stat", stat, f"{desc}.statistic")
         add(f"{name}_p", float(res.pvalue), f"{desc}.pvalue")
 
     test_pair("ttest1", st.ttest_1samp(X, 13.0), "scipy.stats.ttest_1samp(X, 13.0)")

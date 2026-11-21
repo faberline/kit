@@ -71,7 +71,7 @@ def series_rows():
     # Two series with no nulls (corr does not skip nulls in frame).
     add(
         "series.corr.large.corr",
-        pd.Series(corr_x()).corr(pd.Series(corr_y())),
+        common.stable(float(pd.Series(corr_x()).corr(pd.Series(corr_y())))),
         "pd.Series(x).corr(pd.Series(y))",
     )
 
