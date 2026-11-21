@@ -14,3 +14,5 @@ mod stats;
 
 #[cfg(feature = "stats")]
 mod reference_stats;
+#[cfg(feature = "stats")]
+mod reference_stats_grid;
