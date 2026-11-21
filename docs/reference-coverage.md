@@ -228,37 +228,37 @@ Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` l
 | frame | frame::frame/ops/window::sum | - | - | - | not covered |
 | frame | frame::frame/ops/window::var | - | - | - | not covered |
 | frame | frame::frame/ops/window::var | - | - | - | not covered |
-| frame | frame::frame/series::abs | - | - | - | not covered |
-| frame | frame::frame/series::between | - | - | - | not covered |
-| frame | frame::frame/series::clip | - | - | - | not covered |
-| frame | frame::frame/series::corr | - | - | - | not covered |
-| frame | frame::frame/series::count | - | - | - | not covered |
-| frame | frame::frame/series::drop_duplicates | - | - | - | not covered |
-| frame | frame::frame/series::duplicated | - | - | - | not covered |
-| frame | frame::frame/series::filter | - | - | - | not covered |
-| frame | frame::frame/series::isin | - | - | - | not covered |
-| frame | frame::frame/series::map | - | - | - | not covered |
-| frame | frame::frame/series::mask | - | - | - | not covered |
-| frame | frame::frame/series::max | - | - | - | not covered |
-| frame | frame::frame/series::mean | - | - | - | not covered |
-| frame | frame::frame/series::median | - | - | - | not covered |
-| frame | frame::frame/series::min | - | - | - | not covered |
-| frame | frame::frame/series::nlargest | - | - | - | not covered |
-| frame | frame::frame/series::nsmallest | - | - | - | not covered |
-| frame | frame::frame/series::quantile | - | - | - | not covered |
-| frame | frame::frame/series::rank | - | - | - | not covered |
-| frame | frame::frame/series::replace | - | - | - | not covered |
-| frame | frame::frame/series::replace_map | - | - | - | not covered |
-| frame | frame::frame/series::reset_index | - | - | - | not covered |
-| frame | frame::frame/series::round | - | - | - | not covered |
-| frame | frame::frame/series::set_name | - | - | - | not covered |
-| frame | frame::frame/series::sort | - | - | - | not covered |
-| frame | frame::frame/series::std | - | - | - | not covered |
-| frame | frame::frame/series::sum | - | - | - | not covered |
-| frame | frame::frame/series::unique | - | - | - | not covered |
-| frame | frame::frame/series::value_counts | - | - | - | not covered |
-| frame | frame::frame/series::var | - | - | - | not covered |
-| frame | frame::frame/series::where_cond | - | - | - | not covered |
+| frame | frame::frame/series::abs | s.abs().sum() | 1e-9 rel | abs_matches_pandas | covered |
+| frame | frame::frame/series::between | s.between(0, 3).sum() | 1e-9 rel | between_matches_pandas | covered |
+| frame | frame::frame/series::clip | s.clip(0, 3).sum() | 1e-9 rel | clip_matches_pandas | covered |
+| frame | frame::frame/series::corr | x.corr(y) | 1e-9 rel | corr_matches_pandas | covered |
+| frame | frame::frame/series::count | s.count() | 1e-9 rel | count_matches_pandas | covered |
+| frame | frame::frame/series::drop_duplicates | len(s.drop_duplicates()) | 1e-9 rel | drop_duplicates_matches_pandas | covered |
+| frame | frame::frame/series::duplicated | s.duplicated().sum() | 1e-9 rel | duplicated_matches_pandas | covered |
+| frame | frame::frame/series::filter | s[mask].sum() | 1e-9 rel | filter_matches_pandas | covered |
+| frame | frame::frame/series::isin | s.isin([4, 0]).sum() | 1e-9 rel | isin_matches_pandas | covered |
+| frame | frame::frame/series::map | (s * 2 + 1).sum() | 1e-9 rel | map_matches_pandas | covered |
+| frame | frame::frame/series::mask | s.mask(cond, 0).sum() | 1e-9 rel | mask_matches_pandas | covered |
+| frame | frame::frame/series::max | s.max() | 1e-9 rel | max_matches_pandas | covered |
+| frame | frame::frame/series::mean | s.mean() | 1e-9 rel | mean_matches_pandas | covered |
+| frame | frame::frame/series::median | s.median() | 1e-9 rel | median_matches_pandas | covered |
+| frame | frame::frame/series::min | s.min() | 1e-9 rel | min_matches_pandas | covered |
+| frame | frame::frame/series::nlargest | s.nlargest(3).sum() | 1e-9 rel | nlargest_matches_pandas | covered |
+| frame | frame::frame/series::nsmallest | s.nsmallest(3).sum() | 1e-9 rel | nsmallest_matches_pandas | covered |
+| frame | frame::frame/series::quantile | s.quantile(0.25) | 1e-9 rel | quantile_matches_pandas | covered |
+| frame | frame::frame/series::rank | s.rank().sum() | 1e-9 rel | rank_matches_pandas | covered |
+| frame | frame::frame/series::replace | s.replace(4, 40).sum() | 1e-9 rel | replace_matches_pandas | covered |
+| frame | frame::frame/series::replace_map | s.replace({4: 40, -1: -10}).sum() | 1e-9 rel | replace_map_matches_pandas | covered |
+| frame | frame::frame/series::reset_index | s.reset_index(drop=True).loc[7] | 1e-9 rel | reset_index_matches_pandas | covered |
+| frame | frame::frame/series::round | s.round(2).sum() | 1e-9 rel | round_matches_pandas | covered |
+| frame | frame::frame/series::set_name | s.rename('renamed').sum() | 1e-9 rel | set_name_matches_pandas | covered |
+| frame | frame::frame/series::sort | s.sort_values().iloc[0] | 1e-9 rel | sort_matches_pandas | covered |
+| frame | frame::frame/series::std | s.std() | 1e-9 rel | std_matches_pandas | covered |
+| frame | frame::frame/series::sum | s.sum() | 1e-9 rel | sum_matches_pandas | covered |
+| frame | frame::frame/series::unique | len(s.unique()) | 1e-9 rel | unique_matches_pandas | covered |
+| frame | frame::frame/series::value_counts | keys.value_counts()[0] | 1e-9 rel | value_counts_matches_pandas | covered |
+| frame | frame::frame/series::var | s.var() | 1e-9 rel | var_matches_pandas | covered |
+| frame | frame::frame/series::where_cond | s.where(cond, 0).sum() | 1e-9 rel | where_cond_matches_pandas | covered |
 | frame | frame::frame/series/null_ops::apply | - | - | - | not covered |
 | frame | frame::frame/series/null_ops::bfill | - | - | - | not covered |
 | frame | frame::frame/series/null_ops::dropna | - | - | - | not covered |

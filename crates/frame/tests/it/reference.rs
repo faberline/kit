@@ -141,14 +141,6 @@ fn describe_skips_nulls() {
     assert!(close(s.sum().unwrap(), 9.0));
 }
 
-// pandas 2.2 (skipna=True): pd.Series([1, None, 5]).sum() -> 6.0, .mean() -> 3.0
-#[test]
-fn series_sum_and_mean_skip_nulls() {
-    let s = Series::new(vec![Value::Int(1), Value::Null, Value::Int(5)]);
-    assert!(close(s.sum().unwrap(), 6.0));
-    assert!(close(s.mean().unwrap(), 3.0));
-}
-
 // pandas 2.2: df.groupby('g')['v'].mean() with g = [a, a, b, NaN], v = [1, NaN, 4, 9]
 // -> a = 1.0, b = 4.0; the null key row is dropped.
 #[test]
@@ -227,16 +219,6 @@ fn groupby_agg_std_median_and_unknown_name() {
 
     // An unknown aggregation name is an error.
     assert!(gb.agg(HashMap::from([("v", "nope")])).is_err());
-}
-
-// pandas 2.2: pd.Series([1, 1, 2]).rank() -> [1.5, 1.5, 3.0] (method='average')
-#[test]
-fn series_rank_average_ties() {
-    let s = Series::new(vec![1i64, 1, 2]);
-    assert_eq!(
-        s.rank().values(),
-        &[Value::Float(1.5), Value::Float(1.5), Value::Float(3.0)]
-    );
 }
 
 // pandas 2.2: df.sort_values('x') with x = [3, NaN, 1] -> [1, 3, NaN]

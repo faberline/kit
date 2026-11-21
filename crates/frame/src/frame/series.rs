@@ -346,16 +346,23 @@ impl Series {
     // === Advanced operations ===
 
     /// Rank values, 1-based, ascending. Tied values get the average of their ranks (pandas `method='average'`).
+    /// A null gets no rank (it stays null, as pandas gives NaN), and the other values are ranked among themselves.
     pub fn rank(&self) -> Series {
         let n = self.len();
-        let mut indexed: Vec<(usize, &Value)> = self.values().iter().enumerate().collect();
+        let mut indexed: Vec<(usize, &Value)> = self
+            .values()
+            .iter()
+            .enumerate()
+            .filter(|(_, v)| !v.is_null())
+            .collect();
         indexed.sort_by(|a, b| a.1.cmp(b.1));
 
+        let m = indexed.len();
         let mut ranks = vec![Value::Null; n];
         let mut start = 0;
-        while start < n {
+        while start < m {
             let mut end = start + 1;
-            while end < n && indexed[end].1 == indexed[start].1 {
+            while end < m && indexed[end].1 == indexed[start].1 {
                 end += 1;
             }
             // The 1-based positions start+1 ..= end form one tie group; they share their average.
