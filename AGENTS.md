@@ -11,7 +11,7 @@ Kit is a Cargo workspace of pure Rust libraries for data analysis, machine learn
 
 ## Scope
 
-- Crates are plain Rust libraries. Do not add `pyo3`, a Python binding or a Python file.
+- Crates are plain Rust libraries. Do not add `pyo3` or a Python binding. Python files live only under tools/ (tools/bench-python, tools/reference), never under crates/.
 - Keep the "Not there yet" list in `README.md` true. Update it when a feature lands.
 - Do not write a secret, a token, a private host name, an e-mail address or a personal path in this repo. It is public.
 
