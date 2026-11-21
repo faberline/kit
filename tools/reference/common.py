@@ -46,6 +46,23 @@ def write_tsv(path, rows):
             handle.write(f"{key}\t{_format_value(value)}\t{source}\n")
 
 
+def _print_first_diffs(fresh, committed, limit=5):
+    """Print up to `limit` rows whose text differs, to show what the check found."""
+    with open(committed, encoding="utf-8") as handle:
+        old = handle.read().splitlines()
+    with open(fresh, encoding="utf-8") as handle:
+        new = handle.read().splitlines()
+    shown = 0
+    for number, (old_line, new_line) in enumerate(zip(old, new), start=1):
+        if old_line != new_line and shown < limit:
+            print(f"  line {number}:")
+            print(f"    committed: {old_line}")
+            print(f"    generated: {new_line}")
+            shown += 1
+    if len(old) != len(new):
+        print(f"  line count: committed {len(old)}, generated {len(new)}")
+
+
 def main(generators):
     """Write each file, or with --check compare the generated files to the committed ones.
 
@@ -68,6 +85,7 @@ def main(generators):
                 failed = True
             elif not filecmp.cmp(fresh, path, shallow=False):
                 print(f"differs: {path}")
+                _print_first_diffs(fresh, path)
                 failed = True
     finally:
         shutil.rmtree(scratch, ignore_errors=True)
