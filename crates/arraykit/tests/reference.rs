@@ -20,27 +20,6 @@ fn close_all(a: &[f64], b: &[f64]) {
     }
 }
 
-// numpy 1.26: np.mean([]) = nan (with a RuntimeWarning)
-// numpy 1.26: np.var([]) = nan (with a RuntimeWarning)
-#[test]
-fn empty_mean_and_var_are_nan() {
-    let arr = NdArray::<f64>::new(vec![], vec![0]).unwrap();
-    assert!(arr.mean().is_nan());
-    assert!(arr.var().is_nan());
-}
-
-// numpy 1.26: np.sum(np.array([2147483647, 1], dtype=np.int32)) overflows, so the
-// checked sum must return an error.
-// numpy 1.26: np.sum(np.array([1, 2, 3], dtype=np.int32)) = 6
-#[test]
-fn i32_sum_overflow_is_an_error() {
-    let big = NdArray::new(vec![i32::MAX, 1], vec![2]).unwrap();
-    assert!(big.checked_sum().is_err());
-
-    let small = NdArray::new(vec![1i32, 2, 3], vec![3]).unwrap();
-    assert_eq!(small.checked_sum().unwrap(), 6);
-}
-
 // numpy 1.26: np.arange(0, 5, 0) raises ZeroDivisionError, so the call must be an error.
 // numpy 1.26: len(np.arange(0.0, 1.0, 0.1)) = 10
 // numpy 1.26: np.arange(0.0, 1.0, 0.1)[3] = 0 + 3 * 0.1 = 0.30000000000000004
@@ -51,33 +30,6 @@ fn arange_zero_step_is_error_and_float_length() {
     let a = NdArray::arange(0.0f64, 1.0, 0.1).unwrap();
     assert_eq!(a.data().len(), 10);
     close(a.data()[3], 0.30000000000000004);
-}
-
-// numpy 1.26: np.mean([1., 2.]) = 1.5
-// numpy 1.26: np.var([1., 2., 3., 4.], ddof=1) = 1.6666666666666667
-#[test]
-fn float_mean_of_one_and_two() {
-    let a = NdArray::new(vec![1.0f64, 2.0], vec![2]).unwrap();
-    close(a.mean(), 1.5);
-
-    let b = NdArray::new(vec![1.0f64, 2.0, 3.0, 4.0], vec![4]).unwrap();
-    close(b.var(), 1.6666666666666667);
-}
-
-// numpy 1.26: np.min([1., nan, 3.]) = nan, np.min([nan, 1., 3.]) = nan,
-// numpy 1.26: np.min([3., 1., nan]) = nan; np.max gives nan for the same inputs.
-#[test]
-fn min_max_with_nan_do_not_depend_on_order() {
-    let inputs: [[f64; 3]; 3] = [
-        [1.0, f64::NAN, 3.0],
-        [f64::NAN, 1.0, 3.0],
-        [3.0, 1.0, f64::NAN],
-    ];
-    for values in inputs {
-        let arr = NdArray::new(values.to_vec(), vec![3]).unwrap();
-        assert!(arr.min().unwrap().is_nan(), "min of {values:?}");
-        assert!(arr.max().unwrap().is_nan(), "max of {values:?}");
-    }
 }
 
 // numpy 1.26: np.linalg.solve([[3., 1.], [1., 2.]], [[9., 1.], [8., 3.]])

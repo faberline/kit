@@ -468,14 +468,16 @@ impl<T: StatOps> NdArray<T> {
             .map(|(i, _)| i)
     }
 
-    /// Index of maximum element.
+    /// Index of maximum element. On equal maxima the first index wins, as in NumPy.
     pub fn argmax(&self) -> Option<usize> {
         if self.data.is_empty() {
             return None;
         }
+        // `max_by` returns the last of equal elements, so scan from the end.
         self.data
             .iter()
             .enumerate()
+            .rev()
             .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
             .map(|(i, _)| i)
     }
