@@ -283,14 +283,14 @@ Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` l
 | frame | frame::frame/series/window_ops::std | s.rolling(3).std() | 1e-9 rel | rolling_std_matches_pandas | covered |
 | frame | frame::frame/series/window_ops::sum | s.rolling(3).sum() | 1e-9 rel | rolling_sum_matches_pandas | covered |
 | frame | frame::frame/series/window_ops::var | s.rolling(3).var() | 1e-9 rel | rolling_var_matches_pandas | covered |
-| scikit | scikit::fft/transform::conj | numpy.conj(numpy.fft.fft(sample(8))) | 1e-9 rel | conj_matches_numpy | covered |
-| scikit | scikit::fft/transform::fft | numpy.fft.fft(sample(n)), n in 5, 8, 1000, 1024 | 1e-9 rel | fft_matches_numpy | covered |
-| scikit | scikit::fft/transform::fftfreq | numpy.fft.fftfreq(n, d), (8, 0.5), (5, 0.1), (1000, 0.001) | 1e-9 rel | fftfreq_matches_numpy | covered |
-| scikit | scikit::fft/transform::ifft | numpy.fft.ifft(sample(n)), n in 5, 8, 1000, 1024 | 1e-9 rel | ifft_matches_numpy | covered |
-| scikit | scikit::fft/transform::irfft | numpy.fft.irfft(numpy.fft.rfft(sample(n)), n), n in 5, 8, 1000, 1024 | 1e-9 rel | irfft_matches_numpy | covered |
-| scikit | scikit::fft/transform::norm | numpy.abs(numpy.fft.fft(sample(8))) | 1e-9 rel | norm_matches_numpy | covered |
-| scikit | scikit::fft/transform::rfft | numpy.fft.rfft(sample(n)), n in 5, 8, 1000, 1024 | 1e-9 rel | rfft_matches_numpy | covered |
-| scikit | scikit::fft/transform::rfftfreq | numpy.fft.rfftfreq(n, d), (8, 0.5), (5, 0.1), (1000, 0.001) | 1e-9 rel | rfftfreq_matches_numpy | covered |
+| scikit | scikit::fft/transform::conj | numpy.conj(numpy.fft.fft(sample(8))) | 1e-9 rel; exact zeros 1e-12 abs | conj_matches_numpy | covered |
+| scikit | scikit::fft/transform::fft | numpy.fft.fft(sample(n)), n in 5, 8, 1000, 1024 | 1e-9 rel; exact zeros 1e-12 abs | fft_matches_numpy | covered |
+| scikit | scikit::fft/transform::fftfreq | numpy.fft.fftfreq(n, d), (8, 0.5), (5, 0.1), (1000, 0.001) | 1e-9 rel; exact zeros 1e-12 abs | fftfreq_matches_numpy | covered |
+| scikit | scikit::fft/transform::ifft | numpy.fft.ifft(sample(n)), n in 5, 8, 1000, 1024 | 1e-9 rel; exact zeros 1e-12 abs | ifft_matches_numpy | covered |
+| scikit | scikit::fft/transform::irfft | numpy.fft.irfft(numpy.fft.rfft(sample(n)), n), n in 5, 8, 1000, 1024 | 1e-9 rel; exact zeros 1e-12 abs | irfft_matches_numpy | covered |
+| scikit | scikit::fft/transform::norm | numpy.abs(numpy.fft.fft(sample(8))) | 1e-9 rel; exact zeros 1e-12 abs | norm_matches_numpy | covered |
+| scikit | scikit::fft/transform::rfft | numpy.fft.rfft(sample(n)), n in 5, 8, 1000, 1024 | 1e-9 rel; exact zeros 1e-12 abs | rfft_matches_numpy | covered |
+| scikit | scikit::fft/transform::rfftfreq | numpy.fft.rfftfreq(n, d), (8, 0.5), (5, 0.1), (1000, 0.001) | 1e-9 rel; exact zeros 1e-12 abs | rfftfreq_matches_numpy | covered |
 | scikit | scikit::integrate/ode::euler | - | - | - | not covered |
 | scikit | scikit::integrate/ode::rk4 | - | - | - | not covered |
 | scikit | scikit::integrate/ode::solve_ivp | - | - | - | not covered |
@@ -318,18 +318,18 @@ Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` l
 | scikit | scikit::optimize/root::bisect | - | - | - | not covered |
 | scikit | scikit::optimize/root::brentq | - | - | - | not covered |
 | scikit | scikit::optimize/root::newton | - | - | - | not covered |
-| scikit | scikit::signal/convolve::convolve | scipy.signal.convolve(sample(n), b, mode, method='direct'), 3 modes, 2 cases | 1e-9 rel | convolve_matches_scipy | covered |
-| scikit | scikit::signal/convolve::correlate | scipy.signal.correlate(sample(n), b, mode, method='direct'), 3 modes, 2 cases | 1e-9 rel | correlate_matches_scipy | covered |
-| scikit | scikit::signal/filter::butter | scipy.signal.sosfilt(scipy.signal.butter(order, wn, btype=t, output='sos'), sample(64)) | 1e-9 rel | butter_matches_scipy | covered |
-| scikit | scikit::signal/filter::lfilter | scipy.signal.lfilter(b, a, sample(n)), 4 cases | 1e-9 rel | lfilter_matches_scipy | covered |
-| scikit | scikit::signal/filter::sosfilt | scipy.signal.sosfilt(sos, sample(64)), sos of butter(4, 0.3, lowpass) and butter(3, 0.2, highpass) | 1e-9 rel | sosfilt_matches_scipy | covered |
-| scikit | scikit::signal/filtfilt::filtfilt | forward and backward scipy.signal.lfilter (scipy.signal.filtfilt differs: it pads and uses lfilter_zi) | 1e-9 rel | filtfilt_matches_scipy_lfilter | covered |
-| scikit | scikit::signal/peaks::find_peaks | scipy.signal.find_peaks(sample(40), options), 4 option sets | 1e-9 rel | find_peaks_matches_scipy | covered |
-| scikit | scikit::signal/stft::stft | numpy.fft.rfft of x[s:s+w] * scipy.signal.windows.hann(w, sym=True), 2 configs | 1e-9 rel | stft_matches_numpy_hann | covered |
-| scikit | scikit::signal/windows::blackman | scipy.signal.windows.blackman(n, sym=True), n in 9, 64 | 1e-9 rel | blackman_matches_scipy | covered |
-| scikit | scikit::signal/windows::hamming | scipy.signal.windows.hamming(n, sym=True), n in 9, 64 | 1e-9 rel | hamming_matches_scipy | covered |
-| scikit | scikit::signal/windows::hann | scipy.signal.windows.hann(n, sym=True), n in 9, 64 | 1e-9 rel | hann_matches_scipy | covered |
-| scikit | scikit::signal/windows::kaiser | scipy.signal.windows.kaiser(n, beta, sym=True), n in 9, 64, beta 5.0 and 8.6 | 1e-9 rel | kaiser_matches_scipy | covered |
+| scikit | scikit::signal/convolve::convolve | scipy.signal.convolve(sample(n), b, mode, method='direct'), 3 modes, 2 cases | 1e-9 rel; exact zeros 1e-12 abs | convolve_matches_scipy | covered |
+| scikit | scikit::signal/convolve::correlate | scipy.signal.correlate(sample(n), b, mode, method='direct'), 3 modes, 2 cases | 1e-9 rel; exact zeros 1e-12 abs | correlate_matches_scipy | covered |
+| scikit | scikit::signal/filter::butter | scipy.signal.sosfilt(scipy.signal.butter(order, wn, btype=t, output='sos'), sample(64)) | 1e-9 rel; exact zeros 1e-12 abs | butter_matches_scipy | covered |
+| scikit | scikit::signal/filter::lfilter | scipy.signal.lfilter(b, a, sample(n)), 4 cases | 1e-9 rel; exact zeros 1e-12 abs | lfilter_matches_scipy | covered |
+| scikit | scikit::signal/filter::sosfilt | scipy.signal.sosfilt(sos, sample(64)), sos of butter(4, 0.3, lowpass) and butter(3, 0.2, highpass) | 1e-9 rel; exact zeros 1e-12 abs | sosfilt_matches_scipy | covered |
+| scikit | scikit::signal/filtfilt::filtfilt | forward and backward scipy.signal.lfilter (scipy.signal.filtfilt differs: it pads and uses lfilter_zi) | 1e-9 rel; exact zeros 1e-12 abs | filtfilt_matches_scipy_lfilter | covered |
+| scikit | scikit::signal/peaks::find_peaks | scipy.signal.find_peaks(sample(40), options), 4 option sets | 1e-9 rel; exact zeros 1e-12 abs | find_peaks_matches_scipy | covered |
+| scikit | scikit::signal/stft::stft | numpy.fft.rfft of x[s:s+w] * scipy.signal.windows.hann(w, sym=True), 2 configs | 1e-9 rel; exact zeros 1e-12 abs | stft_matches_numpy_hann | covered |
+| scikit | scikit::signal/windows::blackman | scipy.signal.windows.blackman(n, sym=True), n in 9, 64 | 1e-9 rel; exact zeros 1e-12 abs | blackman_matches_scipy | covered |
+| scikit | scikit::signal/windows::hamming | scipy.signal.windows.hamming(n, sym=True), n in 9, 64 | 1e-9 rel; exact zeros 1e-12 abs | hamming_matches_scipy | covered |
+| scikit | scikit::signal/windows::hann | scipy.signal.windows.hann(n, sym=True), n in 9, 64 | 1e-9 rel; exact zeros 1e-12 abs | hann_matches_scipy | covered |
+| scikit | scikit::signal/windows::kaiser | scipy.signal.windows.kaiser(n, beta, sym=True), n in 9, 64, beta 5.0 and 8.6 | 1e-9 rel; exact zeros 1e-12 abs | kaiser_matches_scipy | covered |
 | scikit | scikit::sparse/csc::add | - | - | - | not covered |
 | scikit | scikit::sparse/csc::density | - | - | - | not covered |
 | scikit | scikit::sparse/csc::dot | - | - | - | not covered |

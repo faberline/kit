@@ -48,11 +48,24 @@ fn complex(v: &[f64]) -> Vec<Complex> {
     v.iter().map(|&x| Complex::new(x, 0.0)).collect()
 }
 
-/// Every element of `actual` is within `1e-9 * max(|e|, 1)` of `expected`.
+/// Relative tolerance of every reference value (the table's `1e-9 rel`).
+const REL_TOL: f64 = 1e-9;
+
+/// Absolute bound for an expected value of exactly `0.0`: the round-off of a
+/// zero bin (imaginary part of a real-input DFT) is about 1e-13 to 1e-12 and
+/// has no relative size. Named in the table rows of this file.
+const ZERO_ABS_TOL: f64 = 1e-12;
+
+/// Every element of `actual` is within `REL_TOL * |e|` of `expected`, or within
+/// `ZERO_ABS_TOL` when `e == 0.0`.
 fn assert_close_list(actual: &[f64], expected: &[f64], key: &str) {
     assert_eq!(actual.len(), expected.len(), "length of `{key}`");
     for (i, (a, e)) in actual.iter().zip(expected.iter()).enumerate() {
-        let tol = 1e-9 * e.abs().max(1.0);
+        let tol = if *e == 0.0 {
+            ZERO_ABS_TOL
+        } else {
+            REL_TOL * e.abs()
+        };
         assert!(
             (a - e).abs() <= tol,
             "`{key}`[{i}] = {a}, expected {e} (tol {tol})"
@@ -78,7 +91,7 @@ fn check_vec(actual: &[f64], prefix: &str) {
     let abs_sum: f64 = actual.iter().map(|v| v.abs()).sum();
     let want = scalar(&format!("{prefix}_abs_sum"));
     assert!(
-        (abs_sum - want).abs() <= 1e-9 * want.abs().max(1.0),
+        (abs_sum - want).abs() <= 1e-9 * want.abs(),
         "`{prefix}_abs_sum` = {abs_sum}, expected {want}"
     );
     assert_eq!(
