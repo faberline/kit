@@ -184,20 +184,20 @@ Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` l
 | frame | frame::frame/multi_index::slice | - | - | - | not covered |
 | frame | frame::frame/multi_index::swaplevel | - | - | - | not covered |
 | frame | frame::frame/multi_index::unique | - | - | - | not covered |
-| frame | frame::frame/ops/groupby::agg | - | - | - | not covered |
-| frame | frame::frame/ops/groupby::aggregate | - | - | - | not covered |
-| frame | frame::frame/ops/groupby::count | - | - | - | not covered |
-| frame | frame::frame/ops/groupby::filter_groups | - | - | - | not covered |
-| frame | frame::frame/ops/groupby::first | - | - | - | not covered |
-| frame | frame::frame/ops/groupby::last | - | - | - | not covered |
-| frame | frame::frame/ops/groupby::max | - | - | - | not covered |
-| frame | frame::frame/ops/groupby::mean | - | - | - | not covered |
-| frame | frame::frame/ops/groupby::median | - | - | - | not covered |
-| frame | frame::frame/ops/groupby::min | - | - | - | not covered |
-| frame | frame::frame/ops/groupby::std | - | - | - | not covered |
-| frame | frame::frame/ops/groupby::sum | - | - | - | not covered |
-| frame | frame::frame/ops/groupby::transform | - | - | - | not covered |
-| frame | frame::frame/ops/groupby::var | - | - | - | not covered |
+| frame | frame::frame/ops/groupby::agg | `df.groupby('g')['v'].agg(name) for the nine names of agg` | 1e-9 rel | groupby_agg_matches_pandas | covered |
+| frame | frame::frame/ops/groupby::aggregate | `df.groupby('g')['v'].agg(lambda x: x.max() - x.min())` | 1e-9 rel | groupby_aggregate_matches_pandas | covered |
+| frame | frame::frame/ops/groupby::count | `df.groupby('g')['v'].count()` | 1e-9 rel | groupby_count_matches_pandas | covered |
+| frame | frame::frame/ops/groupby::filter_groups | `df.groupby('g').filter(lambda x: x['v'].mean() > 12.5)` | 1e-9 rel | groupby_filter_groups_matches_pandas | covered |
+| frame | frame::frame/ops/groupby::first | `df.groupby('g')['v'].first()` | 1e-9 rel | groupby_first_matches_pandas | covered |
+| frame | frame::frame/ops/groupby::last | `df.groupby('g')['v'].last()` | 1e-9 rel | groupby_last_matches_pandas | covered |
+| frame | frame::frame/ops/groupby::max | `df.groupby('g')['v'].max()` | 1e-9 rel | groupby_max_matches_pandas | covered |
+| frame | frame::frame/ops/groupby::mean | `df.groupby('g')['v'].mean()` | 1e-9 rel | groupby_mean_matches_pandas | covered |
+| frame | frame::frame/ops/groupby::median | `df.groupby('g')['v'].median()` | 1e-9 rel | groupby_median_matches_pandas | covered |
+| frame | frame::frame/ops/groupby::min | `df.groupby('g')['v'].min()` | 1e-9 rel | groupby_min_matches_pandas | covered |
+| frame | frame::frame/ops/groupby::std | `df.groupby('g')['v'].std()` | 1e-9 rel | groupby_std_matches_pandas | covered |
+| frame | frame::frame/ops/groupby::sum | `df.groupby('g')['v'].sum()` | 1e-9 rel | groupby_sum_matches_pandas | covered |
+| frame | frame::frame/ops/groupby::transform | `df.groupby('g')['v'].transform(lambda x: x / x.max())` | 1e-9 rel | groupby_transform_matches_pandas | covered |
+| frame | frame::frame/ops/groupby::var | `df.groupby('g')['v'].var()` | 1e-9 rel | groupby_var_matches_pandas | covered |
 | frame | frame::frame/ops/join::join | - | - | - | not covered |
 | frame | frame::frame/ops/join::join | - | - | - | not covered |
 | frame | frame::frame/ops/join::left_join | - | - | - | not covered |
@@ -214,20 +214,20 @@ Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` l
 | frame | frame::frame/ops/reshape::unstack | - | - | - | not covered |
 | frame | frame::frame/ops/reshape::wide_to_long | - | - | - | not covered |
 | frame | frame::frame/ops/reshape::wide_to_long | - | - | - | not covered |
-| frame | frame::frame/ops/window::adjust | - | - | - | not covered |
-| frame | frame::frame/ops/window::ewm_alpha | - | - | - | not covered |
-| frame | frame::frame/ops/window::ewm_halflife | - | - | - | not covered |
-| frame | frame::frame/ops/window::ewm_span | - | - | - | not covered |
-| frame | frame::frame/ops/window::expanding | - | - | - | not covered |
-| frame | frame::frame/ops/window::max | - | - | - | not covered |
-| frame | frame::frame/ops/window::mean | - | - | - | not covered |
-| frame | frame::frame/ops/window::mean | - | - | - | not covered |
-| frame | frame::frame/ops/window::min | - | - | - | not covered |
-| frame | frame::frame/ops/window::std | - | - | - | not covered |
-| frame | frame::frame/ops/window::std | - | - | - | not covered |
-| frame | frame::frame/ops/window::sum | - | - | - | not covered |
-| frame | frame::frame/ops/window::var | - | - | - | not covered |
-| frame | frame::frame/ops/window::var | - | - | - | not covered |
+| frame | frame::frame/ops/window::adjust | `s.ewm(alpha=0.3, adjust=False).mean()` | 1e-9 rel | ewm_adjust_matches_pandas | covered |
+| frame | frame::frame/ops/window::ewm_alpha | `s.ewm(alpha=0.3).mean()` | 1e-9 rel | ewm_alpha_matches_pandas | covered |
+| frame | frame::frame/ops/window::ewm_halflife | `s.ewm(halflife=4.0).mean()` | 1e-9 rel | ewm_halflife_matches_pandas | covered |
+| frame | frame::frame/ops/window::ewm_span | `s.ewm(span=10.0).mean()` | 1e-9 rel | ewm_span_matches_pandas | covered |
+| frame | frame::frame/ops/window::expanding | `s.expanding().sum()` | 1e-9 rel | expanding_sum_matches_pandas | covered |
+| frame | frame::frame/ops/window::max | `s.expanding().max()` | 1e-9 rel | expanding_max_matches_pandas | covered |
+| frame | frame::frame/ops/window::mean | `s.expanding().mean()` | 1e-9 rel | expanding_mean_matches_pandas | covered |
+| frame | frame::frame/ops/window::mean | `s.ewm(span=10.0).mean()` | 1e-9 rel | ewm_mean_matches_pandas | covered |
+| frame | frame::frame/ops/window::min | `s.expanding().min()` | 1e-9 rel | expanding_min_matches_pandas | covered |
+| frame | frame::frame/ops/window::std | `s.expanding().std()` | 1e-9 rel | expanding_std_matches_pandas | covered |
+| frame | frame::frame/ops/window::std | `s.ewm(span=10.0).std()` | 1e-9 rel | ewm_std_matches_pandas | covered |
+| frame | frame::frame/ops/window::sum | `s.expanding().sum()` | 1e-9 rel | expanding_sum_matches_pandas | covered |
+| frame | frame::frame/ops/window::var | `s.expanding().var()` | 1e-9 rel | expanding_var_matches_pandas | covered |
+| frame | frame::frame/ops/window::var | `s.ewm(span=10.0).var()` | 1e-9 rel | ewm_var_matches_pandas | covered |
 | frame | frame::frame/series::abs | s.abs().sum() | 1e-9 rel | abs_matches_pandas | covered |
 | frame | frame::frame/series::between | s.between(0, 3).sum() | 1e-9 rel | between_matches_pandas | covered |
 | frame | frame::frame/series::clip | s.clip(0, 3).sum() | 1e-9 rel | clip_matches_pandas | covered |

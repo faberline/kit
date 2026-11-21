@@ -234,9 +234,134 @@ def series_window_rows():
     return rows
 
 
+# Ewm inputs have no nulls: pandas carries a value over a null, frame gives Null
+# (a separate defect), so Ewm is checked on dense inputs only.
+DENSE_SMALL = [((i * 3) % 7 + 1) / 2 for i in range(10)]
+DENSE_LARGE = [(((i * 37 + 11) % 101) + 1) / 4 for i in range(N)]
+
+
+def add_large(rows, prefix, result, expr):
+    """Add the count, sum and position-weighted sum of a large result."""
+    count, total, wsum = large_stats(result)
+    rows.append((f"{prefix}.count", count, expr))
+    rows.append((f"{prefix}.sum", total, expr))
+    rows.append((f"{prefix}.wsum", wsum, expr))
+
+
+def window_rows():
+    s = pd.Series(SMALL_W, dtype="float64")
+    big = pd.Series(LARGE_W, dtype="float64")
+    d = pd.Series(DENSE_SMALL, dtype="float64")
+    D = pd.Series(DENSE_LARGE, dtype="float64")
+    rows = []
+
+    def add(key, value, source):
+        rows.append((key, value, source))
+
+    # Expanding windows, with nulls. min_periods 3 counts non-null values.
+    for name in ["sum", "mean", "min", "max", "std", "var"]:
+        add(f"expanding.{name}.small", getattr(s.expanding(), name)(), f"s.expanding().{name}()")
+        add_large(
+        rows,
+            f"expanding.{name}.large",
+            getattr(big.expanding(), name)(),
+            f"big.expanding().{name}()",
+        )
+    add("expanding.sum.mp3.small", s.expanding(min_periods=3).sum(), "s.expanding(min_periods=3).sum()")
+    add("expanding.mean.mp3.small", s.expanding(min_periods=3).mean(), "s.expanding(min_periods=3).mean()")
+
+    # Ewm windows on dense inputs: each parameter, adjust True and False, mean, std and var.
+    for param, value in [("alpha", 0.3), ("halflife", 4.0), ("span", 10.0)]:
+        for adjust in (True, False):
+            label = "adj" if adjust else "noadj"
+            for name in ["mean", "std", "var"]:
+                add(
+                    f"ewm.{param}.{label}.{name}.small",
+                    getattr(d.ewm(**{param: value}, adjust=adjust, min_periods=1), name)(),
+                    f"d.ewm({param}={value}, adjust={adjust}, min_periods=1).{name}()",
+                )
+                add_large(
+        rows,
+                    f"ewm.{param}.{label}.{name}.large",
+                    getattr(D.ewm(**{param: value}, adjust=adjust, min_periods=1), name)(),
+                    f"D.ewm({param}={value}, adjust={adjust}, min_periods=1).{name}()",
+                )
+    add(
+        "ewm.span.min_periods3.mean.small",
+        d.ewm(span=10.0, min_periods=3).mean(),
+        "d.ewm(span=10.0, min_periods=3).mean()",
+    )
+    return rows
+
+
+def groupby_rows():
+    keys = pd.Series(
+        [None if k % 97 == 5 else k % 50 for k in range(N)], dtype="float64"
+    )
+    df = pd.DataFrame({"g": keys, "v": pd.Series(LARGE_W, dtype="float64")})
+    gb = df.groupby("g")["v"]
+    rows = []
+
+    def add(key, value, source):
+        rows.append((key, value, source))
+
+    def add_groups(prefix, result, expr):
+        # The first five groups by key, the sum over all groups, and the group count.
+        for pos in range(5):
+            add(f"{prefix}.k{pos}", result.iloc[pos], expr)
+        add(f"{prefix}.sum", result.sum(), expr)
+        add(f"{prefix}.len", len(result), expr)
+
+    for name in ["sum", "mean", "median", "min", "max", "std", "var", "count", "first", "last"]:
+        add_groups(f"groupby.{name}.large", getattr(gb, name)(), f"df.groupby('g')['v'].{name}()")
+    for name in ["sum", "mean", "count", "min", "max", "first", "last", "std", "median"]:
+        add_groups(
+            f"groupby.agg.{name}.large",
+            gb.agg(name),
+            f"df.groupby('g')['v'].agg('{name}')",
+        )
+    add_groups(
+        "groupby.aggregate.range.large",
+        gb.agg(lambda x: x.max() - x.min()),
+        "df.groupby('g')['v'].agg(lambda x: x.max() - x.min())",
+    )
+    transformed = gb.transform(lambda x: x / x.max())
+    add_large(
+        rows,
+        "groupby.transform.div_max.large",
+        transformed,
+        "df.groupby('g')['v'].transform(lambda x: x / x.max())",
+    )
+    kept = df.groupby("g").filter(lambda x: x["v"].mean() > 12.5)
+    add("groupby.filter.mean_gt.large.rows", len(kept), "df.groupby('g').filter(mean > 12.5)")
+    add("groupby.filter.mean_gt.large.sum", kept["v"].sum(), "df.groupby('g').filter(mean > 12.5)['v'].sum()")
+    add(
+        "groupby.filter.mean_gt.large.groups",
+        kept["g"].nunique(),
+        "df.groupby('g').filter(mean > 12.5)['g'].nunique()",
+    )
+
+    # The two tests moved from tests/it/reference.rs.
+    t = pd.DataFrame({"g": ["a", "a", "b", None], "v": [1.0, None, 4.0, 9.0]})
+    means = t.groupby("g")["v"].mean()
+    add("groupby.mean.nulls.a", means.loc["a"], "t.groupby('g')['v'].mean().loc['a']")
+    add("groupby.mean.nulls.b", means.loc["b"], "t.groupby('g')['v'].mean().loc['b']")
+    add("groupby.mean.nulls.len", len(means), "len(t.groupby('g')['v'].mean())")
+    u = pd.DataFrame({"g": ["a", "a", "a", "b", "b"], "v": [1.0, 2.0, 4.0, 10.0, 20.0]})
+    stds = u.groupby("g")["v"].std()
+    medians = u.groupby("g")["v"].median()
+    add("groupby.agg_std.small.a", stds.loc["a"], "u.groupby('g')['v'].std().loc['a']")
+    add("groupby.agg_std.small.b", stds.loc["b"], "u.groupby('g')['v'].std().loc['b']")
+    add("groupby.agg_median.small.a", medians.loc["a"], "u.groupby('g')['v'].median().loc['a']")
+    add("groupby.agg_median.small.b", medians.loc["b"], "u.groupby('g')['v'].median().loc['b']")
+    return rows
+
+
 common.main(
     {
         "crates/frame/tests/fixtures/series_reference.tsv": series_rows,
         "crates/frame/tests/fixtures/series_window_reference.tsv": series_window_rows,
+        "crates/frame/tests/fixtures/window_reference.tsv": window_rows,
+        "crates/frame/tests/fixtures/groupby_reference.tsv": groupby_rows,
     }
 )
