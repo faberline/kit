@@ -253,7 +253,27 @@ fn nsmallest_matches_pandas() {
 #[test]
 fn rank_matches_pandas() {
     // A null gets no rank (NaN in pandas); the other seven ranks sum to 28.
-    assert_close(small().rank().sum().unwrap(), "series.rank.small.sum");
+    let ranks = small().rank();
+    assert_close(ranks.sum().unwrap(), "series.rank.small.sum");
+
+    // The null stays null: count the Value::Null entries and check position 1.
+    let nulls = ranks
+        .values()
+        .iter()
+        .filter(|v| matches!(v, Value::Null))
+        .count();
+    assert_close(nulls as f64, "series.rank.small.nulls");
+    assert!(matches!(ranks.values()[1], Value::Null));
+
+    // The large case: the sum and the count of non-null ranks.
+    let big = large().rank();
+    assert_close(big.sum().unwrap(), "series.rank.large.sum");
+    let ranked = big
+        .values()
+        .iter()
+        .filter(|v| v.as_float().is_some())
+        .count();
+    assert_close(ranked as f64, "series.rank.large.count");
 }
 
 #[test]
@@ -342,7 +362,7 @@ fn where_cond_matches_pandas() {
 }
 
 // Moved from tests/it/reference.rs; the expected values are the fixture's.
-// pandas 2.2 (skipna=True): pd.Series([1, None, 5]).sum() -> 6.0, .mean() -> 3.0
+// pandas 3.1.1 (skipna=True): pd.Series([1, None, 5]).sum() -> 6.0, .mean() -> 3.0
 #[test]
 fn series_sum_and_mean_skip_nulls() {
     let s = Series::new(vec![Value::Int(1), Value::Null, Value::Int(5)]);
@@ -350,10 +370,11 @@ fn series_sum_and_mean_skip_nulls() {
     assert_close(s.mean().unwrap(), "series.mean.nulls.mean");
 }
 
-// Moved from tests/it/reference.rs; pandas 2.2: pd.Series([1, 1, 2]).rank() -> [1.5, 1.5, 3.0]
+// Moved from tests/it/reference.rs; pandas 3.1.1: pd.Series([1, 1, 2]).rank() -> [1.5, 1.5, 3.0]
 #[test]
 fn series_rank_average_ties() {
     let ranks = Series::new(vec![1i64, 1, 2]).rank();
+    assert_close(ranks.len() as f64, "series.rank.ties.len");
     assert_close(as_f64(&ranks.values()[0]), "series.rank.ties.r0");
     assert_close(as_f64(&ranks.values()[1]), "series.rank.ties.r1");
     assert_close(as_f64(&ranks.values()[2]), "series.rank.ties.r2");

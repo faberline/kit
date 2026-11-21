@@ -106,6 +106,10 @@ def series_rows():
     add("series.rank.ties.r0", ties.iloc[0], "pd.Series([1, 1, 2]).rank().iloc[0]")
     add("series.rank.ties.r1", ties.iloc[1], "pd.Series([1, 1, 2]).rank().iloc[1]")
     add("series.rank.ties.r2", ties.iloc[2], "pd.Series([1, 1, 2]).rank().iloc[2]")
+    add("series.rank.ties.len", len(ties), "len(pd.Series([1, 1, 2]).rank())")
+    add("series.rank.small.nulls", s.rank().isna().sum(), "s.rank().isna().sum()")
+    add("series.rank.large.sum", big.rank().sum(), "big.rank().sum()")
+    add("series.rank.large.count", big.rank().count(), "big.rank().count()")
 
     add("series.replace.small.sum", s.replace(4, 40).sum(), "s.replace(4, 40).sum()")
     add(

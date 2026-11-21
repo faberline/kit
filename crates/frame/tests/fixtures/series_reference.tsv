@@ -36,6 +36,10 @@ series.rank.small.sum	28.0	s.rank().sum()
 series.rank.ties.r0	1.5	pd.Series([1, 1, 2]).rank().iloc[0]
 series.rank.ties.r1	1.5	pd.Series([1, 1, 2]).rank().iloc[1]
 series.rank.ties.r2	3.0	pd.Series([1, 1, 2]).rank().iloc[2]
+series.rank.ties.len	3.0	len(pd.Series([1, 1, 2]).rank())
+series.rank.small.nulls	1.0	s.rank().isna().sum()
+series.rank.large.sum	36735306.0	big.rank().sum()
+series.rank.large.count	8571.0	big.rank().count()
 series.replace.small.sum	91.0	s.replace(4, 40).sum()
 series.replace_map.small.sum	82.0	s.replace({4: 40, -1: -10}).sum()
 series.reset_index.small.loc7	0.0	pd.Series(SMALL, index=range(10, 18)).reset_index(drop=True).loc[7]
