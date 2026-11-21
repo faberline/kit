@@ -146,10 +146,24 @@ jobs:
       - run: cargo package --list --locked -p agent-derive
       - run: cargo package --list --locked -p agent
 
+  test-reference:
+    name: "test: reference fixtures"
+    needs: [lint]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: sh tools/reference/selftest.sh
+      - run: python3 -m venv .venv-reference
+      - run: .venv-reference/bin/pip install -r tools/reference/requirements.txt
+      - run: REF_VENV=.venv-reference sh tools/reference/run.sh --check
+
   gate:
     name: gate
     if: always()
-    needs: [lint, test-default, test-all-features, test-coverage, test-publish-dry-run, test-bench]
+    needs: [lint, test-default, test-all-features, test-coverage, test-publish-dry-run, test-bench, test-reference]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
