@@ -1,7 +1,7 @@
 # Reference coverage
 
-Numeric rows: 408
-Not numeric rows: 200
+Numeric rows: 410
+Not numeric rows: 198
 
 Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` lists. A numeric function needs a reference value from a Python library (numpy, scipy, pandas or statsmodels, pinned in `tools/reference/requirements.txt`), a tolerance and a test. Status `not covered` means that no reference test exists yet. `-` means not written yet. `tools/reference/check_table.sh` checks this file.
 
@@ -50,12 +50,14 @@ Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` l
 | arraykit | arraykit::array/math::clip | - | - | - | not covered |
 | arraykit | arraykit::array/math::cos | - | - | - | not covered |
 | arraykit | arraykit::array/math::exp | - | - | - | not covered |
+| arraykit | arraykit::array/math::linspace | - | - | - | not covered |
 | arraykit | arraykit::array/math::log | - | - | - | not covered |
 | arraykit | arraykit::array/math::pow | - | - | - | not covered |
 | arraykit | arraykit::array/math::sin | - | - | - | not covered |
 | arraykit | arraykit::array/math::sqrt | - | - | - | not covered |
 | arraykit | arraykit::array/math::tan | - | - | - | not covered |
 | arraykit | arraykit::array/math::where_cond | - | - | - | not covered |
+| arraykit | arraykit::array/ndarray::arange | - | - | - | not covered |
 | arraykit | arraykit::array/ndarray::broadcast_to | - | - | - | not covered |
 | arraykit | arraykit::array/ndarray::diag | - | - | - | not covered |
 | arraykit | arraykit::array/ndarray::flatten | - | - | - | not covered |
@@ -424,8 +426,6 @@ Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` l
 |---|---|---|
 | arraykit | arraykit::array/dtype::numpy_str | formatting |
 | arraykit | arraykit::array/dtype::size | accessor, returns stored data or metadata |
-| arraykit | arraykit::array/math::linspace | constructor or conversion |
-| arraykit | arraykit::array/ndarray::arange | constructor or conversion |
 | arraykit | arraykit::array/ndarray::data | accessor, returns stored data or metadata |
 | arraykit | arraykit::array/ndarray::data_mut | accessor, returns stored data or metadata |
 | arraykit | arraykit::array/ndarray::dims | accessor, returns stored data or metadata |
