@@ -375,6 +375,10 @@ fn series_sum_and_mean_skip_nulls() {
 fn series_rank_average_ties() {
     let ranks = Series::new(vec![1i64, 1, 2]).rank();
     assert_close(ranks.len() as f64, "series.rank.ties.len");
+    assert!(
+        ranks.values().iter().all(|v| matches!(v, Value::Float(_))),
+        "rank must return Value::Float"
+    );
     assert_close(as_f64(&ranks.values()[0]), "series.rank.ties.r0");
     assert_close(as_f64(&ranks.values()[1]), "series.rank.ties.r1");
     assert_close(as_f64(&ranks.values()[2]), "series.rank.ties.r2");
