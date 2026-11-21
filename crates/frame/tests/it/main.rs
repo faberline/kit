@@ -3,3 +3,4 @@ mod frame;
 mod io_paths;
 mod prop_io;
 mod reference;
+mod reference_series;
