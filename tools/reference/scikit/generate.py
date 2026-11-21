@@ -12,6 +12,7 @@ import os
 import sys
 
 import numpy as np
+import scipy.signal as sg
 import scipy.special as sp
 import scipy.stats as st
 
@@ -303,9 +304,179 @@ def stats_grid_rows():
     return rows
 
 
+def sample(n):
+    """The shared input: x[i] = ((i * 37 + 11) % 101) / 4.0. Rust builds the same values."""
+    return np.array([((i * 37 + 11) % 101) / 4.0 for i in range(n)], dtype=float)
+
+
+def vec_rows(prefix, arr, source):
+    """A 1-D array as rows: the whole list when it has at most 64 values.
+
+    A longer array gives its first 5 values, its last 5 values, the sum of
+    absolute values and its length, so that the fixture stays short.
+    """
+    arr = np.asarray(arr, dtype=float)
+    if len(arr) <= 64:
+        return [(prefix, arr.tolist(), source)]
+    return [
+        (prefix + "_head", arr[:5].tolist(), source),
+        (prefix + "_tail", arr[-5:].tolist(), source),
+        (prefix + "_abs_sum", float(np.abs(arr).sum()), source),
+        (prefix + "_len", float(len(arr)), source),
+    ]
+
+
+def fft_signal_rows():
+    rows = []
+
+    def add(prefix, arr, source):
+        if np.ndim(arr) == 0:
+            rows.append((prefix, float(arr), source))
+        else:
+            rows.extend(vec_rows(prefix, arr, source))
+
+    def add_complex(prefix, z, source):
+        add(prefix + "_re", np.real(z), source)
+        add(prefix + "_im", np.imag(z), source)
+
+    for n in (5, 8, 1000, 1024):
+        x = sample(n)
+        add_complex(f"fft_n{n}", np.fft.fft(x), f"numpy.fft.fft(sample({n}))")
+        add_complex(f"ifft_n{n}", np.fft.ifft(x), f"numpy.fft.ifft(sample({n}))")
+        add_complex(f"rfft_n{n}", np.fft.rfft(x), f"numpy.fft.rfft(sample({n}))")
+        add(
+            f"irfft_n{n}",
+            np.fft.irfft(np.fft.rfft(x), n),
+            f"numpy.fft.irfft(numpy.fft.rfft(sample({n})), {n})",
+        )
+
+    z8 = np.fft.fft(sample(8))
+    add_complex("conj_n8", np.conj(z8), "numpy.conj(numpy.fft.fft(sample(8)))")
+    add("norm_n8", np.abs(z8), "numpy.abs(numpy.fft.fft(sample(8)))")
+
+    for n, d, tag in ((8, 0.5, "n8_d0p5"), (5, 0.1, "n5_d0p1"), (1000, 0.001, "n1000_d0p001")):
+        add(f"fftfreq_{tag}", np.fft.fftfreq(n, d), f"numpy.fft.fftfreq({n}, {d})")
+        add(f"rfftfreq_{tag}", np.fft.rfftfreq(n, d), f"numpy.fft.rfftfreq({n}, {d})")
+
+    for n in (9, 64):
+        add(f"hann_n{n}", sg.windows.hann(n, sym=True), f"scipy.signal.windows.hann({n}, sym=True)")
+        add(f"hamming_n{n}", sg.windows.hamming(n, sym=True), f"scipy.signal.windows.hamming({n}, sym=True)")
+        add(f"blackman_n{n}", sg.windows.blackman(n, sym=True), f"scipy.signal.windows.blackman({n}, sym=True)")
+        for beta, tag in ((5.0, "beta5p0"), (8.6, "beta8p6")):
+            add(
+                f"kaiser_n{n}_{tag}",
+                sg.windows.kaiser(n, beta, sym=True),
+                f"scipy.signal.windows.kaiser({n}, {beta}, sym=True)",
+            )
+
+    for size, a, b in (("small", sample(7), [0.5, -1.0, 2.0]), ("long", sample(100), [0.25, 0.5, 0.25])):
+        for mode in ("full", "same", "valid"):
+            add(
+                f"convolve_{mode}_{size}",
+                sg.convolve(a, b, mode=mode, method="direct"),
+                f"scipy.signal.convolve(sample({len(a)}), {b}, mode='{mode}', method='direct')",
+            )
+            add(
+                f"correlate_{mode}_{size}",
+                sg.correlate(a, b, mode=mode, method="direct"),
+                f"scipy.signal.correlate(sample({len(a)}), {b}, mode='{mode}', method='direct')",
+            )
+
+    b_iir = [0.2, 0.3, 0.2]
+    a_iir = [1.0, -0.5]
+    add("lfilter_iir_64", sg.lfilter(b_iir, a_iir, sample(64)), "scipy.signal.lfilter([0.2, 0.3, 0.2], [1.0, -0.5], sample(64))")
+    add("lfilter_iir_1000", sg.lfilter(b_iir, a_iir, sample(1000)), "scipy.signal.lfilter([0.2, 0.3, 0.2], [1.0, -0.5], sample(1000))")
+    add(
+        "lfilter_fir_100",
+        sg.lfilter([0.25] * 4, [1.0], sample(100)),
+        "scipy.signal.lfilter([0.25, 0.25, 0.25, 0.25], [1.0], sample(100))",
+    )
+    add("lfilter_a0_2", sg.lfilter([1.0, 2.0], [2.0, -1.0], sample(64)), "scipy.signal.lfilter([1.0, 2.0], [2.0, -1.0], sample(64))")
+
+    ff_note = "forward and backward sg.lfilter (kit filtfilt has no padding and a zero initial state)"
+    x64 = sample(64)
+    add(
+        "filtfilt_iir_64",
+        sg.lfilter(b_iir, a_iir, sg.lfilter(b_iir, a_iir, x64)[::-1])[::-1],
+        ff_note + ", b = [0.2, 0.3, 0.2], a = [1.0, -0.5], sample(64)",
+    )
+    fir = [0.25] * 4
+    x100 = sample(100)
+    add(
+        "filtfilt_fir_100",
+        sg.lfilter(fir, [1.0], sg.lfilter(fir, [1.0], x100)[::-1])[::-1],
+        ff_note + ", b = [0.25] * 4, a = [1.0], sample(100)",
+    )
+
+    sos4 = sg.butter(4, 0.3, btype="lowpass", output="sos")
+    sos3 = sg.butter(3, 0.2, btype="highpass", output="sos")
+    add(
+        "sos_o4_wn0p3_low",
+        sos4.flatten(),
+        "scipy.signal.butter(4, 0.3, btype='lowpass', output='sos').flatten()",
+    )
+    add(
+        "sosfilt_o4_wn0p3_low",
+        sg.sosfilt(sos4, sample(64)),
+        "scipy.signal.sosfilt(scipy.signal.butter(4, 0.3, btype='lowpass', output='sos'), sample(64))",
+    )
+    add(
+        "sos_o3_wn0p2_high",
+        sos3.flatten(),
+        "scipy.signal.butter(3, 0.2, btype='highpass', output='sos').flatten()",
+    )
+    add(
+        "sosfilt_o3_wn0p2_high",
+        sg.sosfilt(sos3, sample(64)),
+        "scipy.signal.sosfilt(scipy.signal.butter(3, 0.2, btype='highpass', output='sos'), sample(64))",
+    )
+    for order, w, btype in ((2, "0p3", "lowpass"), (4, "0p3", "lowpass"), (2, "0p2", "highpass"), (3, "0p2", "highpass")):
+        wn = float(w.replace("p", "."))
+        add(
+            f"butter_o{order}_wn{w}_{btype}",
+            sg.sosfilt(sg.butter(order, wn, btype=btype, output="sos"), sample(64)),
+            f"scipy.signal.sosfilt(scipy.signal.butter({order}, {wn}, btype='{btype}', output='sos'), sample(64))",
+        )
+
+    d = sample(40)
+    peak_cases = (
+        ("all", {"prominence": 0}),
+        ("height", {"prominence": 0, "height": 10.0}),
+        ("distance", {"prominence": 0, "distance": 5}),
+        ("prominence", {"prominence": 8.0}),
+    )
+    for name, kwargs in peak_cases:
+        peaks, props = sg.find_peaks(d, **kwargs)
+        opts = ", ".join(f"{k}={v}" for k, v in kwargs.items())
+        psrc = f"scipy.signal.find_peaks(sample(40), {opts})"
+        add(f"peaks_{name}_index", peaks.astype(float), psrc + " peaks")
+        add(f"peaks_{name}_height", d[peaks], psrc + " x[peaks]")
+        add(f"peaks_{name}_prominence", props["prominences"], psrc + " prominences")
+
+    x256 = sample(256)
+    stft_src = (
+        "numpy.fft.rfft(x[s:s+w] * scipy.signal.windows.hann(w, sym=True)) "
+        "(kit stft: symmetric Hann, no scaling, no padding)"
+    )
+    for w, h, fs in ((64, 32, 100.0), (100, 25, 1000.0)):
+        prefix = f"stft_w{w}_h{h}"
+        starts = list(range(0, 256 - w + 1, h))
+        win = sg.windows.hann(w, sym=True)
+        zs = [np.fft.rfft(x256[s : s + w] * win) for s in starts]
+        add(f"{prefix}_n_frames", float(len(starts)), stft_src)
+        add(f"{prefix}_freqs", np.fft.rfftfreq(w, 1.0 / fs), stft_src)
+        add(f"{prefix}_times", [(s + (w - 1) / 2) / fs for s in starts], stft_src)
+        add_complex(f"{prefix}_frame0", zs[0], stft_src)
+        add_complex(f"{prefix}_last", zs[-1], stft_src)
+        add_complex(f"{prefix}_all", np.concatenate(zs), stft_src)
+
+    return rows
+
+
 common.main(
     {
         "crates/scikit/tests/fixtures/stats_reference.tsv": stats_rows,
         "crates/scikit/tests/fixtures/stats_grid_reference.tsv": stats_grid_rows,
+        "crates/scikit/tests/fixtures/fft_signal_reference.tsv": fft_signal_rows,
     }
 )

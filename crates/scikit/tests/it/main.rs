@@ -16,3 +16,6 @@ mod stats;
 mod reference_stats;
 #[cfg(feature = "stats")]
 mod reference_stats_grid;
+
+#[cfg(all(feature = "fft", feature = "signal"))]
+mod reference_fft_signal;
