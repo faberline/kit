@@ -17,7 +17,7 @@ ind_eq_stat	2.086822024263946	scipy.stats.ttest_ind(a, b, equal_var=True).statis
 ind_eq_p	0.05716247879188758	scipy.stats.ttest_ind(a, b, equal_var=True).pvalue
 ind_welch_stat	2.166651378096586	scipy.stats.ttest_ind(a, b, equal_var=False).statistic
 ind_welch_p	0.0526158405619671	scipy.stats.ttest_ind(a, b, equal_var=False).pvalue
-pearson_r	0.9760070924438541	scipy.stats.pearsonr(xs, ys).statistic, xs = [1,2,3,4,5,6,7,8], ys = [2.1,2.9,4.2,3.8,6.1,5.9,7.7,8.4]
+pearson_r	0.976007092444	scipy.stats.pearsonr(xs, ys).statistic, xs = [1,2,3,4,5,6,7,8], ys = [2.1,2.9,4.2,3.8,6.1,5.9,7.7,8.4]
 pearson_p	3.391100628937624e-05	scipy.stats.pearsonr(xs, ys).pvalue
 anova_f	9.264705882352942	scipy.stats.f_oneway(g1, g2, g3).statistic, g1 = [6,8,4,5,3,4], g2 = [8,12,9,11,6,8], g3 = [13,9,11,8,7,12]
 anova_p	0.0023987773293929083	scipy.stats.f_oneway(g1, g2, g3).pvalue
