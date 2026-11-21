@@ -235,44 +235,63 @@ impl<'a> Ewm<'a> {
         Series::new(self.var_internal())
     }
 
-    /// Internal: compute EWM variance values.
+    /// Internal: compute EWM variance values, as pandas does with `bias=False`.
+    ///
+    /// This is the weighted covariance of the series with itself, scaled by the
+    /// bias factor `sum_wt^2 / (sum_wt^2 - sum_wt2)`. A null input gives `Null`.
     fn var_internal(&self) -> Vec<Value> {
-        let mean_series = self.mean();
-        let vals: Vec<f64> = self
-            .series
-            .values()
-            .iter()
-            .map(|v| v.as_float().unwrap_or(f64::NAN))
-            .collect();
-
-        let n = vals.len();
-        let mut result = Vec::with_capacity(n);
         let decay = 1.0 - self.alpha;
-        let mut weighted_sq_sum = 0.0;
-        let mut weight_sum = 0.0;
+        let new_wt = if self.adjust { 1.0 } else { self.alpha };
+        let mut result = Vec::with_capacity(self.series.len());
         let mut count = 0usize;
+        let mut mean = 0.0;
+        let mut cov = 0.0;
+        let mut sum_wt = 0.0;
+        let mut sum_wt2 = 0.0;
+        let mut old_wt = 0.0;
 
-        for (i, val) in vals.iter().enumerate() {
-            if val.is_nan() {
-                result.push(Value::Null);
-                continue;
-            }
+        for v in self.series.values() {
+            let x = match v.as_float() {
+                Some(x) if !x.is_nan() => x,
+                _ => {
+                    result.push(Value::Null);
+                    continue;
+                }
+            };
             count += 1;
 
-            let mean_val = mean_series
-                .iloc(i)
-                .ok()
-                .and_then(|v| v.as_float())
-                .unwrap_or(f64::NAN);
-
-            let diff = val - mean_val;
-            weighted_sq_sum = weighted_sq_sum * decay + diff * diff;
-            weight_sum = weight_sum * decay + 1.0;
+            if count == 1 {
+                mean = x;
+                cov = 0.0;
+                sum_wt = 1.0;
+                sum_wt2 = 1.0;
+                old_wt = 1.0;
+            } else {
+                sum_wt *= decay;
+                sum_wt2 *= decay * decay;
+                old_wt *= decay;
+                let old_mean = mean;
+                mean = (old_wt * old_mean + new_wt * x) / (old_wt + new_wt);
+                cov = (old_wt * (cov + (old_mean - mean).powi(2)) + new_wt * (x - mean).powi(2))
+                    / (old_wt + new_wt);
+                sum_wt += new_wt;
+                sum_wt2 += new_wt * new_wt;
+                old_wt += new_wt;
+                if !self.adjust {
+                    sum_wt /= old_wt;
+                    sum_wt2 /= old_wt * old_wt;
+                    old_wt = 1.0;
+                }
+            }
 
             if count >= self.min_periods.max(2) {
-                // Bias correction for sample variance
-                let bias = weight_sum / (weight_sum - 1.0);
-                result.push(Value::Float(weighted_sq_sum / weight_sum * bias));
+                let num = sum_wt * sum_wt;
+                let den = num - sum_wt2;
+                if den > 0.0 {
+                    result.push(Value::Float(cov * num / den));
+                } else {
+                    result.push(Value::Null);
+                }
             } else {
                 result.push(Value::Null);
             }

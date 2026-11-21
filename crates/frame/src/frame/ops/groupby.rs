@@ -117,26 +117,14 @@ impl<'a> GroupBy<'a> {
         })
     }
 
-    /// First value in each group.
+    /// First non-null value in each group.
     pub fn first(&self) -> Result<DataFrame> {
-        self.aggregate(|series, indices| {
-            indices
-                .first()
-                .and_then(|&i| series.iloc(i).ok())
-                .cloned()
-                .unwrap_or(Value::Null)
-        })
+        self.aggregate(first_non_null)
     }
 
-    /// Last value in each group.
+    /// Last non-null value in each group.
     pub fn last(&self) -> Result<DataFrame> {
-        self.aggregate(|series, indices| {
-            indices
-                .last()
-                .and_then(|&i| series.iloc(i).ok())
-                .cloned()
-                .unwrap_or(Value::Null)
-        })
+        self.aggregate(last_non_null)
     }
 
     /// Apply custom aggregation function.
@@ -413,16 +401,8 @@ impl<'a> GroupBy<'a> {
                         .max()
                         .cloned()
                         .unwrap_or(Value::Null),
-                    "first" => indices
-                        .first()
-                        .and_then(|&i| series.iloc(i).ok())
-                        .cloned()
-                        .unwrap_or(Value::Null),
-                    "last" => indices
-                        .last()
-                        .and_then(|&i| series.iloc(i).ok())
-                        .cloned()
-                        .unwrap_or(Value::Null),
+                    "first" => first_non_null(series, indices),
+                    "last" => last_non_null(series, indices),
                     "std" => std_of(series, indices),
                     "median" => median_of(series, indices),
                     _ => unreachable!("validated above"),
@@ -452,6 +432,27 @@ fn std_of(series: &Series, indices: &[usize]) -> Value {
     let mean = vals.iter().sum::<f64>() / vals.len() as f64;
     let variance = vals.iter().map(|&x| (x - mean).powi(2)).sum::<f64>() / (vals.len() - 1) as f64;
     Value::Float(variance.sqrt())
+}
+
+/// First non-null value of the group; `Null` when there is none.
+fn first_non_null(series: &Series, indices: &[usize]) -> Value {
+    indices
+        .iter()
+        .filter_map(|&i| series.iloc(i).ok())
+        .find(|v| !v.is_null())
+        .cloned()
+        .unwrap_or(Value::Null)
+}
+
+/// Last non-null value of the group; `Null` when there is none.
+fn last_non_null(series: &Series, indices: &[usize]) -> Value {
+    indices
+        .iter()
+        .rev()
+        .filter_map(|&i| series.iloc(i).ok())
+        .find(|v| !v.is_null())
+        .cloned()
+        .unwrap_or(Value::Null)
 }
 
 /// Median of the non-null values; `Null` when there are none.
