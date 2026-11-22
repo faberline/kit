@@ -387,38 +387,38 @@ Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` l
 | scikit | scikit::stats/hypothesis::ttest_1samp | scipy.stats.ttest_1samp(X, 13.0) | 1e-9 rel | ttest_1samp_matches_scipy | covered |
 | scikit | scikit::stats/hypothesis::ttest_ind | scipy.stats.ttest_ind(X, Y, equal_var=True / False) | 1e-9 rel | ttest_ind_matches_scipy | covered |
 | scikit | scikit::stats/hypothesis::ttest_rel | scipy.stats.ttest_rel(X, Y) | 1e-9 rel | ttest_rel_matches_scipy | covered |
-| scikit | scikit::ts/acf::acf | - | - | - | not covered |
-| scikit | scikit::ts/acf::is_significant | - | - | - | not covered |
-| scikit | scikit::ts/acf::ljung_box | - | - | - | not covered |
-| scikit | scikit::ts/acf::pacf | - | - | - | not covered |
-| scikit | scikit::ts/acf::pacf_from_acf | - | - | - | not covered |
-| scikit | scikit::ts/arima::aic | - | - | - | not covered |
-| scikit | scikit::ts/arima::difference | - | - | - | not covered |
-| scikit | scikit::ts/arima::fit | - | - | - | not covered |
-| scikit | scikit::ts/arima::fitted_values | - | - | - | not covered |
-| scikit | scikit::ts/arima::forecast | - | - | - | not covered |
-| scikit | scikit::ts/decompose::seasonal_decompose | - | - | - | not covered |
-| scikit | scikit::ts/decompose::seasonal_strength | - | - | - | not covered |
-| scikit | scikit::ts/decompose::trend_strength | - | - | - | not covered |
-| scikit | scikit::ts/ops::ewma | - | - | - | not covered |
-| scikit | scikit::ts/ops::ewma_halflife | - | - | - | not covered |
-| scikit | scikit::ts/ops::ewma_span | - | - | - | not covered |
-| scikit | scikit::ts/ops::expanding_max | - | - | - | not covered |
-| scikit | scikit::ts/ops::expanding_mean | - | - | - | not covered |
-| scikit | scikit::ts/ops::expanding_min | - | - | - | not covered |
-| scikit | scikit::ts/ops::expanding_std | - | - | - | not covered |
-| scikit | scikit::ts/ops::expanding_sum | - | - | - | not covered |
-| scikit | scikit::ts/ops::lag | - | - | - | not covered |
-| scikit | scikit::ts/ops::lead | - | - | - | not covered |
-| scikit | scikit::ts/resample::downsample | - | - | - | not covered |
-| scikit | scikit::ts/resample::resample_to_len | - | - | - | not covered |
-| scikit | scikit::ts/resample::upsample | - | - | - | not covered |
-| scikit | scikit::ts/smoothing::forecast | - | - | - | not covered |
-| scikit | scikit::ts/smoothing::forecast | - | - | - | not covered |
-| scikit | scikit::ts/smoothing::forecast | - | - | - | not covered |
-| scikit | scikit::ts/smoothing::holt | - | - | - | not covered |
-| scikit | scikit::ts/smoothing::holt_winters | - | - | - | not covered |
-| scikit | scikit::ts/smoothing::ses | - | - | - | not covered |
+| scikit | scikit::ts/acf::acf | `statsmodels.tsa.stattools.acf(y, nlags=24, adjusted=False, fft=False)` | 1e-9 rel + 1e-12 abs | `acf_matches_statsmodels` | covered |
+| scikit | scikit::ts/acf::is_significant | `closed form: p_value < alpha` | 1e-9 rel + 1e-12 abs | `is_significant_follows_the_pvalue_rule` | covered |
+| scikit | scikit::ts/acf::ljung_box | `statsmodels.stats.diagnostic.acorr_ljungbox(x, lags=[k])`: lb_stat, lb_pvalue (the p-value uses the same tolerance) | 1e-9 rel + 1e-12 abs | `ljung_box_matches_statsmodels` | covered |
+| scikit | scikit::ts/acf::pacf | `statsmodels.tsa.stattools.pacf(y, nlags=24, method='ywm')[1:]` | 1e-9 rel + 1e-12 abs | `pacf_matches_statsmodels` | covered |
+| scikit | scikit::ts/acf::pacf_from_acf | `statsmodels.tsa.stattools.pacf(y, nlags=24, method='ywm')[1:]`, input: the acf of `acf` (not the 12-digit fixture) | 1e-9 rel + 1e-12 abs | `pacf_from_acf_matches_statsmodels` | covered |
+| scikit | scikit::ts/arima::aic | closed form of `ArimaModel::aic`: n * ln(RSS / n) + 2 * (p + q + 1), RSS from statsmodels one-step residuals | 1e-9 rel + 1e-12 abs | `aic_matches_statsmodels_residuals` | covered |
+| scikit | scikit::ts/arima::difference | `numpy.diff(b, n=d)`, d = 1, 2, 3 | 1e-9 rel + 1e-12 abs | `difference_matches_numpy` | covered |
+| scikit | scikit::ts/arima::fit | AR and mean: `statsmodels.regression.linear_model.yule_walker(..., method='mle')`; MA: `scipy.optimize.minimize` of the CSS | AR: 1e-9 rel + 1e-12 abs; MA: 2e-3 abs (kit searches the MA term with a CSS step of 1e-3; the reference is the CSS optimum, not the exact-likelihood fit) | `fit_ar_matches_statsmodels`, `fit_ma_matches_css_optimum` | covered |
+| scikit | scikit::ts/arima::fitted_values | `statsmodels.tsa.arima.model.ARIMA(..., trend='c').smooth(...).fittedvalues`; d = 0 only, d >= 1 is #312 (a defect) | 1e-9 rel + 1e-12 abs | `fitted_values_matches_statsmodels` | covered |
+| scikit | scikit::ts/arima::forecast | `statsmodels.tsa.arima.model.ARIMA(..., trend='c').smooth(...).forecast(5)`; d = 1 cumulated from b[-1] | 1e-9 rel + 1e-12 abs | `forecast_matches_statsmodels` | covered |
+| scikit | scikit::ts/decompose::seasonal_decompose | `statsmodels.tsa.seasonal.seasonal_decompose(y, model, period, two_sided=True)`: seasonal, trend, resid | 1e-9 rel + 1e-12 abs | `seasonal_decompose_matches_statsmodels` | covered |
+| scikit | scikit::ts/decompose::seasonal_strength | closed form from the statsmodels parts: 1 - var(resid) / var(resid + seasonal) | 1e-9 rel + 1e-12 abs | `seasonal_strength_matches_closed_form` | covered |
+| scikit | scikit::ts/decompose::trend_strength | closed form from the statsmodels parts: 1 - var(resid) / var(trend + resid) (Wang, Smith and Hyndman 2006) | 1e-9 rel + 1e-12 abs | `trend_strength_matches_closed_form` | covered |
+| scikit | scikit::ts/ops::ewma | `pandas.Series.ewm(alpha=0.3, adjust=False).mean()` | 1e-9 rel + 1e-12 abs | `ewma_matches_pandas` | covered |
+| scikit | scikit::ts/ops::ewma_halflife | `pandas.Series.ewm(halflife=3, adjust=False).mean()` | 1e-9 rel + 1e-12 abs | `ewma_halflife_matches_pandas` | covered |
+| scikit | scikit::ts/ops::ewma_span | `pandas.Series.ewm(span=10, adjust=False).mean()` | 1e-9 rel + 1e-12 abs | `ewma_span_matches_pandas` | covered |
+| scikit | scikit::ts/ops::expanding_max | `pandas.Series.expanding().max()` | 1e-9 rel + 1e-12 abs | `expanding_max_matches_pandas` | covered |
+| scikit | scikit::ts/ops::expanding_mean | `pandas.Series.expanding().mean()` | 1e-9 rel + 1e-12 abs | `expanding_mean_matches_pandas` | covered |
+| scikit | scikit::ts/ops::expanding_min | `pandas.Series.expanding().min()` | 1e-9 rel + 1e-12 abs | `expanding_min_matches_pandas` | covered |
+| scikit | scikit::ts/ops::expanding_std | `pandas.Series.expanding(min_periods=2).std(ddof=0)` | 1e-9 rel + 1e-12 abs | `expanding_std_matches_pandas` | covered |
+| scikit | scikit::ts/ops::expanding_sum | `pandas.Series.expanding().sum()` | 1e-9 rel + 1e-12 abs | `expanding_sum_matches_pandas` | covered |
+| scikit | scikit::ts/ops::lag | `pandas.Series.shift(3)` | 1e-9 rel + 1e-12 abs | `lag_matches_pandas` | covered |
+| scikit | scikit::ts/ops::lead | `pandas.Series.shift(-2)` | 1e-9 rel + 1e-12 abs | `lead_matches_pandas` | covered |
+| scikit | scikit::ts/resample::downsample | `pandas.Series.groupby(arange(58) // 4).agg(name)`, 7 aggregations | 1e-9 rel + 1e-12 abs | `downsample_matches_pandas` | covered |
+| scikit | scikit::ts/resample::resample_to_len | `numpy.interp(numpy.linspace(0, 8, k), arange(9), x)` | 1e-9 rel + 1e-12 abs | `resample_to_len_matches_numpy` | covered |
+| scikit | scikit::ts/resample::upsample | `numpy.interp` (linear); `pandas.Series.reindex` (ffill, bfill, nearest) | 1e-9 rel + 1e-12 abs | `upsample_matches_numpy_pandas` | covered |
+| scikit | scikit::ts/smoothing::forecast | `statsmodels.tsa.holtwinters.SimpleExpSmoothing(...).fit(...).forecast(3)` | 1e-9 rel + 1e-12 abs | `ses_forecast_matches_statsmodels` | covered |
+| scikit | scikit::ts/smoothing::forecast | `statsmodels.tsa.holtwinters.Holt(y[1:], ...).fit(...).forecast(5)` | 1e-9 rel + 1e-12 abs | `holt_forecast_matches_statsmodels` | covered |
+| scikit | scikit::ts/smoothing::forecast | additive: closed form from the statsmodels states (smoothing_seasonal = gamma * (1 - alpha)); multiplicative: numpy loop of the component form (statsmodels has another form) | 1e-9 rel + 1e-12 abs | `holt_winters_forecast_matches_statsmodels` | covered |
+| scikit | scikit::ts/smoothing::holt | `statsmodels.tsa.holtwinters.Holt(y[1:], ...).fit(smoothing_level=0.5, smoothing_trend=0.2, optimized=False)` | 1e-9 rel + 1e-12 abs | `holt_matches_statsmodels` | covered |
+| scikit | scikit::ts/smoothing::holt_winters | additive: `statsmodels.tsa.holtwinters.ExponentialSmoothing` with smoothing_seasonal = gamma * (1 - alpha); multiplicative: numpy loop of the component form (statsmodels has another form) | 1e-9 rel + 1e-12 abs | `holt_winters_matches_statsmodels` | covered |
+| scikit | scikit::ts/smoothing::ses | `statsmodels.tsa.holtwinters.SimpleExpSmoothing(...).fit(smoothing_level=0.3, optimized=False)` | 1e-9 rel + 1e-12 abs | `ses_matches_statsmodels` | covered |
 
 ## Not numeric
 
