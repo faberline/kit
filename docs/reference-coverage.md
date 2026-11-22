@@ -39,7 +39,7 @@ Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` l
 | arraykit | arraykit::array/manip::hstack | - | - | - | not covered |
 | arraykit | arraykit::array/manip::repeat | - | - | - | not covered |
 | arraykit | arraykit::array/manip::sort | - | - | - | not covered |
-| arraykit | arraykit::array/manip::split | - | - | - | not covered |
+| arraykit | arraykit::array/manip::split | numpy.split | exact | split_numpy.rs | covered |
 | arraykit | arraykit::array/manip::stack | - | - | - | not covered |
 | arraykit | arraykit::array/manip::tile | - | - | - | not covered |
 | arraykit | arraykit::array/manip::unique | - | - | - | not covered |

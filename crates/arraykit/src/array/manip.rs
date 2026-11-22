@@ -193,9 +193,10 @@ impl<T: ArrayElement> NdArray<T> {
             let start = split_points[i];
             let end = split_points[i + 1];
 
-            if start >= end || end > axis_len {
-                continue;
-            }
+            // numpy slices a[start:end]: clamp both ends to the axis length.
+            // An end before the start gives an empty piece, as numpy does.
+            let start = start.min(axis_len);
+            let end = end.min(axis_len).max(start);
 
             // Create sub-array
             let mut new_dims = self.dims().to_vec();
