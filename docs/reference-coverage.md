@@ -43,7 +43,7 @@ Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` l
 | arraykit | arraykit::array/manip::stack | `numpy.stack` on axis 0, 1 and 2 | 1e-9 rel | `stack_matches_numpy` | covered |
 | arraykit | arraykit::array/manip::tile | `numpy.tile` with 1 and 2 reps, 1D and 2D | 1e-9 rel | `tile_matches_numpy` | covered |
 | arraykit | arraykit::array/manip::unique | `numpy.unique` (sorted) on 6 values and on 10,000 values | exact | `unique_matches_numpy` | covered |
-| arraykit | arraykit::array/manip::vstack | - | - | - | not covered |
+| arraykit | arraykit::array/manip::vstack | `numpy.vstack` on 2D and 1D inputs | 1e-9 rel | `vstack_matches_numpy` | covered |
 | arraykit | arraykit::array/math::abs | `numpy.abs(x)` | 1e-9 rel | `abs_matches_numpy` | covered |
 | arraykit | arraykit::array/math::abs_int | `numpy.abs(v)` on int32 | exact | `abs_int_i32_matches_numpy` | covered |
 | arraykit | arraykit::array/math::abs_int | `numpy.abs(v)` on int64 | exact | `abs_int_i64_matches_numpy` | covered |

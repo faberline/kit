@@ -156,6 +156,20 @@ impl<T: ArrayElement> NdArray<T> {
 
     /// Vertical stack (row-wise, axis=0).
     pub fn vstack(arrays: &[&NdArray<T>]) -> Result<NdArray<T>> {
+        if arrays.is_empty() {
+            return Err(ArrayError::InvalidOperation("empty array list".into()));
+        }
+
+        // A 1D array is one row: as in numpy.vstack, it becomes shape (1, n) first.
+        if arrays[0].ndim() == 1 {
+            let rows = arrays
+                .iter()
+                .map(|a| NdArray::new(a.data().to_vec(), vec![1, a.size()]))
+                .collect::<Result<Vec<_>>>()?;
+            let refs: Vec<&NdArray<T>> = rows.iter().collect();
+            return Self::concatenate(&refs, 0);
+        }
+
         Self::concatenate(arrays, 0)
     }
 

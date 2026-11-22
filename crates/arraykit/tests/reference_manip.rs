@@ -197,6 +197,14 @@ fn stack_matches_numpy() {
 }
 
 #[test]
+fn vstack_matches_numpy() {
+    let s = NdArray::vstack(&[&m23(), &m13()]).unwrap();
+    check_array(&s, "vstack.2d");
+    let s = NdArray::vstack(&[&v3(), &v3b()]).unwrap();
+    check_array(&s, "vstack.1d");
+}
+
+#[test]
 fn hstack_matches_numpy() {
     let s = NdArray::hstack(&[&m23(), &m23b()]).unwrap();
     check_array(&s, "hstack.2d");

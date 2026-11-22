@@ -887,7 +887,7 @@ fn test_vstack() {
     let a: NdArray<i32> = NdArray::new(vec![1, 2], vec![2]).unwrap();
     let b: NdArray<i32> = NdArray::new(vec![3, 4], vec![2]).unwrap();
     let c = NdArray::vstack(&[&a, &b]).unwrap();
-    assert_eq!(c.dims(), &[4]);
+    assert_eq!(c.dims(), &[2, 2]);
     assert_eq!(c.data(), &[1, 2, 3, 4]);
 }
 
