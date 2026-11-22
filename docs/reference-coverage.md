@@ -198,12 +198,12 @@ Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` l
 | frame | frame::frame/ops/groupby::sum | `df.groupby('g')['v'].sum()` | 1e-9 rel | groupby_sum_matches_pandas | covered |
 | frame | frame::frame/ops/groupby::transform | `df.groupby('g')['v'].transform(lambda x: x / x.max())` | 1e-9 rel | groupby_transform_matches_pandas | covered |
 | frame | frame::frame/ops/groupby::var | `df.groupby('g')['v'].var()` | 1e-9 rel | groupby_var_matches_pandas | covered |
-| frame | frame::frame/ops/join::join | - | - | - | not covered |
-| frame | frame::frame/ops/join::join | - | - | - | not covered |
-| frame | frame::frame/ops/join::left_join | - | - | - | not covered |
-| frame | frame::frame/ops/join::merge | - | - | - | not covered |
-| frame | frame::frame/ops/join::outer_join | - | - | - | not covered |
-| frame | frame::frame/ops/join::right_join | - | - | - | not covered |
+| frame | frame::frame/ops/join::join | `left.merge(right, on='k', how=how)` | 1e-9 rel | join_matches_pandas | covered |
+| frame | frame::frame/ops/join::join | `left.merge(right, on='k', how=how)` | 1e-9 rel | join_method_matches_pandas | covered |
+| frame | frame::frame/ops/join::left_join | `left.merge(right, on='k', how='left')` | 1e-9 rel | left_join_matches_pandas | covered |
+| frame | frame::frame/ops/join::merge | `left.merge(right, on='k')` | 1e-9 rel | merge_matches_pandas | covered |
+| frame | frame::frame/ops/join::outer_join | `left.merge(right, on='k', how='outer')` | 1e-9 rel | outer_join_matches_pandas | covered |
+| frame | frame::frame/ops/join::right_join | `left.merge(right, on='k', how='right')` | 1e-9 rel | right_join_matches_pandas | covered |
 | frame | frame::frame/ops/reshape::cross_tab | - | - | - | not covered |
 | frame | frame::frame/ops/reshape::cross_tab | - | - | - | not covered |
 | frame | frame::frame/ops/reshape::pivot_table | - | - | - | not covered |
