@@ -63,5 +63,43 @@ sed 's/not covered/covered/g' "$root/docs/reference-coverage.md" > "$tmp/good.md
 sh "$here/check_table.sh" "$tmp/good.md" > /dev/null || fail "check_table exits 0 with no not covered row"
 echo "ok check_table"
 
+# (f) --check compares numbers with a tolerance: float noise passes, a real change fails.
+mkdir "$tmp/f" || fail "mkdir f"
+cd "$tmp/f" || fail "cd f"
+genf='import sys; sys.path.insert(0, sys.argv[1]); import common; common.main({"x.tsv": lambda: [("k", [0.0907985849988, 1.5], "src")]})'
+
+printf 'key\tvalue\tsource\nk\t0.0907985849987,1.5\tsrc\n' > x.tsv
+python3 -c "$genf" "$here" --check || fail "main --check accepts float noise of 1e-13"
+
+printf 'key\tvalue\tsource\nk\t0.0907985,1.5\tsrc\n' > x.tsv
+if python3 -c "$genf" "$here" --check; then
+  fail "main --check rejects a value that differs by 8.5e-8"
+fi
+
+printf 'key\tvalue\tsource\nk\t0.0907985849988,1.6\tsrc\n' > x.tsv
+if python3 -c "$genf" "$here" --check; then
+  fail "main --check rejects a changed second value"
+fi
+
+printf 'key\tvalue\tsource\nk\t0.0907985849988\tsrc\n' > x.tsv
+if python3 -c "$genf" "$here" --check; then
+  fail "main --check rejects a missing value"
+fi
+
+printf 'key\tvalue\tsource\nk\t0.0907985849988,1.5\tother\n' > x.tsv
+if python3 -c "$genf" "$here" --check; then
+  fail "main --check rejects a changed source"
+fi
+
+printf 'key\tvalue\tsource\nj\t0.0907985849988,1.5\tsrc\n' > x.tsv
+if python3 -c "$genf" "$here" --check; then
+  fail "main --check rejects a changed key"
+fi
+cd "$root" || fail "cd root"
+
+python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); import common; ok = common.values_close("nan,1.0", "nan,1.0") is True and common.values_close("nan", "1.0") is False and common.values_close("a", "b") is False; sys.exit(0 if ok else 1)' "$here" \
+  || fail "values_close"
+echo "ok tolerant check"
+
 rm -rf "$tmp"
 echo "ok all"
