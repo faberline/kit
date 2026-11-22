@@ -1,0 +1,43 @@
+key	value	source
+interp1d_linear	5.525,13.85,19.65,5.25,13.575,21.9,12.55,13.3,9.0,4.7,13.025,16.3,4.425,12.75,21.075,9.2,12.475,20.8,16.5,12.2,12.95	scipy.interpolate.interp1d(xs, ys, kind='linear')(xq), xs[i]=i*0.5, ys[i]=((i*37+11)%101)/4.0, xq[k]=(k*9+3)/20.0
+interp1d_cubic_natural	4.91039799235,14.9306189146,20.3464671863,5.25,12.7011825785,24.5242518008,10.9664782069,13.8525991304,9.84549020315,1.2253867275,15.385558916,17.0938813787,2.98822121663,12.75,22.5122236495,8.40313087845,10.1279353563,24.2224156479,15.8364380708,11.0708543794,16.1704808221	scipy.interpolate.CubicSpline(xs, ys, bc_type='natural')(xq) (kit builds a natural spline; interp1d kind='cubic' is not-a-knot)
+interp2d_linear	3.25,4.8625,3.5,2.075,0.625,4.15,4.85,2.2125,2.55,6.35,3.5,5.75	scipy.interpolate.RegularGridInterpolator((xg, yg), z, method='linear')(column_stack(px, py)), px[k]=((k*13+2)%39)/10.0, py[k]=((k*7+1)%29)/10.0
+curve_fit_params	2.4952508,1.295064,0.49934774	scipy.optimize.curve_fit(a*exp(-b*x)+c, x, y, p0=[2.0,1.0,0.4], xtol=1e-12, ftol=1e-12)[0], same x, y
+linprog_a_x	1.0,3.0	scipy.optimize.linprog([-1,-2], A_ub=[[1,1],[1,0],[0,1]], b_ub=[4,3,3], bounds=(0,None), method='highs').x
+linprog_a_fun	-7.0	scipy.optimize.linprog(...same as linprog_a_x...).fun
+linprog_b_x	2.0,0.0,1.0	scipy.optimize.linprog([-5,-4,-3], A_ub=[[2,3,1],[4,1,2],[3,4,2]], b_ub=[5,11,8], bounds=(0,None), method='highs').x
+linprog_b_fun	-13.0	scipy.optimize.linprog(...same as linprog_b_x...).fun
+rosen_bfgs_x	1.0,1.0	scipy.optimize.minimize(rosen, [-1.2, 1.0], jac=rosen_der, method='BFGS', options={'gtol': 1e-12}).x
+rosen_bfgs_fun	5.37411491682e-30	same call, .fun
+rosen_nm_x	1.0,1.0	scipy.optimize.minimize(rosen, [-1.2, 1.0], method='Nelder-Mead', options={'xatol': 1e-12, 'fatol': 1e-12, 'maxiter': 20000, 'maxfev': 20000}).x
+rosen_nm_fun	4.68780592928e-26	same call, .fun
+bowl_bfgs_x	1.54838709674,-2.19354838708	scipy.optimize.minimize((p0-1)**2 + 2*(p1+2)**2 + 0.5*p0*p1, [0,0], jac=grad, method='BFGS', options={'gtol': 1e-12}).x
+bowl_nm_x	1.54838709871,-2.19354838887	scipy.optimize.minimize((p0-1)**2 + 2*(p1+2)**2 + 0.5*p0*p1, [0,0], method='Nelder-Mead', options=nm_opts).x
+root_cubic_brentq	2.09455148154	scipy.optimize.brentq(x**3-2x-5, 2, 3, xtol=1e-14, rtol=4*eps)
+root_cubic_bisect	2.09455148154	scipy.optimize.bisect(x**3-2x-5, 2, 3, xtol=1e-14, rtol=4*eps)
+root_cubic_newton	2.09455148154	scipy.optimize.newton(x**3-2x-5, 2.0, fprime=3x**2-2, tol=1e-14)
+root_cos_brentq	0.739085133215	scipy.optimize.brentq(cos(x)-x, 0, 1, xtol=1e-14, rtol=4*eps)
+root_cos_bisect	0.739085133215	scipy.optimize.bisect(cos(x)-x, 0, 1, xtol=1e-14, rtol=4*eps)
+root_cos_newton	0.739085133215	scipy.optimize.newton(cos(x)-x, 0.5, fprime=-sin(x)-1, tol=1e-14)
+quad_sin	2.0	scipy.integrate.quad(sin(x) on [0, pi], epsabs=1e-13, epsrel=1e-13)[0]
+quad_gauss	0.882081390762	scipy.integrate.quad(exp(-x*x) on [0, 2], epsabs=1e-13, epsrel=1e-13)[0]
+quad_lorentz	0.785398163397	scipy.integrate.quad(1/(1+x*x) on [0, 1], epsabs=1e-13, epsrel=1e-13)[0]
+quad_xlog	1.647918433	scipy.integrate.quad(x*log(x+1) on [0, 2], epsabs=1e-13, epsrel=1e-13)[0]
+quad_damped	0.500031396154	scipy.integrate.quad(exp(-x)*sin(x) on [0, 10], epsabs=1e-13, epsrel=1e-13)[0]
+fixed_quad_exp_n1	8.96337814068	scipy.integrate.fixed_quad(exp, 0.5, 2.5, n=1)[0]
+fixed_quad_cos_n1	-0.421591598862	scipy.integrate.fixed_quad(cos(3x), 0.5, 2.5, n=1)[0]
+fixed_quad_exp_n2	10.4992354523	scipy.integrate.fixed_quad(exp, 0.5, 2.5, n=2)[0]
+fixed_quad_cos_n2	0.0676892878054	scipy.integrate.fixed_quad(cos(3x), 0.5, 2.5, n=2)[0]
+fixed_quad_exp_n3	10.5334793249	scipy.integrate.fixed_quad(exp, 0.5, 2.5, n=3)[0]
+fixed_quad_cos_n3	-0.0272099561936	scipy.integrate.fixed_quad(cos(3x), 0.5, 2.5, n=3)[0]
+fixed_quad_exp_n4	10.5337713673	scipy.integrate.fixed_quad(exp, 0.5, 2.5, n=4)[0]
+fixed_quad_cos_n4	-0.0195134755743	scipy.integrate.fixed_quad(cos(3x), 0.5, 2.5, n=4)[0]
+fixed_quad_exp_n5	10.5337726863	scipy.integrate.fixed_quad(exp, 0.5, 2.5, n=5)[0]
+fixed_quad_cos_n5	-0.0198400091462	scipy.integrate.fixed_quad(cos(3x), 0.5, 2.5, n=5)[0]
+trapezoid_data	122.625	scipy.integrate.trapezoid(y, dx=0.25), y[i]=((i*37+11)%101)/4.0, 41 points
+simpson_data	122.625	scipy.integrate.simpson(y, dx=0.25), same y (even number of intervals only)
+cumtrapz_data	1.84375,6.0,9.3125,11.78125,16.5625,20.5,23.59375,25.84375,27.25,30.96875,33.84375,35.875,40.21875,43.71875,46.375,51.34375,55.46875,58.75,61.1875,62.78125,66.6875,69.75,71.96875,76.5,80.1875,83.03125,85.03125,86.1875,89.65625,92.28125,94.0625,98.15625,101.40625,103.8125,108.53125,112.40625,115.4375,117.625,118.96875,122.625	scipy.integrate.cumulative_trapezoid(y, dx=0.25), same y
+euler_step	1.05,0.43	textbook Euler: y + dt*f(t, y) (no SciPy equal)
+rk4_step	1.04658625,0.432614583333	textbook RK4 step (no SciPy equal)
+ivp_exp	0.367879441171	scipy.integrate.solve_ivp(-y, (0, 1), [1.0], method='DOP853', rtol=1e-13, atol=1e-14).y[:, -1]
+ivp_osc	0.540302305868,-0.841470984808	scipy.integrate.solve_ivp([y1, -y0], (0, 1), [1.0, 0.0], method='DOP853', rtol=1e-13, atol=1e-14).y[:, -1]

@@ -19,3 +19,6 @@ mod reference_stats_grid;
 
 #[cfg(all(feature = "fft", feature = "signal"))]
 mod reference_fft_signal;
+
+#[cfg(all(feature = "interpolate", feature = "optimize", feature = "integrate"))]
+mod reference_calc;

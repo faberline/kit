@@ -291,17 +291,17 @@ Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` l
 | scikit | scikit::fft/transform::norm | numpy.abs(numpy.fft.fft(sample(8))) | 1e-9 rel; exact zeros 1e-12 abs | norm_matches_numpy | covered |
 | scikit | scikit::fft/transform::rfft | numpy.fft.rfft(sample(n)), n in 5, 8, 1000, 1024 | 1e-9 rel; exact zeros 1e-12 abs | rfft_matches_numpy | covered |
 | scikit | scikit::fft/transform::rfftfreq | numpy.fft.rfftfreq(n, d), (8, 0.5), (5, 0.1), (1000, 0.001) | 1e-9 rel; exact zeros 1e-12 abs | rfftfreq_matches_numpy | covered |
-| scikit | scikit::integrate/ode::euler | - | - | - | not covered |
-| scikit | scikit::integrate/ode::rk4 | - | - | - | not covered |
-| scikit | scikit::integrate/ode::solve_ivp | - | - | - | not covered |
-| scikit | scikit::integrate/quad::cumulative_trapezoid | - | - | - | not covered |
-| scikit | scikit::integrate/quad::fixed_quad | - | - | - | not covered |
-| scikit | scikit::integrate/quad::quad | - | - | - | not covered |
-| scikit | scikit::integrate/quad::simps | - | - | - | not covered |
-| scikit | scikit::integrate/quad::trapezoid | - | - | - | not covered |
-| scikit | scikit::interpolate/interp::eval | - | - | - | not covered |
-| scikit | scikit::interpolate/interp::interp1d | - | - | - | not covered |
-| scikit | scikit::interpolate/interp2d::interp2d | - | - | - | not covered |
+| scikit | scikit::integrate/ode::euler | textbook Euler step y + dt*f(t, y) (no SciPy equal) | 1e-12 | euler_matches_formula | covered |
+| scikit | scikit::integrate/ode::rk4 | textbook RK4 step (no SciPy equal) | 1e-12 | rk4_matches_formula | covered |
+| scikit | scikit::integrate/ode::solve_ivp | `scipy.integrate.solve_ivp(-y, (0, 1), [1.0], method="DOP853", rtol=1e-13, atol=1e-14).y[:, -1]`; same with `[y1, -y0]` from `[1.0, 0.0]` | 5e-3 Euler, 1e-8 RK4, 1e-5 RK45 | solve_ivp_matches_scipy | covered |
+| scikit | scikit::integrate/quad::cumulative_trapezoid | `scipy.integrate.cumulative_trapezoid(y, dx=0.25)`, y[i] = ((i*37+11)%101)/4.0 for 41 points | 1e-9 rel (abs below 1) | cumulative_trapezoid_matches_scipy | covered |
+| scikit | scikit::integrate/quad::fixed_quad | `scipy.integrate.fixed_quad(f, 0.5, 2.5, n=k)[0]` for k = 1..5, f = exp and f = cos(3x) | 1e-9 rel (abs below 1) | fixed_quad_matches_scipy | covered |
+| scikit | scikit::integrate/quad::quad | `scipy.integrate.quad(f, a, b, epsabs=1e-13, epsrel=1e-13)[0]` for sin on [0, pi], exp(-x*x) on [0, 2], 1/(1+x*x) on [0, 1], x*log(x+1) on [0, 2], exp(-x)*sin(x) on [0, 10] | 1e-9 rel (abs below 1) | quad_matches_scipy | covered |
+| scikit | scikit::integrate/quad::simps | `scipy.integrate.simpson(y, dx=0.25)`, same y, 41 points (even number of intervals only) | 1e-9 rel (abs below 1) | simps_matches_scipy | covered |
+| scikit | scikit::integrate/quad::trapezoid | `scipy.integrate.trapezoid(y, dx=0.25)`, same y, 41 points | 1e-9 rel (abs below 1) | trapezoid_matches_scipy | covered |
+| scikit | scikit::interpolate/interp::eval | `scipy.interpolate.CubicSpline(xs, ys, bc_type="natural")(xq)` | 1e-9 rel (abs below 1) | eval_matches_scipy | covered |
+| scikit | scikit::interpolate/interp::interp1d | `scipy.interpolate.interp1d(xs, ys, kind="linear")(xq)`; `CubicSpline(xs, ys, bc_type="natural")(xq)` for cubic (kit spline is natural) | 1e-9 rel (abs below 1) | interp1d_matches_scipy | covered |
+| scikit | scikit::interpolate/interp2d::interp2d | `scipy.interpolate.RegularGridInterpolator((xg, yg), z, method="linear")` on a 6 x 7 grid | 1e-9 rel (abs below 1) | interp2d_matches_scipy | covered |
 | scikit | scikit::linear_model::alpha | - | - | - | not covered |
 | scikit | scikit::linear_model::coef | - | - | - | not covered |
 | scikit | scikit::linear_model::coef | - | - | - | not covered |
@@ -311,13 +311,13 @@ Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` l
 | scikit | scikit::linear_model::intercept | - | - | - | not covered |
 | scikit | scikit::linear_model::predict | - | - | - | not covered |
 | scikit | scikit::linear_model::predict | - | - | - | not covered |
-| scikit | scikit::optimize/curve_fit::curve_fit | - | - | - | not covered |
-| scikit | scikit::optimize/linprog::linprog | - | - | - | not covered |
-| scikit | scikit::optimize/minimize::bfgs | - | - | - | not covered |
-| scikit | scikit::optimize/minimize::nelder_mead | - | - | - | not covered |
-| scikit | scikit::optimize/root::bisect | - | - | - | not covered |
-| scikit | scikit::optimize/root::brentq | - | - | - | not covered |
-| scikit | scikit::optimize/root::newton | - | - | - | not covered |
+| scikit | scikit::optimize/curve_fit::curve_fit | `scipy.optimize.curve_fit(a*exp(-b*x)+c, x, y, p0=[2.0, 1.0, 0.4], xtol=1e-12, ftol=1e-12)[0]`, 40 points | 1e-6 rel (abs below 1) | curve_fit_matches_scipy | covered |
+| scikit | scikit::optimize/linprog::linprog | `scipy.optimize.linprog(c, A_ub, b_ub, bounds=(0, None), method="highs")` for two 2- and 3-variable problems: `.x` and `.fun` | 1e-9 rel (abs below 1) | linprog_matches_scipy | covered |
+| scikit | scikit::optimize/minimize::bfgs | `scipy.optimize.minimize(rosen, [-1.2, 1.0], jac=rosen_der, method='BFGS', options={'gtol': 1e-12})` (`.x`, `.fun`); convex bowl from [0, 0] | 1e-6 rel (abs below 1) | bfgs_matches_scipy | covered |
+| scikit | scikit::optimize/minimize::nelder_mead | `scipy.optimize.minimize(rosen, [-1.2, 1.0], method='Nelder-Mead', xatol=1e-12, fatol=1e-12)` (`.x`, `.fun`); convex bowl from [0, 0] | 1e-6 rel (abs below 1) | nelder_mead_matches_scipy | covered |
+| scikit | scikit::optimize/root::bisect | `scipy.optimize.bisect(x**3-2x-5, 2, 3, xtol=1e-14, rtol=4*eps)`; `bisect(cos(x)-x, 0, 1, ...)` | 1e-9 rel (abs below 1) | bisect_matches_scipy | covered |
+| scikit | scikit::optimize/root::brentq | `scipy.optimize.brentq(x**3-2x-5, 2, 3, xtol=1e-14, rtol=4*eps)`; `brentq(cos(x)-x, 0, 1, ...)` | 1e-9 rel (abs below 1) | brentq_matches_scipy | covered |
+| scikit | scikit::optimize/root::newton | `scipy.optimize.newton(x**3-2x-5, 2.0, fprime=3x**2-2, tol=1e-14)`; `newton(cos(x)-x, 0.5, fprime=-sin(x)-1, tol=1e-14)` | 1e-9 rel (abs below 1) | newton_matches_scipy | covered |
 | scikit | scikit::signal/convolve::convolve | scipy.signal.convolve(sample(n), b, mode, method='direct'), 3 modes, 2 cases | 1e-9 rel; exact zeros 1e-12 abs | convolve_matches_scipy | covered |
 | scikit | scikit::signal/convolve::correlate | scipy.signal.correlate(sample(n), b, mode, method='direct'), 3 modes, 2 cases | 1e-9 rel; exact zeros 1e-12 abs | correlate_matches_scipy | covered |
 | scikit | scikit::signal/filter::butter | scipy.signal.sosfilt(scipy.signal.butter(order, wn, btype=t, output='sos'), sample(64)) | 1e-9 rel; exact zeros 1e-12 abs | butter_matches_scipy | covered |
