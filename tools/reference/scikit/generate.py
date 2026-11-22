@@ -10,14 +10,23 @@ Run from the repository root:
 import math
 import os
 import sys
+import warnings
 
 import numpy as np
+import pandas as pd
 import scipy.integrate as ig
 import scipy.interpolate as ip
 import scipy.optimize as op
 import scipy.signal as sg
 import scipy.special as sp
 import scipy.stats as st
+from statsmodels.regression.linear_model import yule_walker
+from statsmodels.stats.diagnostic import acorr_ljungbox
+from statsmodels.tsa.arima.model import ARIMA
+from statsmodels.tsa.holtwinters import ExponentialSmoothing, Holt, SimpleExpSmoothing
+from statsmodels.tsa.seasonal import seasonal_decompose as sm_decompose
+from statsmodels.tsa.stattools import acf as sm_acf
+from statsmodels.tsa.stattools import pacf as sm_pacf
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 import common  # noqa: E402
@@ -633,11 +642,263 @@ def calc_rows():
     return rows
 
 
+def ts_y(n):
+    """The shared series of the ts group. Rust builds the same values (scikit ts tests)."""
+    return np.array(
+        [10.0 + 0.05 * i + 3.0 * math.sin(2.0 * math.pi * i / 12.0) + ((i * 37 + 11) % 101) / 50.0 for i in range(n)],
+        dtype=float,
+    )
+
+
+def ts_q(n):
+    """Integer-built series for the Ljung-Box p-values: ((i*i*31 + i*17 + 7) % 103) / 10."""
+    return np.array([((i * i * 31 + i * 17 + 7) % 103) / 10.0 for i in range(n)], dtype=float)
+
+
+def ts_b(n):
+    """The ARIMA input: a trend, a period-7 cycle, the integer ripple of ts_y and a period-5 step."""
+    return np.array(
+        [5.0 + 2.0 * math.sin(2.0 * math.pi * i / 7.0) + ((i * 37 + 11) % 101) / 25.0 + (i % 5) * 0.3 for i in range(n)],
+        dtype=float,
+    )
+
+
+def nan_vec_rows(prefix, arr, source):
+    """An array with NaN at both ends: its valid range (first, last, count), 5 values at each end, and the sum of absolute valid values."""
+    arr = np.asarray(arr, dtype=float)
+    idx = np.flatnonzero(~np.isnan(arr))
+    first, last = int(idx[0]), int(idx[-1])
+    assert np.all(np.isfinite(arr[first : last + 1])), "a NaN inside the valid range"
+    return [
+        (prefix + "_valid", [float(first), float(last), float(len(idx))], source),
+        (prefix + "_head", arr[first : first + 5].tolist(), source),
+        (prefix + "_tail", arr[last - 4 : last + 1].tolist(), source),
+        (prefix + "_abs_sum", float(np.abs(arr[idx]).sum()), source),
+    ]
+
+
+def hw_multiplicative(y, alpha, beta, gamma, m):
+    """The multiplicative component form (Hyndman and Athanasopoulos, section 8.3), as kit computes it: season divided by the level. Returns fitted, [level, trend] and the 14 forecasts."""
+    n = len(y)
+    fa = float(y[:m].mean())
+    sa = float(y[m : 2 * m].mean())
+    level = fa
+    trend = (sa - fa) / m
+    seas = list(y[:m] / fa)
+    fitted = [(level + trend) * seas[0]]
+    for i in range(1, n):
+        prev = level
+        k = i % m
+        level = alpha * (y[i] / seas[k]) + (1 - alpha) * (prev + trend)
+        trend = beta * (level - prev) + (1 - beta) * trend
+        seas[k] = gamma * (y[i] / level) + (1 - gamma) * seas[k]
+        fitted.append((level + trend) * seas[(i + 1) % m])
+    forecast = [(level + trend * h) * seas[(n + h - 1) % m] for h in range(1, 15)]
+    return fitted, [level, trend], forecast
+
+
+def ts_arima_css(ma, ar, c):
+    """The conditional sum of squares of kit's CSS fit (compute_css in arima.rs)."""
+    start = max(len(ar), len(ma))
+    res = np.zeros(len(c))
+    total = 0.0
+    for t in range(start, len(c)):
+        pred = sum(ar[j] * c[t - 1 - j] for j in range(len(ar))) + sum(ma[j] * res[t - 1 - j] for j in range(len(ma)))
+        res[t] = c[t] - pred
+        total += res[t] ** 2
+    return total
+
+
+def ts_rows():
+    """Rows of the scikit::ts group (ts_reference.tsv): acf, arima, decompose, ops, resample and smoothing."""
+    warnings.filterwarnings("ignore")
+    rows = []
+
+    def put(items):
+        rows.extend((key, common.stable_value(value), source) for key, value, source in items)
+
+    def add(key, value, source):
+        rows.append((key, common.stable_value(value), source))
+
+    # acf and Ljung-Box
+    y = ts_y(500)
+    put(vec_rows("acf_y500", sm_acf(y, nlags=24, adjusted=False, fft=False), "statsmodels.tsa.stattools.acf(y, nlags=24, adjusted=False, fft=False)"))
+    put(vec_rows("pacf_y500", sm_pacf(y, nlags=24, method="ywm")[1:], "statsmodels.tsa.stattools.pacf(y, nlags=24, method='ywm')[1:]"))
+    for series_name, x, lags in (("q500", ts_q(500), 5), ("q500", ts_q(500), 20), ("y500", y, 10)):
+        r = acorr_ljungbox(x, lags=[lags], return_df=True)
+        add(
+            f"lb_{series_name}_lag{lags}",
+            [float(r.lb_stat.iloc[0]), float(r.lb_pvalue.iloc[0])],
+            f"statsmodels.stats.diagnostic.acorr_ljungbox({series_name}, lags=[{lags}]): lb_stat, lb_pvalue",
+        )
+    add("is_significant_p", [0.03, 0.03, 0.05, 0.0], "closed form: the p-values of the test")
+    add("is_significant_alpha", [0.05, 0.01, 0.05, 0.05], "closed form: the significance levels of the test")
+    add(
+        "is_significant_expected",
+        [float(p < a) for p, a in zip([0.03, 0.03, 0.05, 0.0], [0.05, 0.01, 0.05, 0.05])],
+        "closed form: p_value < alpha (1 = significant)",
+    )
+
+    # arima: b = ts_b(120)
+    b = ts_b(120)
+    for d in (1, 2, 3):
+        put(vec_rows(f"arima_diff{d}", np.diff(b, n=d), f"numpy.diff(b, n={d})"))
+
+    def ar_part(series, p):
+        mean = float(series.mean())
+        phi = yule_walker(series - mean, order=p, method="mle")[0] if p > 0 else np.array([])
+        return [float(v) for v in phi], mean
+
+    for p, d, q in ((2, 0, 0), (1, 1, 0), (2, 1, 0), (1, 0, 1)):
+        dd = np.diff(b, n=d)
+        phi, mean = ar_part(dd, p)
+        add(
+            f"arima_fit_ar_{p}{d}{q}",
+            phi + [mean],
+            f"statsmodels.regression.linear_model.yule_walker(numpy.diff(b, {d}) - mean, order={p}, method='mle')[0], numpy.diff(b, {d}).mean()",
+        )
+    for p, d, q in ((0, 0, 1), (0, 1, 1), (1, 0, 1)):
+        dd = np.diff(b, n=d)
+        phi, mean = ar_part(dd, p)
+        c = dd - dd.mean()
+        theta = op.minimize(
+            lambda m: ts_arima_css(m, phi, c),
+            x0=np.zeros(q),
+            method="Nelder-Mead",
+            options=dict(xatol=1e-10, fatol=1e-14),
+        ).x
+        add(
+            f"arima_fit_ma_{p}{d}{q}",
+            [float(theta[0])],
+            "scipy.optimize.minimize(css, Nelder-Mead) of the CSS of kit's model",
+        )
+
+    phi200, mean200 = ar_part(b, 2)
+    res = ARIMA(b, order=(2, 0, 0), trend="c").smooth(np.r_[mean200, phi200, 1.0])
+    fv = np.asarray(res.fittedvalues, dtype=float)
+    put(vec_rows("arima_fitted_200", fv[2:], "statsmodels.tsa.arima.model.ARIMA(b, order=(2, 0, 0), trend='c').smooth(...).fittedvalues[2:]"))
+    for p, d, q in ((2, 0, 0), (1, 1, 0), (2, 1, 0)):
+        dd = np.diff(b, n=d)
+        phi, mean = ar_part(dd, p)
+        fc = np.asarray(ARIMA(dd, order=(p, 0, 0), trend="c").smooth(np.r_[mean, phi, 1.0]).forecast(5), dtype=float)
+        if d == 1:
+            fc = b[-1] + np.cumsum(fc)
+        put([(f"arima_forecast_{p}{d}{q}", fc.tolist(), f"ARIMA(numpy.diff(b, {d}), order=({p}, 0, 0), trend='c').smooth(...).forecast(5){' cumulated from b[-1]' if d == 1 else ''}")])
+        resid_res = ARIMA(dd, order=(p, 0, 0), trend="c").smooth(np.r_[mean, phi, 1.0])
+        resid = dd[p:] - np.asarray(resid_res.fittedvalues, dtype=float)[p:]
+        nn = len(resid)
+        aic = nn * math.log((resid ** 2).sum() / nn) + 2 * (p + 1)
+        add(
+            f"arima_aic_{p}{d}{q}",
+            aic,
+            "closed form of ArimaModel::aic: n * ln(RSS / n) + 2 * (p + q + 1), RSS from statsmodels' one-step residuals",
+        )
+
+    # decompose: y = ts_y(500)
+    for period in (12, 7):
+        for model in ("additive", "multiplicative"):
+            tag = f"{'add' if model == 'additive' else 'mul'}{period}"
+            r = sm_decompose(y, model=model, period=period, two_sided=True)
+            seasonal = np.asarray(r.seasonal, dtype=float)
+            trend = np.asarray(r.trend, dtype=float)
+            resid = np.asarray(r.resid, dtype=float)
+            put(vec_rows(f"dec_{tag}_seasonal", seasonal[:period], f"statsmodels.tsa.seasonal.seasonal_decompose(y, model='{model}', period={period}, two_sided=True).seasonal[:{period}]"))
+            put(nan_vec_rows(f"dec_{tag}_trend", trend, f"seasonal_decompose(y, model='{model}', period={period}, two_sided=True).trend"))
+            put(nan_vec_rows(f"dec_{tag}_resid", resid, f"seasonal_decompose(y, model='{model}', period={period}, two_sided=True).resid"))
+            ok = ~np.isnan(trend)
+            rr = resid[ok]
+            tr = trend[ok]
+            det = tr + rr if model == "additive" else tr * rr
+            rs = rr + seasonal[ok] if model == "additive" else rr * seasonal[ok]
+            ts_strength = max(0.0, 1 - np.var(rr) / np.var(det))
+            ss_strength = max(0.0, 1 - np.var(rr) / np.var(rs))
+            add(
+                f"dec_{tag}_strength",
+                [float(ts_strength), float(ss_strength)],
+                "closed form of the published definitions (Wang, Smith and Hyndman 2006): 1 - var(resid) / var(trend + resid) (multiplicative: trend * resid) and 1 - var(resid) / var(resid + seasonal)",
+            )
+
+    # ops: x = sample(60)
+    x = sample(60)
+    S = pd.Series(x)
+    put(vec_rows("ewma_a0p3", S.ewm(alpha=0.3, adjust=False).mean().values, "pandas.Series.ewm(alpha=0.3, adjust=False).mean()"))
+    put(vec_rows("ewma_span10", S.ewm(span=10, adjust=False).mean().values, "pandas.Series.ewm(span=10, adjust=False).mean()"))
+    put(vec_rows("ewma_halflife3", S.ewm(halflife=3, adjust=False).mean().values, "pandas.Series.ewm(halflife=3, adjust=False).mean()"))
+    put(vec_rows("expanding_mean", S.expanding().mean().values, "pandas.Series.expanding().mean()"))
+    put(vec_rows("expanding_sum", S.expanding().sum().values, "pandas.Series.expanding().sum()"))
+    put(vec_rows("expanding_min", S.expanding().min().values, "pandas.Series.expanding().min()"))
+    put(vec_rows("expanding_max", S.expanding().max().values, "pandas.Series.expanding().max()"))
+    put(vec_rows("expanding_std", S.expanding(min_periods=2).std(ddof=0).values, "pandas.Series.expanding(min_periods=2).std(ddof=0)"))
+    put(vec_rows("lag3", pd.Series(sample(12)).shift(3).values, "pandas.Series.shift(3)"))
+    put(vec_rows("lead2", pd.Series(sample(12)).shift(-2).values, "pandas.Series.shift(-2)"))
+
+    # resample
+    x58 = sample(58)
+    groups = np.arange(58) // 4
+    for name in ("mean", "sum", "min", "max", "first", "last", "median"):
+        put(vec_rows(f"downsample_{name}", pd.Series(x58).groupby(groups).agg(name).values, f"pandas.Series.groupby(arange(58) // 4).agg('{name}')"))
+    x5 = sample(5)
+    n5, f3 = 5, 3
+    ps = pd.Series(x5, index=np.arange(n5) * f3)
+    put(vec_rows("upsample_linear", np.interp(np.arange((n5 - 1) * f3 + 1) / f3, np.arange(n5), x5), "numpy.interp(arange((n-1)*f+1) / f, arange(n), x)"))
+    put(vec_rows("upsample_ffill", ps.reindex(range(n5 * f3), method="ffill").values, "pandas.Series.reindex(range(n*f), method='ffill')"))
+    put(vec_rows("upsample_bfill", ps.reindex(range(n5 * f3), method="bfill").ffill().values, "pandas.Series.reindex(range(n*f), method='bfill').ffill()"))
+    put(vec_rows("upsample_nearest", ps.reindex(range((n5 - 1) * f3 + 1), method="nearest").values, "pandas.Series.reindex(range((n-1)*f+1), method='nearest')"))
+    x9 = sample(9)
+    for k in (14, 5, 9):
+        put(vec_rows(f"resample_to_len_{k}", np.interp(np.linspace(0, 8, k), np.arange(9), x9), f"numpy.interp(numpy.linspace(0, 8, {k}), arange(9), x)"))
+
+    # smoothing: y = ts_y(60)
+    y60 = ts_y(60)
+    ses = SimpleExpSmoothing(y60, initialization_method="known", initial_level=float(y60[0])).fit(smoothing_level=0.3, optimized=False)
+    put(vec_rows("ses_a0p3_fitted", np.asarray(ses.level, dtype=float), "statsmodels.tsa.holtwinters.SimpleExpSmoothing(y, initialization_method='known', initial_level=y[0]).fit(smoothing_level=0.3, optimized=False).level"))
+    add("ses_a0p3_level", float(ses.level[-1]), "statsmodels: .level[-1]")
+    put(vec_rows("ses_a0p3_forecast3", np.asarray(ses.forecast(3), dtype=float), "statsmodels: .forecast(3)"))
+
+    holt_fit = Holt(
+        y60[1:],
+        initialization_method="known",
+        initial_level=float(y60[0]),
+        initial_trend=float(y60[1] - y60[0]),
+    ).fit(smoothing_level=0.5, smoothing_trend=0.2, optimized=False)
+    holt_fitted = np.r_[y60[0], np.asarray(holt_fit.level, dtype=float) + np.asarray(holt_fit.trend, dtype=float)]
+    put(vec_rows("holt_a0p5_b0p2_fitted", holt_fitted, "y[0], then statsmodels Holt(y[1:]) .level + .trend"))
+    add("holt_a0p5_b0p2_state", [float(holt_fit.level[-1]), float(holt_fit.trend[-1])], "statsmodels Holt(y[1:]): [.level[-1], .trend[-1]]")
+    put(vec_rows("holt_a0p5_b0p2_forecast5", np.asarray(holt_fit.forecast(5), dtype=float), "statsmodels Holt(y[1:]): .forecast(5)"))
+
+    m = 12
+    fa = float(y60[:m].mean())
+    sa = float(y60[m : 2 * m].mean())
+    s0 = np.roll(y60[:m] - fa, -1)
+    hw = ExponentialSmoothing(
+        y60[1:],
+        trend="add",
+        seasonal="add",
+        seasonal_periods=m,
+        initialization_method="known",
+        initial_level=fa,
+        initial_trend=(sa - fa) / m,
+        initial_seasonal=s0,
+    ).fit(smoothing_level=0.4, smoothing_trend=0.1, smoothing_seasonal=0.3 * (1 - 0.4), optimized=False)
+    hw_fitted = np.r_[y60[0] + (sa - fa) / m, np.asarray(hw.fittedvalues, dtype=float)[1:], np.asarray(hw.forecast(1), dtype=float)]
+    put(vec_rows("hw_add_fitted", hw_fitted, "statsmodels ExponentialSmoothing(additive, known start, smoothing_seasonal=gamma*(1-alpha)).fittedvalues, with y[0] first"))
+    add("hw_add_state", [float(hw.level[-1]), float(hw.trend[-1])], "statsmodels ExponentialSmoothing: [.level[-1], .trend[-1]]")
+    hw_forecast = [float(hw.level[-1] + hw.trend[-1] * h + hw.season[-12 + (h - 1) % 12]) for h in range(1, 15)]
+    put(vec_rows("hw_add_forecast14", hw_forecast, "closed form from statsmodels states: level + trend*h + season[-12 + (h-1)%12]"))
+
+    mfit, mstate, mfc = hw_multiplicative(y60, 0.4, 0.1, 0.3, m)
+    put(vec_rows("hw_mul_fitted", mfit, "numpy loop of the multiplicative component form (Hyndman and Athanasopoulos, section 8.3); statsmodels uses y / (level + trend) in the season, so it has no equal"))
+    add("hw_mul_state", mstate, "numpy loop of the multiplicative component form: [level, trend]")
+    put(vec_rows("hw_mul_forecast14", mfc, "numpy loop of the multiplicative component form: (level + trend*h) * season[(n+h-1)%12]"))
+    return rows
+
+
 common.main(
     {
         "crates/scikit/tests/fixtures/stats_reference.tsv": stats_rows,
         "crates/scikit/tests/fixtures/stats_grid_reference.tsv": stats_grid_rows,
         "crates/scikit/tests/fixtures/fft_signal_reference.tsv": fft_signal_rows,
         "crates/scikit/tests/fixtures/calc_reference.tsv": calc_rows,
+        "crates/scikit/tests/fixtures/ts_reference.tsv": ts_rows,
     }
 )
