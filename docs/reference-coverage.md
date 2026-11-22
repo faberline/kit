@@ -204,16 +204,16 @@ Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` l
 | frame | frame::frame/ops/join::merge | `left.merge(right, on='k')` | 1e-9 rel | merge_matches_pandas | covered |
 | frame | frame::frame/ops/join::outer_join | `left.merge(right, on='k', how='outer')` | 1e-9 rel | outer_join_matches_pandas | covered |
 | frame | frame::frame/ops/join::right_join | `left.merge(right, on='k', how='right')` | 1e-9 rel | right_join_matches_pandas | covered |
-| frame | frame::frame/ops/reshape::cross_tab | - | - | - | not covered |
-| frame | frame::frame/ops/reshape::cross_tab | - | - | - | not covered |
-| frame | frame::frame/ops/reshape::pivot_table | - | - | - | not covered |
-| frame | frame::frame/ops/reshape::pivot_table | - | - | - | not covered |
-| frame | frame::frame/ops/reshape::stack | - | - | - | not covered |
-| frame | frame::frame/ops/reshape::stack | - | - | - | not covered |
-| frame | frame::frame/ops/reshape::unstack | - | - | - | not covered |
-| frame | frame::frame/ops/reshape::unstack | - | - | - | not covered |
-| frame | frame::frame/ops/reshape::wide_to_long | - | - | - | not covered |
-| frame | frame::frame/ops/reshape::wide_to_long | - | - | - | not covered |
+| frame | frame::frame/ops/reshape::cross_tab | `pd.crosstab(df['region'], df['product'])` | 1e-9 rel | cross_tab_matches_pandas | covered |
+| frame | frame::frame/ops/reshape::cross_tab | `pd.crosstab(df['region'], df['product'])` | 1e-9 rel | cross_tab_method_matches_pandas | covered |
+| frame | frame::frame/ops/reshape::pivot_table | `df.pivot_table(values='sales', index='region', columns='product', aggfunc=agg)` | 1e-9 rel | pivot_table_matches_pandas | covered |
+| frame | frame::frame/ops/reshape::pivot_table | `df.pivot_table(values='sales', index='region', columns='product', aggfunc=agg)` | 1e-9 rel | pivot_table_method_matches_pandas | covered |
+| frame | frame::frame/ops/reshape::stack | `wide.melt(id_vars=['id'], value_vars=['a', 'b'])` | 1e-9 rel | stack_matches_pandas | covered |
+| frame | frame::frame/ops/reshape::stack | `wide.melt(id_vars=['id'], value_vars=['a', 'b'])` | 1e-9 rel | stack_method_matches_pandas | covered |
+| frame | frame::frame/ops/reshape::unstack | `long.pivot(index='id', columns='key', values='val').reset_index()` | 1e-9 rel | unstack_matches_pandas | covered |
+| frame | frame::frame/ops/reshape::unstack | `long.pivot(index='id', columns='key', values='val').reset_index()` | 1e-9 rel | unstack_method_matches_pandas | covered |
+| frame | frame::frame/ops/reshape::wide_to_long | `pd.wide_to_long(T, stubnames=['score', 'bonus'], i='id', j='t', sep='_').reset_index().sort_values(['id', 't'])` | 1e-9 rel | wide_to_long_matches_pandas | covered |
+| frame | frame::frame/ops/reshape::wide_to_long | `pd.wide_to_long(T, stubnames=['score', 'bonus'], i='id', j='t', sep='_').reset_index().sort_values(['id', 't'])` | 1e-9 rel | wide_to_long_method_matches_pandas | covered |
 | frame | frame::frame/ops/window::adjust | `s.ewm(alpha=0.3, adjust=False).mean()` | 1e-9 rel | ewm_adjust_matches_pandas | covered |
 | frame | frame::frame/ops/window::ewm_alpha | `s.ewm(alpha=0.3).mean()` | 1e-9 rel | ewm_alpha_matches_pandas | covered |
 | frame | frame::frame/ops/window::ewm_halflife | `s.ewm(halflife=4.0).mean()` | 1e-9 rel | ewm_halflife_matches_pandas | covered |

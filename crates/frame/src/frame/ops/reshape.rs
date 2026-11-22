@@ -200,50 +200,60 @@ pub fn wide_to_long(
 }
 
 /// Cross tabulation: frequency table of two columns.
+///
+/// Counts the rows of each (index value, column value) pair, as pandas `crosstab` does.
+/// A pair with no row is 0. A row with a null index or column value is not counted.
 pub fn cross_tab(df: &DataFrame, index: &str, columns: &str) -> Result<DataFrame> {
-    pivot_table(df, columns, index, columns, AggFunc::Count).or_else(|_| {
-        // Fallback: build manually using counts
-        let idx_col = df.get(index)?;
-        let col_col = df.get(columns)?;
+    // Count the rows directly. pivot_table is not used: it sums only numbers, so it gives
+    // null for text values such as the names in `columns`.
+    let idx_col = df.get(index)?;
+    let col_col = df.get(columns)?;
 
-        let mut unique_idx = idx_col.unique();
-        unique_idx.sort();
-        let mut unique_cols = col_col.unique();
-        unique_cols.sort();
+    let mut unique_idx: Vec<Value> = idx_col
+        .unique()
+        .into_iter()
+        .filter(|v| *v != Value::Null)
+        .collect();
+    unique_idx.sort();
+    let mut unique_cols: Vec<Value> = col_col
+        .unique()
+        .into_iter()
+        .filter(|v| *v != Value::Null)
+        .collect();
+    unique_cols.sort();
 
-        let idx_map: HashMap<Value, usize> = unique_idx
-            .iter()
-            .enumerate()
-            .map(|(i, v)| (v.clone(), i))
-            .collect();
+    let idx_map: HashMap<Value, usize> = unique_idx
+        .iter()
+        .enumerate()
+        .map(|(i, v)| (v.clone(), i))
+        .collect();
 
-        let col_map: HashMap<Value, usize> = unique_cols
-            .iter()
-            .enumerate()
-            .map(|(i, v)| (v.clone(), i))
-            .collect();
+    let col_map: HashMap<Value, usize> = unique_cols
+        .iter()
+        .enumerate()
+        .map(|(i, v)| (v.clone(), i))
+        .collect();
 
-        // Count occurrences
-        let mut counts = vec![vec![0i64; unique_idx.len()]; unique_cols.len()];
+    // Count occurrences
+    let mut counts = vec![vec![0i64; unique_idx.len()]; unique_cols.len()];
 
-        for row in 0..df.nrows() {
-            let iv = idx_col.iloc(row)?;
-            let cv = col_col.iloc(row)?;
-            if let (Some(&ri), Some(&ci)) = (idx_map.get(iv), col_map.get(cv)) {
-                counts[ci][ri] += 1;
-            }
+    for row in 0..df.nrows() {
+        let iv = idx_col.iloc(row)?;
+        let cv = col_col.iloc(row)?;
+        if let (Some(&ri), Some(&ci)) = (idx_map.get(iv), col_map.get(cv)) {
+            counts[ci][ri] += 1;
         }
+    }
 
-        // The names live in `names` until from_columns has copied them.
-        let names: Vec<String> = unique_cols.iter().map(|v| v.to_string()).collect();
-        let mut result_cols: Vec<(&str, Series)> = vec![(index, Series::new(unique_idx))];
-        for (ci, name) in names.iter().enumerate() {
-            let data: Vec<Value> = counts[ci].iter().map(|&c| Value::Int(c)).collect();
-            result_cols.push((name.as_str(), Series::new(data)));
-        }
+    // The names live in `names` until from_columns has copied them.
+    let names: Vec<String> = unique_cols.iter().map(|v| v.to_string()).collect();
+    let mut result_cols: Vec<(&str, Series)> = vec![(index, Series::new(unique_idx))];
+    for (ci, name) in names.iter().enumerate() {
+        let data: Vec<Value> = counts[ci].iter().map(|&c| Value::Int(c)).collect();
+        result_cols.push((name.as_str(), Series::new(data)));
+    }
 
-        DataFrame::from_columns(result_cols)
-    })
+    DataFrame::from_columns(result_cols)
 }
 
 // Extension methods for DataFrame
