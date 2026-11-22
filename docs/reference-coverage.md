@@ -16,21 +16,21 @@ Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` l
 | arraykit | arraykit::array/indexing::fancy_index | - | - | - | not covered |
 | arraykit | arraykit::array/indexing::fancy_set | - | - | - | not covered |
 | arraykit | arraykit::array/indexing::take | - | - | - | not covered |
-| arraykit | arraykit::array/linalg::det | - | - | - | not covered |
-| arraykit | arraykit::array/linalg::dot | - | - | - | not covered |
-| arraykit | arraykit::array/linalg::inner | - | - | - | not covered |
-| arraykit | arraykit::array/linalg::inv | - | - | - | not covered |
-| arraykit | arraykit::array/linalg::matmul | - | - | - | not covered |
-| arraykit | arraykit::array/linalg::norm | - | - | - | not covered |
-| arraykit | arraykit::array/linalg::outer | - | - | - | not covered |
-| arraykit | arraykit::array/linalg::solve | - | - | - | not covered |
-| arraykit | arraykit::array/linalg::trace | - | - | - | not covered |
-| arraykit | arraykit::array/linalg_decomp::cholesky | - | - | - | not covered |
-| arraykit | arraykit::array/linalg_decomp::eig | - | - | - | not covered |
-| arraykit | arraykit::array/linalg_decomp::eigh | - | - | - | not covered |
-| arraykit | arraykit::array/linalg_decomp::lstsq | - | - | - | not covered |
-| arraykit | arraykit::array/linalg_decomp::qr | - | - | - | not covered |
-| arraykit | arraykit::array/linalg_decomp::svd | - | - | - | not covered |
+| arraykit | arraykit::array/linalg::det | `numpy.linalg.slogdet(a)[1]` (log of the 50 x 50 det); `numpy.linalg.det(t3)`; `numpy.linalg.det([[1e-7, 0], [0, 1e-7]])` | 1e-9 rel | `det_matches_numpy`, `det_of_small_scale_matrix` | covered |
+| arraykit | arraykit::array/linalg::dot | `numpy.dot(x, y)`; `numpy.dot(p23, q32).ravel()` | 1e-9 rel | `dot_matches_numpy` | covered |
+| arraykit | arraykit::array/linalg::inner | `numpy.inner(x, y)` | 1e-9 rel | `inner_matches_numpy` | covered |
+| arraykit | arraykit::array/linalg::inv | `numpy.linalg.inv(a)[0, :5]`; `numpy.trace(numpy.linalg.inv(a))`; `numpy.linalg.inv([[1e-13]])` | 1e-9 rel; 1e-5 rel for the cond 1e10 trace (the inverse of an ill-conditioned matrix loses digits) | `inv_matches_numpy`, `inv_cond_matches_numpy`, `inv_of_small_scale_matrix` | covered |
+| arraykit | arraykit::array/linalg::matmul | `numpy.matmul(p23, q32).ravel()` | 1e-9 rel | `matmul_matches_numpy` | covered |
+| arraykit | arraykit::array/linalg::norm | `numpy.linalg.norm(x)`, with ord 2, 1, inf and 3; `numpy.linalg.norm(p23)` (Frobenius, 2-D orders 1 and inf not tested: NumPy gives matrix norms, arraykit flattens) | 1e-9 rel | `norm_matches_numpy` | covered |
+| arraykit | arraykit::array/linalg::outer | `numpy.outer(x, y).ravel()` | 1e-9 rel | `outer_matches_numpy` | covered |
+| arraykit | arraykit::array/linalg::solve | `numpy.linalg.solve(a, b)[:5]` and `[-5:]`; `numpy.linalg.solve(m, b)` (cond 1e10); `numpy.linalg.solve([[3, 1], [1, 2]], [[9, 1], [8, 3]])` | 1e-9 rel; 1e-5 rel for the cond 1e10 case (a solve loses digits as the condition number grows) | `solve_matches_numpy`, `solve_cond_matches_numpy`, `solve_with_2d_right_hand_side` | covered |
+| arraykit | arraykit::array/linalg::trace | `numpy.trace(t3)` | 1e-9 rel | `trace_matches_numpy` | covered |
+| arraykit | arraykit::array/linalg_decomp::cholesky | `numpy.diag(numpy.linalg.cholesky(p))` for p = a a^T | 1e-9 rel | `cholesky_matches_numpy` | covered |
+| arraykit | arraykit::array/linalg_decomp::eig | `numpy.sort(numpy.linalg.eig([[1, 1], [0, 2]])[0].real)` | 1e-9 rel | `eig_matches_numpy`, `eig_nonsymmetric_triangular` | covered |
+| arraykit | arraykit::array/linalg_decomp::eigh | `numpy.linalg.eigh(s)[0]` for s = a + a^T; `numpy.linalg.eigh([[2, 1], [1, 2]])[0]` | 1e-9 rel | `eigh_matches_numpy`, `eigh_symmetric` | covered |
+| arraykit | arraykit::array/linalg_decomp::lstsq | `numpy.linalg.lstsq(l, b, rcond=None)`: solution head and tail, `[1][0]` (residual sum), `[2]` (rank) | 1e-9 rel | `lstsq_matches_numpy` | covered |
+| arraykit | arraykit::array/linalg_decomp::qr | `abs(numpy.diag(numpy.linalg.qr(a)[1]))` (signs of R differ between libraries) | 1e-9 rel | `qr_matches_numpy` | covered |
+| arraykit | arraykit::array/linalg_decomp::svd | `numpy.linalg.svd(a, compute_uv=False)`; `numpy.linalg.svd(m, compute_uv=False)` (cond 1e10); `numpy.linalg.svd([[0, 0], [1, 0]], compute_uv=False)` | 1e-9 rel; 1e-5 rel for the cond 1e10 case | `svd_matches_numpy`, `svd_rank_deficient_has_no_zero_u_column` | covered |
 | arraykit | arraykit::array/manip::all | - | - | - | not covered |
 | arraykit | arraykit::array/manip::allclose | - | - | - | not covered |
 | arraykit | arraykit::array/manip::any | - | - | - | not covered |
