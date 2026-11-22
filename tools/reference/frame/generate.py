@@ -420,6 +420,21 @@ def join_rows():
         ["rv"],
         "l.merge(r, on='k') with l.k int64 [1, 2, 3] and r.k float64 [2.0, 3.0]",
     )
+
+    # The row order of the moved tests: sorted by id, then rv (NaN last), as the Rust test sorts.
+    for how in ["right", "outer"]:
+        ordered = small_left.merge(small_right, on="id", how=how).sort_values(["id", "rv"])
+        expr = f"l.merge(r, on='id', how='{how}').sort_values(['id', 'rv'])"
+        rows.append((f"join.{how}.small.id_sorted", ordered["id"].tolist(), expr))
+        rows.append((f"join.{how}.small.lv_by_id", ordered["lv"].tolist(), expr))
+    rv_sorted = int_left.merge(float_right, on="k").sort_values("rv")["rv"]
+    rows.append(
+        (
+            "join.intfloat.inner.rv_sorted",
+            rv_sorted.tolist(),
+            "l.merge(r, on='k').sort_values('rv')['rv']",
+        )
+    )
     return rows
 
 

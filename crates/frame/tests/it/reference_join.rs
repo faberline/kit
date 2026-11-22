@@ -23,6 +23,30 @@ fn reference(key: &str) -> f64 {
     panic!("fixture key {key} not found");
 }
 
+/// A list value of the fixture, comma separated; `nan` is a null.
+fn reference_list(key: &str) -> Vec<f64> {
+    for line in FIXTURE.lines().skip(1) {
+        let mut fields = line.split('\t');
+        if fields.next() == Some(key) {
+            let value = fields
+                .next()
+                .unwrap_or_else(|| panic!("fixture key {key}: no value column"));
+            return value
+                .split(',')
+                .map(|item| {
+                    if item == "nan" {
+                        f64::NAN
+                    } else {
+                        item.parse()
+                            .unwrap_or_else(|_| panic!("fixture key {key}: bad number {item}"))
+                    }
+                })
+                .collect();
+        }
+    }
+    panic!("fixture key {key} not found");
+}
+
 /// 1e-9 relative, as the table says.
 fn assert_close(actual: f64, key: &str) {
     let expected = reference(key);
@@ -30,6 +54,42 @@ fn assert_close(actual: f64, key: &str) {
         (actual - expected).abs() <= 1e-9 * expected.abs().max(1e-300),
         "{key}: got {actual}, expected {expected}"
     );
+}
+
+/// Each element of a list, in order, against the fixture list `key`; a NaN equals a NaN.
+fn assert_list(actual: &[f64], key: &str) {
+    let expected = reference_list(key);
+    assert_eq!(actual.len(), expected.len(), "{key}: length");
+    for (i, (a, e)) in actual.iter().zip(&expected).enumerate() {
+        if e.is_nan() {
+            assert!(a.is_nan(), "{key}[{i}]: got {a}, expected NaN");
+        } else {
+            assert!(
+                (a - e).abs() <= 1e-9 * e.abs().max(1e-300),
+                "{key}[{i}]: got {a}, expected {e}"
+            );
+        }
+    }
+}
+
+/// The values of a column in row order; a null is NaN.
+fn floats(out: &DataFrame, column: &str) -> Vec<f64> {
+    out.get(column)
+        .unwrap_or_else(|_| panic!("output has no column {column}"))
+        .values()
+        .iter()
+        .map(|v| v.as_float().unwrap_or(f64::NAN))
+        .collect()
+}
+
+/// The `lv` column in the order of `sort_values(['id', 'rv'])` of pandas (NaN last).
+fn lv_by_id(out: &DataFrame) -> Vec<f64> {
+    let ids = floats(out, "id");
+    let rvs = floats(out, "rv_right");
+    let lvs = floats(out, "lv");
+    let mut rows: Vec<(f64, f64, f64)> = (0..ids.len()).map(|i| (ids[i], rvs[i], lvs[i])).collect();
+    rows.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.total_cmp(&b.1)));
+    rows.iter().map(|row| row.2).collect()
 }
 
 /// The non-null count and the sum of a column; a null is skipped.
@@ -169,6 +229,10 @@ fn join_right_keeps_right_only_key() {
     let (l, r) = small_frames();
     let out = l.join(&r, &["id"], JoinType::Right).unwrap();
     assert_frame(&out, "join.right.small", &SMALL_COLUMNS);
+    let mut ids = floats(&out, "id");
+    ids.sort_by(f64::total_cmp);
+    assert_list(&ids, "join.right.small.id_sorted");
+    assert_list(&lv_by_id(&out), "join.right.small.lv_by_id");
 }
 
 // pandas: l.merge(r, on='id', how='outer'): id [1, 2, 3, 3, 4], no null id.
@@ -177,6 +241,10 @@ fn join_outer_keeps_both_sides() {
     let (l, r) = small_frames();
     let out = l.join(&r, &["id"], JoinType::Outer).unwrap();
     assert_frame(&out, "join.outer.small", &SMALL_COLUMNS);
+    let mut ids = floats(&out, "id");
+    ids.sort_by(f64::total_cmp);
+    assert_list(&ids, "join.outer.small.id_sorted");
+    assert_list(&lv_by_id(&out), "join.outer.small.lv_by_id");
 }
 
 // pandas: l.merge(r, on='k') with l.k int64 [1, 2, 3] and r.k float64 [2.0, 3.0]:
@@ -191,4 +259,7 @@ fn join_int_key_matches_float_key() {
     .unwrap();
     let out = l.join(&r, &["k"], JoinType::Inner).unwrap();
     assert_frame(&out, "join.intfloat.inner", &[("rv_right", "rv")]);
+    let mut rv = floats(&out, "rv_right");
+    rv.sort_by(f64::total_cmp);
+    assert_list(&rv, "join.intfloat.inner.rv_sorted");
 }

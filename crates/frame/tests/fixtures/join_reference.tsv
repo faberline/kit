@@ -58,3 +58,8 @@ join.outer.small.rv_sum	1201.0	l.merge(r, on='id', how='outer')
 join.intfloat.inner.rows	2.0	l.merge(r, on='k') with l.k int64 [1, 2, 3] and r.k float64 [2.0, 3.0]
 join.intfloat.inner.rv_count	2.0	l.merge(r, on='k') with l.k int64 [1, 2, 3] and r.k float64 [2.0, 3.0]
 join.intfloat.inner.rv_sum	11.0	l.merge(r, on='k') with l.k int64 [1, 2, 3] and r.k float64 [2.0, 3.0]
+join.right.small.id_sorted	2,3,3,4	l.merge(r, on='id', how='right').sort_values(['id', 'rv'])
+join.right.small.lv_by_id	20.0,30.0,30.0,nan	l.merge(r, on='id', how='right').sort_values(['id', 'rv'])
+join.outer.small.id_sorted	1,2,3,3,4	l.merge(r, on='id', how='outer').sort_values(['id', 'rv'])
+join.outer.small.lv_by_id	10.0,20.0,30.0,30.0,nan	l.merge(r, on='id', how='outer').sort_values(['id', 'rv'])
+join.intfloat.inner.rv_sorted	5,6	l.merge(r, on='k').sort_values('rv')['rv']
