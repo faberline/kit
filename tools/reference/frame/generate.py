@@ -438,6 +438,142 @@ def join_rows():
     return rows
 
 
+# Reshape inputs. S (6 rows) has no (w, b) pair, so pivot_table has a missing cell and
+# cross_tab has a zero. U (5 rows) has no (3, y) pair. W and T are wide frames. BIG has
+# 10,000 rows, and BIGW has 10,000 rows with one null every 7th cell.
+S_REGION = ["e", "e", "w", "e", "e", "w"]
+S_PRODUCT = ["a", "b", "a", "a", "a", "a"]
+S_SALES = [10.0, 20.0, 30.0, 40.0, 5.0, 15.0]
+
+
+def reshape_small():
+    return pd.DataFrame(
+        {
+            "region": S_REGION,
+            "product": S_PRODUCT,
+            "sales": pd.Series(S_SALES, dtype="float64"),
+        }
+    )
+
+
+def reshape_big():
+    region = pd.Series([i % 50 for i in range(N)], dtype="int64")
+    product = [f"p{i % 4}" for i in range(N)]
+    sales = [None if i % 7 == 3 else ((i * 37 + 11) % 101) / 4.0 for i in range(N)]
+    return pd.DataFrame(
+        {"region": region, "product": product, "sales": pd.Series(sales, dtype="float64")}
+    )
+
+
+def reshape_wide_big():
+    frame = {"id": pd.Series(range(N), dtype="int64")}
+    for k in (1, 2, 3):
+        values = [None if (i + k) % 7 == 3 else ((i * 37 + k * 11) % 101) / 4.0 for i in range(N)]
+        frame[f"score_{k}"] = pd.Series(values, dtype="float64")
+    return pd.DataFrame(frame)
+
+
+def reshape_rows():
+    rows = []
+    small = reshape_small()
+    big = reshape_big()
+
+    # pivot_table on the small frame, one aggregate at a time.
+    for agg in ["sum", "mean", "count", "min", "max", "first", "last"]:
+        table = small.pivot_table(values="sales", index="region", columns="product", aggfunc=agg)
+        expr = f"df.pivot_table(values='sales', index='region', columns='product', aggfunc='{agg}')"
+        rows.append((f"pivot_table.{agg}.small.index", table.index.tolist(), expr))
+        rows.append((f"pivot_table.{agg}.small.a", table["a"].tolist(), expr))
+        rows.append((f"pivot_table.{agg}.small.b", table["b"].tolist(), expr))
+
+    # pivot_table on the large frame: the row count, the non-null cells and their sum.
+    for agg in ["sum", "mean", "count"]:
+        table = big.pivot_table(values="sales", index="region", columns="product", aggfunc=agg)
+        expr = f"big.pivot_table(values='sales', index='region', columns='product', aggfunc='{agg}')"
+        total = float(table.sum().sum())
+        if agg == "mean":
+            total = common.stable(total)
+        rows.append((f"pivot_table.{agg}.large.rows", float(len(table)), expr))
+        rows.append((f"pivot_table.{agg}.large.cells", float(table.count().sum()), expr))
+        rows.append((f"pivot_table.{agg}.large.sum", total, expr))
+
+    # cross_tab: a count per pair of values; a pair with no row is 0.
+    ct = pd.crosstab(small["region"], small["product"])
+    expr = "pd.crosstab(df['region'], df['product'])"
+    rows.append(("cross_tab.small.index", ct.index.tolist(), expr))
+    rows.append(("cross_tab.small.a", ct["a"].tolist(), expr))
+    rows.append(("cross_tab.small.b", ct["b"].tolist(), expr))
+    bct = pd.crosstab(big["region"], big["product"])
+    expr = "pd.crosstab(big['region'], big['product'])"
+    rows.append(("cross_tab.large.rows", float(len(bct)), expr))
+    rows.append(("cross_tab.large.sum", float(bct.sum().sum()), expr))
+    rows.append(("cross_tab.large.p0", float(bct["p0"].sum()), expr))
+
+    # stack is melt in pandas: variable-major rows, a null is kept.
+    wide = pd.DataFrame(
+        {
+            "id": pd.Series([1, 2, 3], dtype="int64"),
+            "a": pd.Series([1.5, 2.5, 3.5], dtype="float64"),
+            "b": pd.Series([4.5, 5.5, None], dtype="float64"),
+        }
+    )
+    melted = wide.melt(id_vars=["id"], value_vars=["a", "b"])
+    expr = "wide.melt(id_vars=['id'], value_vars=['a', 'b'])"
+    rows.append(("stack.small.id", melted["id"].tolist(), expr))
+    rows.append(("stack.small.variable", melted["variable"].tolist(), expr))
+    rows.append(("stack.small.value", melted["value"].tolist(), expr))
+    wide_big = reshape_wide_big()
+    melted = wide_big.melt(id_vars=["id"], value_vars=["score_1", "score_2", "score_3"])
+    expr = "wide_big.melt(id_vars=['id'], value_vars=['score_1', 'score_2', 'score_3'])"
+    rows.append(("stack.large.rows", float(len(melted)), expr))
+    rows.append(("stack.large.value_count", float(melted["value"].count()), expr))
+    rows.append(("stack.large.value_sum", float(melted["value"].sum()), expr))
+    rows.append(("stack.large.id_sum", float(melted["id"].sum()), expr))
+
+    # unstack is pivot in pandas; the index comes back as the id column.
+    long = pd.DataFrame(
+        {
+            "id": pd.Series([1, 1, 2, 2, 3], dtype="int64"),
+            "key": ["x", "y", "x", "y", "x"],
+            "val": pd.Series([1.5, 2.5, 3.5, 4.5, 5.5], dtype="float64"),
+        }
+    )
+    pivoted = long.pivot(index="id", columns="key", values="val").reset_index()
+    expr = "long.pivot(index='id', columns='key', values='val').reset_index()"
+    rows.append(("unstack.small.id", pivoted["id"].tolist(), expr))
+    rows.append(("unstack.small.x", pivoted["x"].tolist(), expr))
+    rows.append(("unstack.small.y", pivoted["y"].tolist(), expr))
+
+    # wide_to_long: the suffix is text in frame, so pandas' int suffix becomes text here.
+    stubbed = pd.DataFrame(
+        {
+            "id": pd.Series([1, 2, 3], dtype="int64"),
+            "score_1": pd.Series([1.5, 2.5, 3.5], dtype="float64"),
+            "score_2": pd.Series([4.5, 5.5, 6.5], dtype="float64"),
+            "bonus_1": pd.Series([10.0, 20.0, 30.0], dtype="float64"),
+            "bonus_2": pd.Series([40.0, 50.0, 60.0], dtype="float64"),
+        }
+    )
+    long_small = (
+        pd.wide_to_long(stubbed, stubnames=["score", "bonus"], i="id", j="t", sep="_")
+        .reset_index()
+        .sort_values(["id", "t"])
+    )
+    long_small["t"] = long_small["t"].astype(str)
+    expr = "pd.wide_to_long(T, stubnames=['score', 'bonus'], i='id', j='t', sep='_').reset_index().sort_values(['id', 't'])"
+    rows.append(("wide_to_long.small.id", long_small["id"].tolist(), expr))
+    rows.append(("wide_to_long.small.t", long_small["t"].tolist(), expr))
+    rows.append(("wide_to_long.small.score", long_small["score"].tolist(), expr))
+    rows.append(("wide_to_long.small.bonus", long_small["bonus"].tolist(), expr))
+    long_big = pd.wide_to_long(wide_big, stubnames="score", i="id", j="t", sep="_").reset_index()
+    expr = "pd.wide_to_long(wide_big, stubnames='score', i='id', j='t', sep='_').reset_index()"
+    rows.append(("wide_to_long.large.rows", float(len(long_big)), expr))
+    rows.append(("wide_to_long.large.score_count", float(long_big["score"].count()), expr))
+    rows.append(("wide_to_long.large.score_sum", float(long_big["score"].sum()), expr))
+    rows.append(("wide_to_long.large.id_sum", float(long_big["id"].sum()), expr))
+    return rows
+
+
 common.main(
     {
         "crates/frame/tests/fixtures/series_reference.tsv": series_rows,
@@ -445,5 +581,6 @@ common.main(
         "crates/frame/tests/fixtures/window_reference.tsv": window_rows,
         "crates/frame/tests/fixtures/groupby_reference.tsv": groupby_rows,
         "crates/frame/tests/fixtures/join_reference.tsv": join_rows,
+        "crates/frame/tests/fixtures/reshape_reference.tsv": reshape_rows,
     }
 )
