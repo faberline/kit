@@ -39,7 +39,7 @@ Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` l
 | arraykit | arraykit::array/manip::hstack | `numpy.hstack` on 2D and 1D inputs | 1e-9 rel | `hstack_matches_numpy` | covered |
 | arraykit | arraykit::array/manip::repeat | `numpy.repeat(a, 3)`, `numpy.repeat(m, 2)`, `len(numpy.repeat(a, 0))` | 1e-9 rel | `repeat_matches_numpy` | covered |
 | arraykit | arraykit::array/manip::sort | `numpy.sort` on 6 values and on 10,000 values (head, tail, sum, weighted sum) | exact | `sort_matches_numpy` | covered |
-| arraykit | arraykit::array/manip::split | `numpy.split` on 1D, axis 0 and axis 1 inputs, each piece | 1e-9 rel | `split_matches_numpy` | covered |
+| arraykit | arraykit::array/manip::split | `numpy.split` on 1D, axis 0 and axis 1 inputs, each piece; empty and clamped pieces | 1e-9 rel | `split_matches_numpy`; `split_numpy.rs` | covered |
 | arraykit | arraykit::array/manip::stack | `numpy.stack` on axis 0, 1 and 2 | 1e-9 rel | `stack_matches_numpy` | covered |
 | arraykit | arraykit::array/manip::tile | `numpy.tile` with 1 and 2 reps, 1D and 2D | 1e-9 rel | `tile_matches_numpy` | covered |
 | arraykit | arraykit::array/manip::unique | `numpy.unique` (sorted) on 6 values and on 10,000 values | exact | `unique_matches_numpy` | covered |
