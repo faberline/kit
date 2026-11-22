@@ -160,8 +160,8 @@ fn skew_needs_three_values() {
 }
 
 #[test]
-fn skew_constant_is_zero() {
-    assert_eq!(v(&[3.0, 3.0, 3.0]).skew(), 0.0);
+fn skew_constant_is_nan() {
+    assert!(v(&[3.0, 3.0, 3.0]).skew().is_nan());
 }
 
 #[test]
@@ -170,8 +170,8 @@ fn kurtosis_needs_four_values() {
 }
 
 #[test]
-fn kurtosis_constant_is_zero() {
-    assert_eq!(v(&[3.0, 3.0, 3.0, 3.0]).kurtosis(), 0.0);
+fn kurtosis_constant_is_nan() {
+    assert!(v(&[3.0, 3.0, 3.0, 3.0]).kurtosis().is_nan());
 }
 
 #[test]
@@ -180,8 +180,10 @@ fn zscore_single_value_is_clone() {
 }
 
 #[test]
-fn zscore_constant_is_zero() {
-    assert_eq!(v(&[2.0, 2.0, 2.0]).zscore().data(), &[0.0, 0.0, 0.0]);
+fn zscore_constant_is_nan() {
+    let z = v(&[2.0, 2.0, 2.0]).zscore();
+    assert_eq!(z.data().len(), 3);
+    assert!(z.data().iter().all(|x| x.is_nan()));
 }
 
 #[test]
@@ -278,14 +280,16 @@ fn cov_needs_two_observations() {
 
 #[test]
 fn corrcoef_constant_row() {
-    // Row 0 has zero variance: its off-diagonal is 0 and its diagonal is 1.
+    // Row 0 has zero variance: its row and column are NaN, as numpy.corrcoef
+    // gives. Row 1 has variance: its diagonal is 1.
     let rows = NdArray::new(vec![1.0, 1.0, 1.0, 1.0, 2.0, 3.0], vec![2, 3]).unwrap();
     let corr = rows.corrcoef().unwrap();
     assert_eq!(corr.dims(), &[2, 2]);
-    let expected = [1.0, 0.0, 0.0, 1.0];
-    for (got, want) in corr.data().iter().zip(expected.iter()) {
-        assert!(close(*got, *want), "got {got}, want {want}");
-    }
+    let data = corr.data();
+    assert!(data[0].is_nan(), "got {}, want NaN", data[0]);
+    assert!(data[1].is_nan(), "got {}, want NaN", data[1]);
+    assert!(data[2].is_nan(), "got {}, want NaN", data[2]);
+    assert!(close(data[3], 1.0), "got {}, want 1", data[3]);
 }
 
 #[test]
