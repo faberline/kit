@@ -587,6 +587,8 @@ impl NdArray<f64> {
     /// Measures asymmetry of the distribution.
     /// - Positive skew: tail extends right
     /// - Negative skew: tail extends left
+    ///
+    /// Returns NaN when the variance is zero (as scipy.stats.skew).
     pub fn skew(&self) -> f64 {
         let n = self.data.len() as f64;
         if n < 3.0 {
@@ -598,7 +600,7 @@ impl NdArray<f64> {
         let m3: f64 = self.data.iter().map(|&x| (x - mean).powi(3)).sum::<f64>() / n;
 
         if m2 == 0.0 {
-            return 0.0;
+            return f64::NAN;
         }
 
         let g1 = m3 / m2.powf(1.5);
@@ -614,6 +616,8 @@ impl NdArray<f64> {
     /// - Excess kurtosis > 0: heavy tails (leptokurtic)
     /// - Excess kurtosis < 0: light tails (platykurtic)
     /// - Excess kurtosis = 0: normal distribution
+    ///
+    /// Returns NaN when the variance is zero (as scipy.stats.kurtosis).
     pub fn kurtosis(&self) -> f64 {
         let n = self.data.len() as f64;
         if n < 4.0 {
@@ -625,7 +629,7 @@ impl NdArray<f64> {
         let m4: f64 = self.data.iter().map(|&x| (x - mean).powi(4)).sum::<f64>() / n;
 
         if m2 == 0.0 {
-            return 0.0;
+            return f64::NAN;
         }
 
         let g2 = m4 / (m2 * m2) - 3.0;
@@ -638,6 +642,8 @@ impl NdArray<f64> {
     /// Compute z-scores for all elements.
     ///
     /// Z-score = (x - mean) / std
+    ///
+    /// Returns all NaN when the standard deviation is zero (as scipy.stats.zscore).
     pub fn zscore(&self) -> NdArray<f64> {
         if self.data.len() < 2 {
             return self.clone();
@@ -648,7 +654,7 @@ impl NdArray<f64> {
 
         if std == 0.0 {
             return NdArray {
-                data: vec![0.0; self.data.len()],
+                data: vec![f64::NAN; self.data.len()],
                 shape: self.shape.clone(),
             };
         }
@@ -783,6 +789,8 @@ impl NdArray<f64> {
     /// Compute correlation coefficient matrix.
     ///
     /// Input should be 2D where each row is a variable and each column is an observation.
+    ///
+    /// A variable with zero variance gives NaN in its row and column (as numpy.corrcoef).
     pub fn corrcoef(&self) -> Result<NdArray<f64>> {
         if self.ndim() != 2 {
             return Err(ArrayError::ShapeMismatch {
@@ -829,7 +837,7 @@ impl NdArray<f64> {
                 if std_i > 0.0 && std_j > 0.0 {
                     corr[i * n_vars + j] = cov[i * n_vars + j] / (std_i * std_j);
                 } else {
-                    corr[i * n_vars + j] = if i == j { 1.0 } else { 0.0 };
+                    corr[i * n_vars + j] = f64::NAN;
                 }
             }
         }
