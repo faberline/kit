@@ -1,5 +1,6 @@
-"""Reference values for arraykit::array/stats and arraykit::array/linalg
-(NumPy 2.4.6, SciPy 1.17.1). Each group writes its own fixture file.
+"""Reference values for arraykit::array/stats, arraykit::array/linalg,
+arraykit::array/window and arraykit::array/math (NumPy 2.4.6, SciPy 1.17.1).
+Each group writes its own fixture file.
 
 Run from the repository root:
     .venv-reference/bin/python tools/reference/arraykit/generate.py
@@ -15,6 +16,7 @@ import sys
 
 import numpy
 import scipy.stats
+from numpy.lib.stride_tricks import sliding_window_view
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import common  # noqa: E402
@@ -344,5 +346,176 @@ def linalg_rows():
     return rows
 
 
+# Window and math: arraykit::array/window and arraykit::array/math.
+# Inputs are integer formulas that the Rust test rebuilds with the same
+# operations, so both sides hold the same numbers.
+WINDOW_MATH_FIXTURE = "crates/arraykit/tests/fixtures/window_math_reference.tsv"
+
+
+def sig(i):
+    """Signal value: an integer formula, then one division by 4."""
+    return ((i * 37 + 11) % 101) / 4.0
+
+
+X10 = numpy.array([sig(i) for i in range(10)])
+XL = numpy.array([sig(i) for i in range(N_LARGE)])
+S10 = X10 - 12.5
+SL = XL - 12.5
+P10 = numpy.array([(((i * 37 + 11) % 101) + 1) / 4.0 for i in range(10)])
+PL = numpy.array([(((i * 37 + 11) % 101) + 1) / 4.0 for i in range(N_LARGE)])
+C10 = numpy.array([i % 3 == 0 for i in range(10)])
+CL = numpy.array([i % 3 == 0 for i in range(N_LARGE)])
+
+
+def summary(rows, key, y, source):
+    """Head, tail and the sum of absolute values of a long result y."""
+    y = numpy.asarray(y, dtype=float)
+    add(rows, f"{key}.head", common.stable_value(y[:5].tolist()), f"{source}[:5]")
+    add(rows, f"{key}.tail", common.stable_value(y[-5:].tolist()), f"{source}[-5:]")
+    add(rows, f"{key}.abssum", common.stable_value(float(numpy.sum(numpy.abs(y)))),
+        f"numpy.sum(numpy.abs({source}))")
+
+
+def roll_result(name, x, window):
+    """Rolling result with the valid entries only (no NumPy prefix)."""
+    windows = sliding_window_view(x, window)
+    if name == "std":
+        return windows.std(axis=1, ddof=1)
+    if name == "var":
+        return windows.var(axis=1, ddof=1)
+    return getattr(windows, name)(axis=1)
+
+
+def window_math_rows():
+    rows = []
+
+    def put(key, value, source):
+        add(rows, key, common.stable_value(value), source)
+
+    # Rolling results. The first window - 1 entries are set by arraykit (0.0
+    # or NaN), so only the valid part is stored.
+    for name in ("sum", "mean", "min", "max", "std", "var"):
+        ddof = ", ddof=1" if name in ("std", "var") else ""
+        put(f"window.{name}.w3", roll_result(name, X10, 3).tolist(),
+            f"sliding_window_view(x, 3).{name}(axis=1{ddof})")
+        summary(rows, f"window.{name}.w50", roll_result(name, XL, 50),
+                f"sliding_window_view(x, 50).{name}(axis=1{ddof})")
+
+    # min_periods 2 with window 4: the entries from index 1 on are valid.
+    for name, fn in (("sum", numpy.sum), ("mean", numpy.mean)):
+        valid = [float(fn(X10[max(0, i - 3):i + 1])) for i in range(1, 10)]
+        put(f"window.{name}.w4mp2", valid, f"numpy.{name}(x[max(0, i - 3):i + 1]) for i >= 1")
+
+    put("window.count.w4", numpy.minimum(numpy.arange(1, 11), 4).tolist(),
+        "numpy.minimum(numpy.arange(1, n + 1), 4)")
+    put("window.rolling.w1", sliding_window_view(X10, 1).sum(axis=1).tolist(),
+        "sliding_window_view(x, 1).sum(axis=1)")
+    put("window.rolling.full", float(numpy.sum(X10)), "numpy.sum(x)")
+
+    put("window.diff.n1", numpy.diff(X10, 1).tolist(), "numpy.diff(x, 1)")
+    put("window.diff.n2", numpy.diff(X10, 2).tolist(), "numpy.diff(x, 2)")
+    summary(rows, "window.diff.large", numpy.diff(XL, 1), "numpy.diff(x, 1)")
+
+    put("window.flip.small", numpy.flip(X10).tolist(), "numpy.flip(x)")
+    summary(rows, "window.flip.large", numpy.flip(XL), "numpy.flip(x)")
+
+    put("window.roll.p3", numpy.roll(X10, 3).tolist(), "numpy.roll(x, 3)")
+    put("window.roll.m4", numpy.roll(X10, -4).tolist(), "numpy.roll(x, -4)")
+    put("window.roll.p13", numpy.roll(X10, 13).tolist(), "numpy.roll(x, 13)")
+
+    put("window.pad.w2", numpy.pad(X10, 2).tolist(), "numpy.pad(x, 2)")
+    put("window.pad.w0", numpy.pad(X10, 0).tolist(), "numpy.pad(x, 0)")
+
+    put("window.gradient.small", numpy.gradient(X10).tolist(), "numpy.gradient(x)")
+    summary(rows, "window.gradient.large", numpy.gradient(XL), "numpy.gradient(x)")
+
+    xp_small = [1.5 * i for i in range(10)]
+    xq_small = [-1.0, 0.0, 0.3, 1.5, 4.4, 7.25, 13.5, 14.0, 20.0]
+    put("window.interp.small", numpy.interp(xq_small, xp_small, X10).tolist(),
+        "numpy.interp(xq, [1.5 * i for i in range(10)], x)")
+    xp_large = [0.5 * i for i in range(1001)]
+    xq_large = [((j * 7919) % 5003) / 10.0 - 0.5 for j in range(N_LARGE)]
+    summary(rows, "window.interp.large",
+            numpy.interp(xq_large, xp_large, XL[:1001]),
+            "numpy.interp(xq, [0.5 * i for i in range(1001)], x[:1001])")
+
+    put("window.squeeze.shape",
+        list(numpy.squeeze(numpy.zeros((1, 3, 1, 2))).shape),
+        "list(numpy.squeeze(numpy.zeros((1, 3, 1, 2))).shape)")
+    put("window.squeeze.ones",
+        list(numpy.atleast_1d(numpy.squeeze(numpy.zeros((1, 1, 1)))).shape),
+        "list(numpy.atleast_1d(numpy.squeeze(numpy.zeros((1, 1, 1)))).shape)")
+
+    for axis in (0, 1, 2):
+        put(f"window.expand_dims.a{axis}",
+            list(numpy.expand_dims(numpy.zeros((2, 3)), axis).shape),
+            f"list(numpy.expand_dims(numpy.zeros((2, 3)), {axis}).shape)")
+
+    matrix = numpy.arange(12, dtype=float).reshape(3, 4)
+    for k in (0, 1, 2, 3, 5):
+        put(f"window.rot90.k{k}.data", numpy.rot90(matrix, k).ravel().tolist(),
+            f"numpy.rot90(m, {k}).ravel()")
+        put(f"window.rot90.k{k}.shape", list(numpy.rot90(matrix, k).shape),
+            f"list(numpy.rot90(m, {k}).shape)")
+
+    # Element-wise functions: the small input is 10 values, the large one 10,000.
+    unary = (
+        ("sin", numpy.sin, S10, SL),
+        ("cos", numpy.cos, S10, SL),
+        ("tan", numpy.tan, S10, SL),
+        ("exp", numpy.exp, S10, SL),
+        ("abs", numpy.abs, S10, SL),
+        ("sqrt", numpy.sqrt, P10, PL),
+        ("log", numpy.log, P10, PL),
+    )
+    for name, fn, small, large in unary:
+        put(f"math.{name}.small", fn(small).tolist(), f"numpy.{name}(x)")
+        summary(rows, f"math.{name}.large", fn(large), f"numpy.{name}(x)")
+
+    put("math.pow.e25.small", numpy.power(P10, 2.5).tolist(), "numpy.power(x, 2.5)")
+    summary(rows, "math.pow.e25.large", numpy.power(PL, 2.5), "numpy.power(x, 2.5)")
+    put("math.pow.e3.small", numpy.power(S10, 3.0).tolist(), "numpy.power(x, 3.0)")
+    summary(rows, "math.pow.e3.large", numpy.power(SL, 3.0), "numpy.power(x, 3.0)")
+
+    put("math.clip.small", numpy.clip(S10, -5.0, 5.0).tolist(), "numpy.clip(x, -5.0, 5.0)")
+    summary(rows, "math.clip.large", numpy.clip(SL, -5.0, 5.0), "numpy.clip(x, -5.0, 5.0)")
+
+    put("math.linspace.s11", numpy.linspace(0.0, 1.0, 11).tolist(),
+        "numpy.linspace(0.0, 1.0, 11)")
+    ls = numpy.linspace(-5.0, 5.0, 10001)
+    put("math.linspace.s10001.first2", ls[:2].tolist(),
+        "numpy.linspace(-5.0, 5.0, 10001)[:2]")
+    put("math.linspace.s10001.last", [float(ls[-1])],
+        "numpy.linspace(-5.0, 5.0, 10001)[-1:]")
+    put("math.linspace.s10001.abssum", float(numpy.sum(numpy.abs(ls))),
+        "numpy.sum(numpy.abs(numpy.linspace(-5.0, 5.0, 10001)))")
+
+    put("math.where_cond.small", numpy.where(C10, S10, -S10).tolist(),
+        "numpy.where(c, x, -x), c[i] = (i % 3 == 0)")
+    summary(rows, "math.where_cond.large", numpy.where(CL, SL, -SL),
+            "numpy.where(c, x, -x), c[i] = (i % 3 == 0)")
+
+    # Integer absolute value: i32 values in -50..50, i64 values scaled by 1e10.
+    for n, case in ((10, "small"), (N_LARGE, "large")):
+        base = [((i * 37 + 11) % 101) - 50 for i in range(n)]
+        v32 = numpy.array(base, dtype=numpy.int32)
+        v64 = numpy.array([b * 10000000000 for b in base], dtype=numpy.int64)
+        for label, v in (("i32", v32), ("i64", v64)):
+            a = numpy.abs(v)
+            if case == "small":
+                put(f"math.abs_int.{label}.small", a.tolist(), "numpy.abs(v)")
+            else:
+                put(f"math.abs_int.{label}.large.head", a[:5].tolist(), "numpy.abs(v)[:5]")
+                put(f"math.abs_int.{label}.large.tail", a[-5:].tolist(), "numpy.abs(v)[-5:]")
+                put(f"math.abs_int.{label}.large.sum", int(numpy.sum(a)),
+                    "int(numpy.sum(numpy.abs(v)))")
+
+    return rows
+
+
 if __name__ == "__main__":
-    common.main({FIXTURE: stats_rows, LINALG_FIXTURE: linalg_rows})
+    common.main({
+        FIXTURE: stats_rows,
+        LINALG_FIXTURE: linalg_rows,
+        WINDOW_MATH_FIXTURE: window_math_rows,
+    })
