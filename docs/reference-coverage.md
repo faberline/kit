@@ -31,19 +31,19 @@ Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` l
 | arraykit | arraykit::array/linalg_decomp::lstsq | `numpy.linalg.lstsq(l, b, rcond=None)`: solution head and tail, `[1][0]` (residual sum), `[2]` (rank) | 1e-9 rel | `lstsq_matches_numpy` | covered |
 | arraykit | arraykit::array/linalg_decomp::qr | `abs(numpy.diag(numpy.linalg.qr(a)[1]))` (signs of R differ between libraries) | 1e-9 rel | `qr_matches_numpy` | covered |
 | arraykit | arraykit::array/linalg_decomp::svd | `numpy.linalg.svd(a, compute_uv=False)`; `numpy.linalg.svd(m, compute_uv=False)` (cond 1e10); `numpy.linalg.svd([[0, 0], [1, 0]], compute_uv=False)` | 1e-9 rel; 1e-5 rel for the cond 1e10 case | `svd_matches_numpy`, `svd_rank_deficient_has_no_zero_u_column` | covered |
-| arraykit | arraykit::array/manip::all | - | - | - | not covered |
-| arraykit | arraykit::array/manip::allclose | - | - | - | not covered |
-| arraykit | arraykit::array/manip::any | - | - | - | not covered |
-| arraykit | arraykit::array/manip::argsort | - | - | - | not covered |
-| arraykit | arraykit::array/manip::concatenate | - | - | - | not covered |
-| arraykit | arraykit::array/manip::hstack | - | - | - | not covered |
-| arraykit | arraykit::array/manip::repeat | - | - | - | not covered |
-| arraykit | arraykit::array/manip::sort | - | - | - | not covered |
-| arraykit | arraykit::array/manip::split | - | - | - | not covered |
-| arraykit | arraykit::array/manip::stack | - | - | - | not covered |
-| arraykit | arraykit::array/manip::tile | - | - | - | not covered |
-| arraykit | arraykit::array/manip::unique | - | - | - | not covered |
-| arraykit | arraykit::array/manip::vstack | - | - | - | not covered |
+| arraykit | arraykit::array/manip::all | `numpy.all(b)` on bool lists and on `i % 3 == 0` for 10,000 values | exact | `all_matches_numpy` | covered |
+| arraykit | arraykit::array/manip::allclose | `numpy.allclose(a, b, rtol=1e-5, atol=1e-8)` and `atol`/`rtol` cases | exact (0 or 1) | `allclose_matches_numpy` | covered |
+| arraykit | arraykit::array/manip::any | `numpy.any(b)` on bool lists and on `i % 3 == 0` for 10,000 values | exact | `any_matches_numpy` | covered |
+| arraykit | arraykit::array/manip::argsort | `numpy.argsort(a, kind="stable")` on 6 values with ties and on 10,000 values (head, tail, length, weighted sum) | exact | `argsort_matches_numpy` | covered |
+| arraykit | arraykit::array/manip::concatenate | `numpy.concatenate` on 1D, axis 0 and axis 1 inputs | 1e-9 rel | `concatenate_matches_numpy` | covered |
+| arraykit | arraykit::array/manip::hstack | `numpy.hstack` on 2D and 1D inputs | 1e-9 rel | `hstack_matches_numpy` | covered |
+| arraykit | arraykit::array/manip::repeat | `numpy.repeat(a, 3)`, `numpy.repeat(m, 2)`, `len(numpy.repeat(a, 0))` | 1e-9 rel | `repeat_matches_numpy` | covered |
+| arraykit | arraykit::array/manip::sort | `numpy.sort` on 6 values and on 10,000 values (head, tail, sum, weighted sum) | exact | `sort_matches_numpy` | covered |
+| arraykit | arraykit::array/manip::split | `numpy.split` on 1D, axis 0 and axis 1 inputs, each piece | 1e-9 rel | `split_matches_numpy` | covered |
+| arraykit | arraykit::array/manip::stack | `numpy.stack` on axis 0, 1 and 2 | 1e-9 rel | `stack_matches_numpy` | covered |
+| arraykit | arraykit::array/manip::tile | `numpy.tile` with 1 and 2 reps, 1D and 2D | 1e-9 rel | `tile_matches_numpy` | covered |
+| arraykit | arraykit::array/manip::unique | `numpy.unique` (sorted) on 6 values and on 10,000 values | exact | `unique_matches_numpy` | covered |
+| arraykit | arraykit::array/manip::vstack | `numpy.vstack` on 2D and 1D inputs | 1e-9 rel | `vstack_matches_numpy` | covered |
 | arraykit | arraykit::array/math::abs | `numpy.abs(x)` | 1e-9 rel | `abs_matches_numpy` | covered |
 | arraykit | arraykit::array/math::abs_int | `numpy.abs(v)` on int32 | exact | `abs_int_i32_matches_numpy` | covered |
 | arraykit | arraykit::array/math::abs_int | `numpy.abs(v)` on int64 | exact | `abs_int_i64_matches_numpy` | covered |
@@ -330,27 +330,27 @@ Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` l
 | scikit | scikit::signal/windows::hamming | scipy.signal.windows.hamming(n, sym=True), n in 9, 64 | 1e-9 rel; exact zeros 1e-12 abs | hamming_matches_scipy | covered |
 | scikit | scikit::signal/windows::hann | scipy.signal.windows.hann(n, sym=True), n in 9, 64 | 1e-9 rel; exact zeros 1e-12 abs | hann_matches_scipy | covered |
 | scikit | scikit::signal/windows::kaiser | scipy.signal.windows.kaiser(n, beta, sym=True), n in 9, 64, beta 5.0 and 8.6 | 1e-9 rel; exact zeros 1e-12 abs | kaiser_matches_scipy | covered |
-| scikit | scikit::sparse/csc::add | - | - | - | not covered |
-| scikit | scikit::sparse/csc::density | - | - | - | not covered |
-| scikit | scikit::sparse/csc::dot | - | - | - | not covered |
-| scikit | scikit::sparse/csc::scale | - | - | - | not covered |
-| scikit | scikit::sparse/csr::add | - | - | - | not covered |
-| scikit | scikit::sparse/csr::density | - | - | - | not covered |
-| scikit | scikit::sparse/csr::dot | - | - | - | not covered |
-| scikit | scikit::sparse/csr::scale | - | - | - | not covered |
-| scikit | scikit::sparse/csr::transpose | - | - | - | not covered |
-| scikit | scikit::spatial/distance::cdist | - | - | - | not covered |
-| scikit | scikit::spatial/distance::chebyshev | - | - | - | not covered |
-| scikit | scikit::spatial/distance::cosine_distance | - | - | - | not covered |
-| scikit | scikit::spatial/distance::euclidean | - | - | - | not covered |
-| scikit | scikit::spatial/distance::manhattan | - | - | - | not covered |
-| scikit | scikit::spatial/distance::minkowski | - | - | - | not covered |
-| scikit | scikit::spatial/distance::pdist | - | - | - | not covered |
-| scikit | scikit::spatial/distance::squareform | - | - | - | not covered |
-| scikit | scikit::spatial/hull::convex_hull | - | - | - | not covered |
-| scikit | scikit::spatial/hull::convex_hull_area | - | - | - | not covered |
-| scikit | scikit::spatial/kdtree::query | - | - | - | not covered |
-| scikit | scikit::spatial/kdtree::query_ball | - | - | - | not covered |
+| scikit | scikit::sparse/csc::add | `scipy.sparse.csc_matrix(A) + scipy.sparse.csc_matrix(B)`: `.nnz`, `.sum()`, `.toarray()[7]` | 1e-9 rel + 1e-12 abs | `csc_add_matches_scipy` | covered |
+| scikit | scikit::sparse/csc::density | `scipy.sparse.csc_matrix(A).nnz / (50 * 50)` (SciPy has no density method) | 1e-9 rel + 1e-12 abs | `csc_density_matches_scipy` | covered |
+| scikit | scikit::sparse/csc::dot | `scipy.sparse.csc_matrix(A).dot(xv)` | 1e-9 rel + 1e-12 abs | `csc_dot_matches_scipy` | covered |
+| scikit | scikit::sparse/csc::scale | `2.5 * scipy.sparse.csc_matrix(A)`: `.sum()`, `.toarray()[7]` | 1e-9 rel + 1e-12 abs | `csc_scale_matches_scipy` | covered |
+| scikit | scikit::sparse/csr::add | `scipy.sparse.csr_matrix(A) + scipy.sparse.csr_matrix(B)`: `.nnz`, `.sum()`, `.toarray()[7]` | 1e-9 rel + 1e-12 abs | `csr_add_matches_scipy` | covered |
+| scikit | scikit::sparse/csr::density | `scipy.sparse.csr_matrix(A).nnz / (50 * 50)` (SciPy has no density method) | 1e-9 rel + 1e-12 abs | `csr_density_matches_scipy` | covered |
+| scikit | scikit::sparse/csr::dot | `scipy.sparse.csr_matrix(A).dot(xv)` | 1e-9 rel + 1e-12 abs | `csr_dot_matches_scipy` | covered |
+| scikit | scikit::sparse/csr::scale | `2.5 * scipy.sparse.csr_matrix(A)`: `.sum()`, `.toarray()[7]` | 1e-9 rel + 1e-12 abs | `csr_scale_matches_scipy` | covered |
+| scikit | scikit::sparse/csr::transpose | `scipy.sparse.csr_matrix(A).T.tocsr()`: `.nnz`, `.dot(xv)`, `.toarray()[7]` | 1e-9 rel + 1e-12 abs | `csr_transpose_matches_scipy` | covered |
+| scikit | scikit::spatial/distance::cdist | `scipy.spatial.distance.cdist(P[:20], P[20:], metric).ravel()` for euclidean, cityblock, chebyshev, cosine | 1e-9 rel + 1e-12 abs | `cdist_matches_scipy` | covered |
+| scikit | scikit::spatial/distance::chebyshev | `scipy.spatial.distance.chebyshev(P[0], P[k])`, k = 1..49 | 1e-9 rel + 1e-12 abs | `chebyshev_matches_scipy` | covered |
+| scikit | scikit::spatial/distance::cosine_distance | `scipy.spatial.distance.cosine(P[0], P[k])`, k = 1..49 | 1e-9 rel + 1e-12 abs | `cosine_distance_matches_scipy` | covered |
+| scikit | scikit::spatial/distance::euclidean | `scipy.spatial.distance.euclidean(P[0], P[k])`, k = 1..49 | 1e-9 rel + 1e-12 abs | `euclidean_matches_scipy` | covered |
+| scikit | scikit::spatial/distance::manhattan | `scipy.spatial.distance.cityblock(P[0], P[k])`, k = 1..49 | 1e-9 rel + 1e-12 abs | `manhattan_matches_scipy` | covered |
+| scikit | scikit::spatial/distance::minkowski | `scipy.spatial.distance.minkowski(P[0], P[k], 3)`, k = 1..49 | 1e-9 rel + 1e-12 abs | `minkowski_matches_scipy` | covered |
+| scikit | scikit::spatial/distance::pdist | `scipy.spatial.distance.pdist(P, metric)` for euclidean, cityblock, chebyshev, cosine | 1e-9 rel + 1e-12 abs | `pdist_matches_scipy` | covered |
+| scikit | scikit::spatial/distance::squareform | `scipy.spatial.distance.squareform(scipy.spatial.distance.pdist(P))`: flat and row 7 | 1e-9 rel + 1e-12 abs | `squareform_matches_scipy` | covered |
+| scikit | scikit::spatial/hull::convex_hull | `sorted(scipy.spatial.ConvexHull(H).vertices)`, H = 30 integer-formula points | 1e-9 rel + 1e-12 abs | `convex_hull_matches_scipy` | covered |
+| scikit | scikit::spatial/hull::convex_hull_area | `scipy.spatial.ConvexHull(H).volume` (the area in 2-D) | 1e-9 rel + 1e-12 abs | `convex_hull_area_matches_scipy` | covered |
+| scikit | scikit::spatial/kdtree::query | `scipy.spatial.cKDTree(T).query(Q[k], k=5)`, k = 0..4 | 1e-9 rel + 1e-12 abs | `kdtree_query_matches_scipy` | covered |
+| scikit | scikit::spatial/kdtree::query_ball | `scipy.spatial.cKDTree(T).query_ball_point(Q[k], 4.5)` (distances: `numpy.linalg.norm`), k = 0..4 | 1e-9 rel + 1e-12 abs | `kdtree_query_ball_matches_scipy` | covered |
 | scikit | scikit::stats/descriptive::describe | np.mean, np.std(ddof=1), np.min, np.percentile, np.median, np.max; scipy.stats.skew, kurtosis (bias=False) | 1e-9 rel | describe_matches_numpy_scipy | covered |
 | scikit | scikit::stats/descriptive::geometric_mean | scipy.stats.gmean(X) | 1e-9 rel | geometric_mean_matches_scipy | covered |
 | scikit | scikit::stats/descriptive::harmonic_mean | scipy.stats.hmean(X) | 1e-9 rel | harmonic_mean_matches_scipy | covered |
