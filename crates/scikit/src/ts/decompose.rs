@@ -92,9 +92,9 @@ fn centered_moving_average(data: &[f64], period: usize) -> Vec<f64> {
             ma1[i + half] = sum / period as f64;
         }
         // Second pass: 2-MA to center
-        for i in 1..n {
-            if !ma1[i].is_nan() && !ma1[i - 1].is_nan() {
-                trend[i] = (ma1[i] + ma1[i - 1]) / 2.0;
+        for i in 0..n - 1 {
+            if !ma1[i].is_nan() && !ma1[i + 1].is_nan() {
+                trend[i] = (ma1[i] + ma1[i + 1]) / 2.0;
             }
         }
     }
