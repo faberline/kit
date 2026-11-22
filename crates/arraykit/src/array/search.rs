@@ -124,11 +124,7 @@ impl NdArray<f64> {
             .filter_map(|(i, &d)| if i != axis { Some(d) } else { None })
             .collect();
 
-        let out_size: usize = if out_dims.is_empty() {
-            1
-        } else {
-            out_dims.iter().product()
-        };
+        let out_size: usize = out_dims.iter().product();
 
         let mut out_index = vec![0usize; out_dims.len()];
         for _ in 0..out_size {
@@ -218,11 +214,7 @@ impl NdArray<f64> {
             .filter_map(|(i, &d)| if i != axis { Some(d) } else { None })
             .collect();
 
-        let out_size: usize = if out_dims.is_empty() {
-            1
-        } else {
-            out_dims.iter().product()
-        };
+        let out_size: usize = out_dims.iter().product();
 
         let mut out_index = vec![0usize; out_dims.len()];
         for _ in 0..out_size {
@@ -305,11 +297,6 @@ impl NdArray<f64> {
                 prev = Some(val);
             } else {
                 *counts.last_mut().unwrap() += 1;
-                // Update first index if this one is earlier
-                let last_fi = first_indices.last_mut().unwrap();
-                if orig_idx < *last_fi {
-                    *last_fi = orig_idx;
-                }
             }
             inverse_map[orig_idx] = unique_vals.len() - 1;
         }
