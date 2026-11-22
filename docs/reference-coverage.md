@@ -399,7 +399,7 @@ Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` l
 | scikit | scikit::ts/arima::forecast | `statsmodels.tsa.arima.model.ARIMA(..., trend='c').smooth(...).forecast(5)`; d = 1 cumulated from b[-1] | 1e-9 rel + 1e-12 abs | `forecast_matches_statsmodels` | covered |
 | scikit | scikit::ts/decompose::seasonal_decompose | `statsmodels.tsa.seasonal.seasonal_decompose(y, model, period, two_sided=True)`: seasonal, trend, resid | 1e-9 rel + 1e-12 abs | `seasonal_decompose_matches_statsmodels` | covered |
 | scikit | scikit::ts/decompose::seasonal_strength | closed form from the statsmodels parts: 1 - var(resid) / var(resid + seasonal) | 1e-9 rel + 1e-12 abs | `seasonal_strength_matches_closed_form` | covered |
-| scikit | scikit::ts/decompose::trend_strength | closed form from the statsmodels parts: 1 - var(resid) / var(detrended) | 1e-9 rel + 1e-12 abs | `trend_strength_matches_closed_form` | covered |
+| scikit | scikit::ts/decompose::trend_strength | closed form from the statsmodels parts: 1 - var(resid) / var(trend + resid) (Wang, Smith and Hyndman 2006) | 1e-9 rel + 1e-12 abs | `trend_strength_matches_closed_form` | covered |
 | scikit | scikit::ts/ops::ewma | `pandas.Series.ewm(alpha=0.3, adjust=False).mean()` | 1e-9 rel + 1e-12 abs | `ewma_matches_pandas` | covered |
 | scikit | scikit::ts/ops::ewma_halflife | `pandas.Series.ewm(halflife=3, adjust=False).mean()` | 1e-9 rel + 1e-12 abs | `ewma_halflife_matches_pandas` | covered |
 | scikit | scikit::ts/ops::ewma_span | `pandas.Series.ewm(span=10, adjust=False).mean()` | 1e-9 rel + 1e-12 abs | `ewma_span_matches_pandas` | covered |

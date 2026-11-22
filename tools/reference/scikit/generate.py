@@ -806,15 +806,16 @@ def ts_rows():
             put(nan_vec_rows(f"dec_{tag}_trend", trend, f"seasonal_decompose(y, model='{model}', period={period}, two_sided=True).trend"))
             put(nan_vec_rows(f"dec_{tag}_resid", resid, f"seasonal_decompose(y, model='{model}', period={period}, two_sided=True).resid"))
             ok = ~np.isnan(trend)
-            det = y - trend if model == "additive" else y / trend
             rr = resid[ok]
+            tr = trend[ok]
+            det = tr + rr if model == "additive" else tr * rr
             rs = rr + seasonal[ok] if model == "additive" else rr * seasonal[ok]
-            ts_strength = max(0.0, 1 - np.var(rr) / np.var(det[ok]))
+            ts_strength = max(0.0, 1 - np.var(rr) / np.var(det))
             ss_strength = max(0.0, 1 - np.var(rr) / np.var(rs))
             add(
                 f"dec_{tag}_strength",
                 [float(ts_strength), float(ss_strength)],
-                "closed form of the doc comments in decompose.rs: 1 - var(resid) / var(detrended) and 1 - var(resid) / var(resid + seasonal)",
+                "closed form of the published definitions (Wang, Smith and Hyndman 2006): 1 - var(resid) / var(trend + resid) (multiplicative: trend * resid) and 1 - var(resid) / var(resid + seasonal)",
             )
 
     # ops: x = sample(60)
