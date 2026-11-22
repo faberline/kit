@@ -24,3 +24,6 @@ mod reference_fft_signal;
 
 #[cfg(all(feature = "interpolate", feature = "optimize", feature = "integrate"))]
 mod reference_calc;
+
+#[cfg(all(feature = "spatial", feature = "sparse"))]
+mod reference_spatial_sparse;
