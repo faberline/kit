@@ -524,7 +524,8 @@ def calc_rows():
     cx = [i * 0.25 for i in range(40)]
     cy = [2.5 * math.exp(-1.3 * x) + 0.5 + 0.01 * (((i * 37 + 11) % 101) - 50) / 50.0 for i, x in enumerate(cx)]
     fit = op.curve_fit(lambda x, a, b, c: a * np.exp(-b * x) + c, cx, cy, p0=[2.0, 1.0, 0.4], xtol=1e-12, ftol=1e-12)[0]
-    add("curve_fit_params", fit, "scipy.optimize.curve_fit(a*exp(-b*x)+c, x, y, p0=[2.0,1.0,0.4], xtol=1e-12, ftol=1e-12)[0], same x, y")
+    # The iterative fit differs between BLAS builds at about 1e-10 relative, so keep 8 digits (test tolerance 1e-6).
+    rows.append(("curve_fit_params", common.stable_value(fit, 8), "scipy.optimize.curve_fit(a*exp(-b*x)+c, x, y, p0=[2.0,1.0,0.4], xtol=1e-12, ftol=1e-12)[0], same x, y"))
 
     # linprog: minimise c.x subject to A_ub x <= b_ub, x >= 0 (HiGHS).
     lp_a = op.linprog([-1.0, -2.0], A_ub=[[1.0, 1.0], [1.0, 0.0], [0.0, 1.0]], b_ub=[4.0, 3.0, 3.0], bounds=(0, None), method="highs")
