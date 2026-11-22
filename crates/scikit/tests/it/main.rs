@@ -24,3 +24,6 @@ mod reference_fft_signal;
 
 #[cfg(all(feature = "interpolate", feature = "optimize", feature = "integrate"))]
 mod reference_calc;
+
+#[cfg(feature = "signal")]
+mod reference_filter_scipy;

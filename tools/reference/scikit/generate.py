@@ -893,6 +893,38 @@ def ts_rows():
     return rows
 
 
+FILTER_FIXTURE = "crates/scikit/tests/fixtures/filter_scipy_reference.tsv"
+
+
+def filter_rows():
+    """scipy.signal.lfilter_zi and the initial-state form of lfilter (issue 301).
+
+    F6 (b = [1], a = [1]) has no row: SciPy raises for a single tap.
+    """
+    filters = {
+        "f1": ([0.2, 0.3, 0.2], [1.0, -0.5]),
+        "f2": ([0.0985, 0.2956, 0.2956, 0.0985], [1.0, -0.5772, 0.4218, -0.0563]),
+        "f3": ([2.0, 1.0], [2.0, -0.5]),
+        "f4": ([0.25, 0.25, 0.25, 0.25], [1.0]),
+        "f5": ([1.0, 0.5], [1.0, -0.3, 0.1]),
+    }
+    x = np.array([((i * 37 + 11) % 101) / 4.0 for i in range(20)])
+    rows = []
+    for name, (b, a) in filters.items():
+        zi_src = f"scipy.signal.lfilter_zi({b}, {a})"
+        rows.append((f"lfilter_zi.{name}", sg.lfilter_zi(b, a), zi_src))
+    for name, (b, a) in filters.items():
+        zi = sg.lfilter_zi(b, a) * x[0]
+        y, zf = sg.lfilter(b, a, x, zi=zi)
+        src = f"scipy.signal.lfilter({b}, {a}, x, zi=scipy.signal.lfilter_zi({b}, {a}) * x[0])"
+        rows.append((f"lfilter_state.{name}.y", y, src))
+        rows.append((f"lfilter_state.{name}.zf", zf, src))
+    y0, zf0 = sg.lfilter(filters["f1"][0], filters["f1"][1], x, zi=np.zeros(2))
+    rows.append(("lfilter_state.f1.y_zero", y0, "scipy.signal.lfilter([0.2, 0.3, 0.2], [1.0, -0.5], x, zi=numpy.zeros(2))"))
+    rows.append(("lfilter_state.f1.zf_zero", zf0, "scipy.signal.lfilter([0.2, 0.3, 0.2], [1.0, -0.5], x, zi=numpy.zeros(2))"))
+    return rows
+
+
 common.main(
     {
         "crates/scikit/tests/fixtures/stats_reference.tsv": stats_rows,
@@ -900,5 +932,6 @@ common.main(
         "crates/scikit/tests/fixtures/fft_signal_reference.tsv": fft_signal_rows,
         "crates/scikit/tests/fixtures/calc_reference.tsv": calc_rows,
         "crates/scikit/tests/fixtures/ts_reference.tsv": ts_rows,
+        FILTER_FIXTURE: filter_rows,
     }
 )
