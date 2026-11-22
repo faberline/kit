@@ -18,7 +18,10 @@ import scipy.integrate as ig
 import scipy.interpolate as ip
 import scipy.optimize as op
 import scipy.signal as sg
+import scipy.sparse as ssp
+import scipy.spatial as spt
 import scipy.special as sp
+from scipy.spatial import distance as dist
 import scipy.stats as st
 from statsmodels.regression.linear_model import yule_walker
 from statsmodels.stats.diagnostic import acorr_ljungbox
@@ -893,6 +896,91 @@ def ts_rows():
     return rows
 
 
+def spatial_sparse_rows():
+    """Rows of the scikit::spatial and scikit::sparse groups (spatial_sparse_reference.tsv).
+
+    Rust (crates/scikit/tests/it/reference_spatial_sparse.rs) rebuilds every input
+    with the integer formulas written here; the formulas must match exactly.
+    """
+    rows = []
+
+    def put(items):
+        rows.extend((key, common.stable_value(value), source) for key, value, source in items)
+
+    def add(key, value, source):
+        rows.append((key, common.stable_value(value), source))
+
+    # Inputs (the same integer formulas are in reference_spatial_sparse.rs).
+    P = np.array([[((i * 31 + d * 17 + i * d) % 23) / 7.0 for d in range(3)] for i in range(50)])
+    H = np.array([[float((i * 13 + 5) % 17), float((i * 7 + 3) % 19)] for i in range(30)])
+    T = np.array([[((i * 37 + d * 53 + i * d * 7) % 101) / 10.0 for d in range(3)] for i in range(40)])
+    Q = np.array([[((k * 29 + d * 11 + k * d * 3) % 97) / 9.7 + 0.013 for d in range(3)] for k in range(5)])
+    xv = np.array([((j * 5 + 3) % 11) / 4.0 for j in range(50)])
+    A = np.array(
+        [[float((i + 2 * j) % 9 + 1) if (i * 7 + j * 3) % 11 == 0 else 0.0 for j in range(50)] for i in range(50)]
+    )
+    B = np.array(
+        [[float((3 * i + j) % 7 + 1) if (i * 5 + j * 2) % 13 == 0 else 0.0 for j in range(50)] for i in range(50)]
+    )
+    ALPHA = 2.5
+    PSRC = "P[i][d] = ((i*31 + d*17 + i*d) % 23) / 7.0 (50 points, 3 dimensions)"
+
+    # Distances from point 0 to points 1..49.
+    put(vec_rows("euclidean_from0", [dist.euclidean(P[0], P[k]) for k in range(1, 50)], f"scipy.spatial.distance.euclidean(P[0], P[k]), {PSRC}"))
+    put(vec_rows("manhattan_from0", [dist.cityblock(P[0], P[k]) for k in range(1, 50)], f"scipy.spatial.distance.cityblock(P[0], P[k]), {PSRC}"))
+    put(vec_rows("chebyshev_from0", [dist.chebyshev(P[0], P[k]) for k in range(1, 50)], f"scipy.spatial.distance.chebyshev(P[0], P[k]), {PSRC}"))
+    put(vec_rows("minkowski3_from0", [dist.minkowski(P[0], P[k], 3) for k in range(1, 50)], f"scipy.spatial.distance.minkowski(P[0], P[k], 3), {PSRC}"))
+    put(vec_rows("cosine_from0", [dist.cosine(P[0], P[k]) for k in range(1, 50)], f"scipy.spatial.distance.cosine(P[0], P[k]), {PSRC}"))
+
+    # Condensed and rectangular distance matrices.
+    for name, metric in [("euclidean", "euclidean"), ("cityblock", "cityblock"), ("chebyshev", "chebyshev"), ("cosine", "cosine")]:
+        put(vec_rows(f"pdist_{name}", dist.pdist(P, metric), f"scipy.spatial.distance.pdist(P, '{metric}'), {PSRC}"))
+        put(vec_rows(f"cdist_{name}", dist.cdist(P[:20], P[20:], metric).ravel(), f"scipy.spatial.distance.cdist(P[:20], P[20:], '{metric}').ravel(), {PSRC}"))
+    sq = dist.squareform(dist.pdist(P))
+    put(vec_rows("squareform_euclidean", sq.ravel(), f"scipy.spatial.distance.squareform(scipy.spatial.distance.pdist(P)).ravel(), {PSRC}"))
+    put(vec_rows("squareform_row7", sq[7], f"scipy.spatial.distance.squareform(scipy.spatial.distance.pdist(P))[7], {PSRC}"))
+
+    # Convex hull of the 30 points H (2-D: volume is the area).
+    hull = spt.ConvexHull(H)
+    put(vec_rows("hull_vertices", [float(v) for v in sorted(hull.vertices)], "sorted(scipy.spatial.ConvexHull(H).vertices), H[i] = ((i*13+5) % 17, (i*7+3) % 19)"))
+    add("hull_area", float(hull.volume), "scipy.spatial.ConvexHull(H).volume (the area in 2-D), H[i] = ((i*13+5) % 17, (i*7+3) % 19)")
+
+    # Nearest neighbours and balls of the 40 points T for 5 query points Q.
+    tree = spt.cKDTree(T)
+    for k in range(5):
+        d_all = np.linalg.norm(T - Q[k], axis=1)
+        srt = np.sort(d_all)
+        assert np.all(np.diff(srt[:6]) > 1e-6), f"query {k}: a tie among the 6 nearest distances"
+        assert np.all(np.abs(d_all - 4.5) > 1e-6), f"query {k}: a distance lies on the radius 4.5"
+        dd, ii = tree.query(Q[k], k=5)
+        ball = sorted(tree.query_ball_point(Q[k], 4.5))
+        assert len(ball) > 0, f"query {k}: the ball is empty"
+        put(vec_rows(f"kdtree_query{k}_index", ii.astype(float), f"scipy.spatial.cKDTree(T).query(Q[{k}], k=5)[1]"))
+        put(vec_rows(f"kdtree_query{k}_dist", dd, f"scipy.spatial.cKDTree(T).query(Q[{k}], k=5)[0]"))
+        put(vec_rows(f"kdtree_ball{k}_index", np.array(ball, dtype=float), f"sorted(scipy.spatial.cKDTree(T).query_ball_point(Q[{k}], 4.5))"))
+        put(vec_rows(f"kdtree_ball{k}_dist", np.sort(d_all[ball]), f"numpy.sort(numpy.linalg.norm(T[i] - Q[{k}])) for i in the sorted ball of query {k}"))
+
+    # CSR and CSC of the 50 x 50 matrix A (B for the sum).
+    for fmt, make in [("csr", ssp.csr_matrix), ("csc", ssp.csc_matrix)]:
+        Am = make(A)
+        Bm = make(B)
+        s_add = Am + Bm
+        put(vec_rows(f"{fmt}_dot", Am.dot(xv), f"scipy.sparse.{fmt}_matrix(A).dot(xv), A[i][j] = ((i+2*j) % 9 + 1) where (i*7 + j*3) % 11 == 0"))
+        add(f"{fmt}_add_nnz", float(s_add.nnz), f"(scipy.sparse.{fmt}_matrix(A) + scipy.sparse.{fmt}_matrix(B)).nnz")
+        add(f"{fmt}_add_sum", float(s_add.sum()), f"(scipy.sparse.{fmt}_matrix(A) + scipy.sparse.{fmt}_matrix(B)).sum()")
+        put(vec_rows(f"{fmt}_add_row7", s_add.toarray()[7], f"(scipy.sparse.{fmt}_matrix(A) + scipy.sparse.{fmt}_matrix(B)).toarray()[7]"))
+        s_scale = ALPHA * Am
+        add(f"{fmt}_scale_sum", float(s_scale.sum()), f"(2.5 * scipy.sparse.{fmt}_matrix(A)).sum()")
+        put(vec_rows(f"{fmt}_scale_row7", s_scale.toarray()[7], f"(2.5 * scipy.sparse.{fmt}_matrix(A)).toarray()[7]"))
+        add(f"{fmt}_density", Am.nnz / (50 * 50), f"scipy.sparse.{fmt}_matrix(A).nnz / (50 * 50) (SciPy has no density method)")
+    # The CSR transpose is the one extra row set of csr.
+    AT = ssp.csr_matrix(A).T.tocsr()
+    add("csr_transpose_nnz", float(AT.nnz), "scipy.sparse.csr_matrix(A).T.tocsr().nnz")
+    put(vec_rows("csr_transpose_dot", AT.dot(xv), "scipy.sparse.csr_matrix(A).T.tocsr().dot(xv)"))
+    put(vec_rows("csr_transpose_row7", AT.toarray()[7], "scipy.sparse.csr_matrix(A).T.tocsr().toarray()[7]"))
+    return rows
+
+
 common.main(
     {
         "crates/scikit/tests/fixtures/stats_reference.tsv": stats_rows,
@@ -900,5 +988,6 @@ common.main(
         "crates/scikit/tests/fixtures/fft_signal_reference.tsv": fft_signal_rows,
         "crates/scikit/tests/fixtures/calc_reference.tsv": calc_rows,
         "crates/scikit/tests/fixtures/ts_reference.tsv": ts_rows,
+        "crates/scikit/tests/fixtures/spatial_sparse_reference.tsv": spatial_sparse_rows,
     }
 )
