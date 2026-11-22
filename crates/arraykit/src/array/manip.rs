@@ -308,18 +308,19 @@ impl<T: ArrayElement> NdArray<T> {
         NdArray::new(result, out_dims)
     }
 
-    /// Get unique elements.
+    /// Get unique elements, sorted (as `numpy.unique`).
     pub fn unique(&self) -> NdArray<T>
     where
-        T: std::hash::Hash + Eq,
+        T: std::hash::Hash + Eq + Ord,
     {
         let mut seen = HashSet::new();
-        let unique_data: Vec<T> = self
+        let mut unique_data: Vec<T> = self
             .data
             .iter()
             .filter(|&&x| seen.insert(x))
             .copied()
             .collect();
+        unique_data.sort();
 
         let len = unique_data.len();
         NdArray {

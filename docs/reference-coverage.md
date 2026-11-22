@@ -31,18 +31,18 @@ Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` l
 | arraykit | arraykit::array/linalg_decomp::lstsq | `numpy.linalg.lstsq(l, b, rcond=None)`: solution head and tail, `[1][0]` (residual sum), `[2]` (rank) | 1e-9 rel | `lstsq_matches_numpy` | covered |
 | arraykit | arraykit::array/linalg_decomp::qr | `abs(numpy.diag(numpy.linalg.qr(a)[1]))` (signs of R differ between libraries) | 1e-9 rel | `qr_matches_numpy` | covered |
 | arraykit | arraykit::array/linalg_decomp::svd | `numpy.linalg.svd(a, compute_uv=False)`; `numpy.linalg.svd(m, compute_uv=False)` (cond 1e10); `numpy.linalg.svd([[0, 0], [1, 0]], compute_uv=False)` | 1e-9 rel; 1e-5 rel for the cond 1e10 case | `svd_matches_numpy`, `svd_rank_deficient_has_no_zero_u_column` | covered |
-| arraykit | arraykit::array/manip::all | - | - | - | not covered |
-| arraykit | arraykit::array/manip::allclose | - | - | - | not covered |
-| arraykit | arraykit::array/manip::any | - | - | - | not covered |
-| arraykit | arraykit::array/manip::argsort | - | - | - | not covered |
-| arraykit | arraykit::array/manip::concatenate | - | - | - | not covered |
-| arraykit | arraykit::array/manip::hstack | - | - | - | not covered |
-| arraykit | arraykit::array/manip::repeat | - | - | - | not covered |
-| arraykit | arraykit::array/manip::sort | - | - | - | not covered |
-| arraykit | arraykit::array/manip::split | - | - | - | not covered |
-| arraykit | arraykit::array/manip::stack | - | - | - | not covered |
-| arraykit | arraykit::array/manip::tile | - | - | - | not covered |
-| arraykit | arraykit::array/manip::unique | - | - | - | not covered |
+| arraykit | arraykit::array/manip::all | `numpy.all(b)` on bool lists and on `i % 3 == 0` for 10,000 values | exact | `all_matches_numpy` | covered |
+| arraykit | arraykit::array/manip::allclose | `numpy.allclose(a, b, rtol=1e-5, atol=1e-8)` and `atol`/`rtol` cases | exact (0 or 1) | `allclose_matches_numpy` | covered |
+| arraykit | arraykit::array/manip::any | `numpy.any(b)` on bool lists and on `i % 3 == 0` for 10,000 values | exact | `any_matches_numpy` | covered |
+| arraykit | arraykit::array/manip::argsort | `numpy.argsort(a, kind="stable")` on 6 values with ties and on 10,000 values (head, tail, length, weighted sum) | exact | `argsort_matches_numpy` | covered |
+| arraykit | arraykit::array/manip::concatenate | `numpy.concatenate` on 1D, axis 0 and axis 1 inputs | 1e-9 rel | `concatenate_matches_numpy` | covered |
+| arraykit | arraykit::array/manip::hstack | `numpy.hstack` on 2D and 1D inputs | 1e-9 rel | `hstack_matches_numpy` | covered |
+| arraykit | arraykit::array/manip::repeat | `numpy.repeat(a, 3)`, `numpy.repeat(m, 2)`, `len(numpy.repeat(a, 0))` | 1e-9 rel | `repeat_matches_numpy` | covered |
+| arraykit | arraykit::array/manip::sort | `numpy.sort` on 6 values and on 10,000 values (head, tail, sum, weighted sum) | exact | `sort_matches_numpy` | covered |
+| arraykit | arraykit::array/manip::split | `numpy.split` on 1D, axis 0 and axis 1 inputs, each piece | 1e-9 rel | `split_matches_numpy` | covered |
+| arraykit | arraykit::array/manip::stack | `numpy.stack` on axis 0, 1 and 2 | 1e-9 rel | `stack_matches_numpy` | covered |
+| arraykit | arraykit::array/manip::tile | `numpy.tile` with 1 and 2 reps, 1D and 2D | 1e-9 rel | `tile_matches_numpy` | covered |
+| arraykit | arraykit::array/manip::unique | `numpy.unique` (sorted) on 6 values and on 10,000 values | exact | `unique_matches_numpy` | covered |
 | arraykit | arraykit::array/manip::vstack | - | - | - | not covered |
 | arraykit | arraykit::array/math::abs | `numpy.abs(x)` | 1e-9 rel | `abs_matches_numpy` | covered |
 | arraykit | arraykit::array/math::abs_int | `numpy.abs(v)` on int32 | exact | `abs_int_i32_matches_numpy` | covered |

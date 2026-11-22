@@ -1,5 +1,5 @@
 """Reference values for arraykit::array/stats, arraykit::array/linalg,
-arraykit::array/window and arraykit::array/math (NumPy 2.4.6, SciPy 1.17.1).
+arraykit::array/window, arraykit::array/math and arraykit::array/manip (NumPy 2.4.6, SciPy 1.17.1).
 Each group writes its own fixture file.
 
 Run from the repository root:
@@ -513,9 +513,116 @@ def window_math_rows():
     return rows
 
 
+MANIP_FIXTURE = "crates/arraykit/tests/fixtures/manip_reference.tsv"
+
+# Manipulation inputs. Integer formulas, as in the Rust test (see reference_manip.rs).
+M_N = 10000
+A6 = numpy.array([3.0, -1.5, 3.0, 0.5, -1.5, 2.0])
+I6 = numpy.array([3, -2, 3, 0, -2, 5], dtype=numpy.int64)
+IL = numpy.array([((i * 37 + 11) % 101) - 50 for i in range(M_N)], dtype=numpy.int64)
+FL = numpy.array([((i * 37 + 11) % 101) / 4.0 for i in range(M_N)])
+M23 = numpy.arange(1.0, 7.0).reshape(2, 3)
+M23B = numpy.arange(7.0, 13.0).reshape(2, 3)
+M13 = numpy.array([[0.5, 1.5, 2.5]])
+M22 = numpy.arange(1.0, 5.0).reshape(2, 2)
+V3 = numpy.array([1.0, 2.0, 3.0])
+V2 = numpy.array([4.0, 5.0])
+V3B = numpy.array([6.0, 7.0, 8.0])
+G46 = numpy.arange(24.0).reshape(4, 6)
+
+
+def manip_rows():
+    rows = []
+
+    def put(key, value, source):
+        add(rows, key, value, source)
+
+    def put_array(key, array, source):
+        # The flat values, then the shape under `<key>.shape`.
+        put(key, array.ravel().tolist(), source)
+        put(f"{key}.shape", list(array.shape), source)
+
+    put_array("concatenate.1d", numpy.concatenate([V3, V2, V3B]),
+              "numpy.concatenate([V3, V2, V3B])")
+    put_array("concatenate.axis0", numpy.concatenate([M23, M13], axis=0),
+              "numpy.concatenate([M23, M13], axis=0)")
+    put_array("concatenate.axis1", numpy.concatenate([M23, M23B], axis=1),
+              "numpy.concatenate([M23, M23B], axis=1)")
+
+    put_array("stack.axis0", numpy.stack([V3, V3B], axis=0), "numpy.stack([V3, V3B], axis=0)")
+    put_array("stack.axis1", numpy.stack([V3, V3B], axis=1), "numpy.stack([V3, V3B], axis=1)")
+    put_array("stack.2d.axis2", numpy.stack([M23, M23B], axis=2),
+              "numpy.stack([M23, M23B], axis=2)")
+
+    put_array("vstack.2d", numpy.vstack([M23, M13]), "numpy.vstack([M23, M13])")
+    put_array("vstack.1d", numpy.vstack([V3, V3B]), "numpy.vstack([V3, V3B])")
+    put_array("hstack.2d", numpy.hstack([M23, M23B]), "numpy.hstack([M23, M23B])")
+    put_array("hstack.1d", numpy.hstack([V3, V2, V3B]), "numpy.hstack([V3, V2, V3B])")
+
+    for n, piece in enumerate(numpy.split(A6, [2, 4])):
+        put_array(f"split.1d.{n}", piece, f"numpy.split(A6, [2, 4])[{n}]")
+    for n, piece in enumerate(numpy.split(G46, [1, 3], axis=0)):
+        put_array(f"split.axis0.{n}", piece, f"numpy.split(G46, [1, 3], axis=0)[{n}]")
+    for n, piece in enumerate(numpy.split(G46, [2, 5], axis=1)):
+        put_array(f"split.axis1.{n}", piece, f"numpy.split(G46, [2, 5], axis=1)[{n}]")
+
+    put_array("repeat.1d.r3", numpy.repeat(A6, 3), "numpy.repeat(A6, 3)")
+    put_array("repeat.2d.r2", numpy.repeat(M23, 2), "numpy.repeat(M23, 2)")
+    put("repeat.r0.len", len(numpy.repeat(A6, 0)), "len(numpy.repeat(A6, 0))")
+
+    put_array("tile.1d.r3", numpy.tile(V3, 3), "numpy.tile(V3, 3)")
+    put_array("tile.1d.r2x2", numpy.tile(V3, (2, 2)), "numpy.tile(V3, (2, 2))")
+    put_array("tile.2d.r2x3", numpy.tile(M22, (2, 3)), "numpy.tile(M22, (2, 3))")
+    put_array("tile.2d.r2", numpy.tile(M22, 2), "numpy.tile(M22, 2)")
+
+    put("sort.small", numpy.sort(I6).tolist(), "numpy.sort(I6)")
+    put("unique.small", numpy.unique(I6).tolist(), "numpy.unique(I6)")
+    sorted_il = numpy.sort(IL)
+    put("sort.large.head", sorted_il[:5].tolist(), "numpy.sort(IL)[:5]")
+    put("sort.large.tail", sorted_il[-5:].tolist(), "numpy.sort(IL)[-5:]")
+    put("sort.large.sum", int(numpy.sum(sorted_il)), "numpy.sum(numpy.sort(IL))")
+    put("sort.large.wsum", int(numpy.sum(sorted_il * numpy.arange(1, M_N + 1))),
+        "numpy.sum(numpy.sort(IL) * numpy.arange(1, 10001))")
+    uniques = numpy.unique(IL)
+    put("unique.large", uniques.tolist(), "numpy.unique(IL)")
+    put("unique.large.len", len(uniques), "len(numpy.unique(IL))")
+
+    put("argsort.small", numpy.argsort(A6, kind="stable").tolist(),
+        'numpy.argsort(A6, kind="stable")')
+    idx = numpy.argsort(FL, kind="stable")
+    put("argsort.large.head", idx[:5].tolist(), 'numpy.argsort(FL, kind="stable")[:5]')
+    put("argsort.large.tail", idx[-5:].tolist(), 'numpy.argsort(FL, kind="stable")[-5:]')
+    put("argsort.large.len", len(idx), 'len(numpy.argsort(FL, kind="stable"))')
+    put("argsort.large.wsum", int(numpy.sum(idx * numpy.arange(1, M_N + 1))),
+        'numpy.sum(numpy.argsort(FL, kind="stable") * numpy.arange(1, 10001))')
+
+    put("allclose.close",
+        int(numpy.allclose([1.0, 2.0, 3.0], [1.0 + 1e-9, 2.0 - 1e-9, 3.0], rtol=1e-5, atol=1e-8)),
+        "numpy.allclose([1, 2, 3], [1 + 1e-9, 2 - 1e-9, 3], rtol=1e-5, atol=1e-8)")
+    put("allclose.far",
+        int(numpy.allclose([1.0, 2.0, 3.0], [1.0, 2.0, 3.1], rtol=1e-5, atol=1e-8)),
+        "numpy.allclose([1, 2, 3], [1, 2, 3.1], rtol=1e-5, atol=1e-8)")
+    put("allclose.atol",
+        int(numpy.allclose([0.0, 1.0], [1e-9, 1.0], rtol=0.0, atol=1e-8)),
+        "numpy.allclose([0, 1], [1e-9, 1], rtol=0.0, atol=1e-8)")
+    put("allclose.rtol",
+        int(numpy.allclose([100.0, 200.0], [100.0005, 200.0], rtol=1e-5, atol=0.0)),
+        "numpy.allclose([100, 200], [100.0005, 200], rtol=1e-5, atol=0.0)")
+
+    put("any.mixed", int(numpy.any([False, True, False])), "numpy.any([False, True, False])")
+    put("any.none", int(numpy.any([False, False])), "numpy.any([False, False])")
+    put("all.mixed", int(numpy.all([True, False, True])), "numpy.all([True, False, True])")
+    put("all.every", int(numpy.all([True, True])), "numpy.all([True, True])")
+    mask = numpy.array([i % 3 == 0 for i in range(M_N)])
+    put("any.large", int(numpy.any(mask)), "numpy.any(i % 3 == 0 for i in range(10000))")
+    put("all.large", int(numpy.all(mask)), "numpy.all(i % 3 == 0 for i in range(10000))")
+    return rows
+
+
 if __name__ == "__main__":
     common.main({
         FIXTURE: stats_rows,
         LINALG_FIXTURE: linalg_rows,
         WINDOW_MATH_FIXTURE: window_math_rows,
+        MANIP_FIXTURE: manip_rows,
     })
