@@ -1024,12 +1024,7 @@ mod tests {
         let qr = a.qr().unwrap();
         let reconstructed = qr.q.matmul(&qr.r).unwrap();
         for i in 0..6 {
-            assert!(
-                (reconstructed.data[i] - a.data[i]).abs() < 1e-10,
-                "mismatch at {i}: {} vs {}",
-                reconstructed.data[i],
-                a.data[i]
-            );
+            assert!((reconstructed.data[i] - a.data[i]).abs() < 1e-10);
         }
     }
 
@@ -1095,12 +1090,7 @@ mod tests {
         }
 
         for (i, r) in result.iter().enumerate().take(4) {
-            assert!(
-                (*r - a.data[i]).abs() < 1e-6,
-                "SVD reconstruction mismatch at {i}: {} vs {}",
-                *r,
-                a.data[i]
-            );
+            assert!((*r - a.data[i]).abs() < 1e-6);
         }
     }
 
@@ -1124,5 +1114,39 @@ mod tests {
         let result = a.lstsq(&b).unwrap();
         // Solution should be close to the mean
         assert!(result.rank == 1 || result.rank == 2);
+    }
+
+    #[test]
+    fn t_rejects_non_2d() {
+        let v = NdArray::new(vec![1.0, 2.0], vec![2]).unwrap();
+        assert_eq!(
+            v.t().err(),
+            Some(ArrayError::ShapeMismatch {
+                expected: vec![2],
+                got: vec![1]
+            })
+        );
+    }
+
+    #[test]
+    fn solve_linear_singular_is_none() {
+        assert!(solve_linear(&[0.0; 4], &[1.0, 1.0], 2).is_none());
+    }
+
+    #[test]
+    fn eigenvector_for_a_wrong_eigenvalue_is_error() {
+        // 100 is not an eigenvalue of diag(1, 2): no start vector passes the residual test
+        let err =
+            eigenvector_by_inverse_iteration(&[1.0, 0.0, 0.0, 2.0], 2, 100.0, &[]).unwrap_err();
+        assert_eq!(
+            err,
+            ArrayError::InvalidOperation("eigenvector did not converge".into())
+        );
+    }
+
+    #[test]
+    fn wilkinson_shift_equal_diagonal() {
+        // delta = 0, so the shift is d - sqrt(|b c|) = 2 - 3
+        assert_eq!(wilkinson_shift(2.0, 3.0, 3.0, 2.0), -1.0);
     }
 }
