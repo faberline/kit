@@ -204,12 +204,9 @@ impl<T: ArrayElement> NdArray<T> {
         let mut results = Vec::new();
 
         for i in 0..split_points.len() - 1 {
-            let start = split_points[i];
-            let end = split_points[i + 1];
-
-            if start >= end || end > axis_len {
-                continue;
-            }
+            // Clamp like numpy's slicing: an empty piece is kept, never skipped.
+            let start = split_points[i].min(axis_len);
+            let end = split_points[i + 1].min(axis_len).max(start);
 
             // Create sub-array
             let mut new_dims = self.dims().to_vec();
