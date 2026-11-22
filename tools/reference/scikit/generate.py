@@ -12,6 +12,9 @@ import os
 import sys
 
 import numpy as np
+import scipy.integrate as ig
+import scipy.interpolate as ip
+import scipy.optimize as op
 import scipy.signal as sg
 import scipy.special as sp
 import scipy.stats as st
@@ -480,10 +483,161 @@ def fft_signal_rows():
     return rows
 
 
+def calc_rows():
+    """Interpolation, optimization and integration rows (calc_reference.tsv).
+
+    Each input is an integer formula that reference_calc.rs rebuilds exactly.
+    """
+    rows = []
+
+    def add(key, value, source):
+        rows.append((key, common.stable_value(value), source))
+
+    # Interpolation: xs[i] = i * 0.5, ys[i] = ((i * 37 + 11) % 101) / 4.0, xq[k] = (k * 9 + 3) / 20.0.
+    xs = [i * 0.5 for i in range(20)]
+    ys = [((i * 37 + 11) % 101) / 4.0 for i in range(20)]
+    xq = [(k * 9 + 3) / 20.0 for k in range(21)]
+    add(
+        "interp1d_linear",
+        ip.interp1d(xs, ys, kind="linear")(xq),
+        "scipy.interpolate.interp1d(xs, ys, kind='linear')(xq), xs[i]=i*0.5, ys[i]=((i*37+11)%101)/4.0, xq[k]=(k*9+3)/20.0",
+    )
+    add(
+        "interp1d_cubic_natural",
+        ip.CubicSpline(xs, ys, bc_type="natural")(xq),
+        "scipy.interpolate.CubicSpline(xs, ys, bc_type='natural')(xq) (kit builds a natural spline; interp1d kind='cubic' is not-a-knot)",
+    )
+
+    # Grid for interp2d: xg[i] = i * 0.8, yg[j] = j * 0.5, z[i][j] = ((i*7 + j*13 + 3) % 17) / 2.0.
+    xg = [i * 0.8 for i in range(6)]
+    yg = [j * 0.5 for j in range(7)]
+    z = np.array([[((i * 7 + j * 13 + 3) % 17) / 2.0 for j in range(7)] for i in range(6)])
+    px = [((k * 13 + 2) % 39) / 10.0 for k in range(12)]
+    py = [((k * 7 + 1) % 29) / 10.0 for k in range(12)]
+    add(
+        "interp2d_linear",
+        ip.RegularGridInterpolator((xg, yg), z, method="linear")(np.column_stack([px, py])),
+        "scipy.interpolate.RegularGridInterpolator((xg, yg), z, method='linear')(column_stack(px, py)), px[k]=((k*13+2)%39)/10.0, py[k]=((k*7+1)%29)/10.0",
+    )
+
+    # curve_fit: x[i] = i * 0.25, y[i] = 2.5*exp(-1.3*x) + 0.5 + 0.01*(((i*37+11)%101) - 50)/50.0.
+    cx = [i * 0.25 for i in range(40)]
+    cy = [2.5 * math.exp(-1.3 * x) + 0.5 + 0.01 * (((i * 37 + 11) % 101) - 50) / 50.0 for i, x in enumerate(cx)]
+    fit = op.curve_fit(lambda x, a, b, c: a * np.exp(-b * x) + c, cx, cy, p0=[2.0, 1.0, 0.4], xtol=1e-12, ftol=1e-12)[0]
+    # The iterative fit differs between BLAS builds at about 1e-10 relative, so keep 8 digits (test tolerance 1e-6).
+    rows.append(("curve_fit_params", common.stable_value(fit, 8), "scipy.optimize.curve_fit(a*exp(-b*x)+c, x, y, p0=[2.0,1.0,0.4], xtol=1e-12, ftol=1e-12)[0], same x, y"))
+
+    # linprog: minimise c.x subject to A_ub x <= b_ub, x >= 0 (HiGHS).
+    lp_a = op.linprog([-1.0, -2.0], A_ub=[[1.0, 1.0], [1.0, 0.0], [0.0, 1.0]], b_ub=[4.0, 3.0, 3.0], bounds=(0, None), method="highs")
+    add("linprog_a_x", lp_a.x, "scipy.optimize.linprog([-1,-2], A_ub=[[1,1],[1,0],[0,1]], b_ub=[4,3,3], bounds=(0,None), method='highs').x")
+    add("linprog_a_fun", float(lp_a.fun), "scipy.optimize.linprog(...same as linprog_a_x...).fun")
+    lp_b = op.linprog(
+        [-5.0, -4.0, -3.0],
+        A_ub=[[2.0, 3.0, 1.0], [4.0, 1.0, 2.0], [3.0, 4.0, 2.0]],
+        b_ub=[5.0, 11.0, 8.0],
+        bounds=(0, None),
+        method="highs",
+    )
+    add("linprog_b_x", lp_b.x, "scipy.optimize.linprog([-5,-4,-3], A_ub=[[2,3,1],[4,1,2],[3,4,2]], b_ub=[5,11,8], bounds=(0,None), method='highs').x")
+    add("linprog_b_fun", float(lp_b.fun), "scipy.optimize.linprog(...same as linprog_b_x...).fun")
+
+    # Rosenbrock and a convex bowl, from the given starts.
+    def bowl(p):
+        return (p[0] - 1) ** 2 + 2 * (p[1] + 2) ** 2 + 0.5 * p[0] * p[1]
+
+    def bowl_grad(p):
+        return np.array([2 * (p[0] - 1) + 0.5 * p[1], 4 * (p[1] + 2) + 0.5 * p[0]])
+
+    rb = op.minimize(op.rosen, [-1.2, 1.0], jac=op.rosen_der, method="BFGS", options={"gtol": 1e-12})
+    add("rosen_bfgs_x", rb.x, "scipy.optimize.minimize(rosen, [-1.2, 1.0], jac=rosen_der, method='BFGS', options={'gtol': 1e-12}).x")
+    add("rosen_bfgs_fun", float(rb.fun), "same call, .fun")
+    nm_opts = {"xatol": 1e-12, "fatol": 1e-12, "maxiter": 20000, "maxfev": 20000}
+    rn = op.minimize(op.rosen, [-1.2, 1.0], method="Nelder-Mead", options=nm_opts)
+    add("rosen_nm_x", rn.x, "scipy.optimize.minimize(rosen, [-1.2, 1.0], method='Nelder-Mead', options={'xatol': 1e-12, 'fatol': 1e-12, 'maxiter': 20000, 'maxfev': 20000}).x")
+    add("rosen_nm_fun", float(rn.fun), "same call, .fun")
+    bb = op.minimize(bowl, [0.0, 0.0], jac=bowl_grad, method="BFGS", options={"gtol": 1e-12})
+    add("bowl_bfgs_x", bb.x, "scipy.optimize.minimize((p0-1)**2 + 2*(p1+2)**2 + 0.5*p0*p1, [0,0], jac=grad, method='BFGS', options={'gtol': 1e-12}).x")
+    bn = op.minimize(bowl, [0.0, 0.0], method="Nelder-Mead", options=nm_opts)
+    add("bowl_nm_x", bn.x, "scipy.optimize.minimize((p0-1)**2 + 2*(p1+2)**2 + 0.5*p0*p1, [0,0], method='Nelder-Mead', options=nm_opts).x")
+
+    # Roots: a cubic on [2, 3] and cos(x) - x on [0, 1].
+    def fcub(x):
+        return x**3 - 2 * x - 5
+
+    def dcub(x):
+        return 3 * x**2 - 2
+
+    def gcos(x):
+        return math.cos(x) - x
+
+    def dgcos(x):
+        return -math.sin(x) - 1
+
+    eps4 = 4 * np.finfo(float).eps
+    add("root_cubic_brentq", op.brentq(fcub, 2.0, 3.0, xtol=1e-14, rtol=eps4), "scipy.optimize.brentq(x**3-2x-5, 2, 3, xtol=1e-14, rtol=4*eps)")
+    add("root_cubic_bisect", op.bisect(fcub, 2.0, 3.0, xtol=1e-14, rtol=eps4), "scipy.optimize.bisect(x**3-2x-5, 2, 3, xtol=1e-14, rtol=4*eps)")
+    add("root_cubic_newton", op.newton(fcub, 2.0, fprime=dcub, tol=1e-14), "scipy.optimize.newton(x**3-2x-5, 2.0, fprime=3x**2-2, tol=1e-14)")
+    add("root_cos_brentq", op.brentq(gcos, 0.0, 1.0, xtol=1e-14, rtol=eps4), "scipy.optimize.brentq(cos(x)-x, 0, 1, xtol=1e-14, rtol=4*eps)")
+    add("root_cos_bisect", op.bisect(gcos, 0.0, 1.0, xtol=1e-14, rtol=eps4), "scipy.optimize.bisect(cos(x)-x, 0, 1, xtol=1e-14, rtol=4*eps)")
+    add("root_cos_newton", op.newton(gcos, 0.5, fprime=dgcos, tol=1e-14), "scipy.optimize.newton(cos(x)-x, 0.5, fprime=-sin(x)-1, tol=1e-14)")
+
+    # Quadrature of closed-form integrands.
+    integrands = [
+        ("quad_sin", np.sin, 0.0, math.pi, "sin(x) on [0, pi]"),
+        ("quad_gauss", lambda x: np.exp(-x * x), 0.0, 2.0, "exp(-x*x) on [0, 2]"),
+        ("quad_lorentz", lambda x: 1.0 / (1.0 + x * x), 0.0, 1.0, "1/(1+x*x) on [0, 1]"),
+        ("quad_xlog", lambda x: x * np.log(x + 1.0), 0.0, 2.0, "x*log(x+1) on [0, 2]"),
+        ("quad_damped", lambda x: np.exp(-x) * np.sin(x), 0.0, 10.0, "exp(-x)*sin(x) on [0, 10]"),
+    ]
+    for key, fn, a, b, desc in integrands:
+        value = ig.quad(fn, a, b, epsabs=1e-13, epsrel=1e-13)[0]
+        add(key, float(value), f"scipy.integrate.quad({desc}, epsabs=1e-13, epsrel=1e-13)[0]")
+    for n in range(1, 6):
+        add(f"fixed_quad_exp_n{n}", float(ig.fixed_quad(np.exp, 0.5, 2.5, n=n)[0]), f"scipy.integrate.fixed_quad(exp, 0.5, 2.5, n={n})[0]")
+        add(
+            f"fixed_quad_cos_n{n}",
+            float(ig.fixed_quad(lambda x: np.cos(3 * x), 0.5, 2.5, n=n)[0]),
+            f"scipy.integrate.fixed_quad(cos(3x), 0.5, 2.5, n={n})[0]",
+        )
+
+    # Data integrals: y[i] = ((i*37+11)%101)/4.0 for i in 0..41, dx = 0.25 (40 intervals, even).
+    dy = np.array([((i * 37 + 11) % 101) / 4.0 for i in range(41)])
+    add("trapezoid_data", float(ig.trapezoid(dy, dx=0.25)), "scipy.integrate.trapezoid(y, dx=0.25), y[i]=((i*37+11)%101)/4.0, 41 points")
+    add("simpson_data", float(ig.simpson(dy, dx=0.25)), "scipy.integrate.simpson(y, dx=0.25), same y (even number of intervals only)")
+    add("cumtrapz_data", ig.cumulative_trapezoid(dy, dx=0.25), "scipy.integrate.cumulative_trapezoid(y, dx=0.25), same y")
+
+    # One fixed step of the system f(t, y) = [y1, -y0 + t] from t = 0.3, y = [1.0, 0.5], dt = 0.1.
+    # No SciPy function does one fixed step: the textbook formulas, with NumPy.
+    def f_sys(t, y):
+        return np.array([y[1], -y[0] + t])
+
+    t0, y0, dt = 0.3, np.array([1.0, 0.5]), 0.1
+    add("euler_step", y0 + dt * f_sys(t0, y0), "textbook Euler: y + dt*f(t, y) (no SciPy equal)")
+    k1 = f_sys(t0, y0)
+    k2 = f_sys(t0 + dt / 2, y0 + dt / 2 * k1)
+    k3 = f_sys(t0 + dt / 2, y0 + dt / 2 * k2)
+    k4 = f_sys(t0 + dt, y0 + dt * k3)
+    add("rk4_step", y0 + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4), "textbook RK4 step (no SciPy equal)")
+
+    # Reference solutions over [0, 1] with DOP853 at a tight tolerance.
+    add(
+        "ivp_exp",
+        ig.solve_ivp(lambda t, y: -y, (0.0, 1.0), [1.0], method="DOP853", rtol=1e-13, atol=1e-14).y[:, -1],
+        "scipy.integrate.solve_ivp(-y, (0, 1), [1.0], method='DOP853', rtol=1e-13, atol=1e-14).y[:, -1]",
+    )
+    add(
+        "ivp_osc",
+        ig.solve_ivp(lambda t, y: np.array([y[1], -y[0]]), (0.0, 1.0), [1.0, 0.0], method="DOP853", rtol=1e-13, atol=1e-14).y[:, -1],
+        "scipy.integrate.solve_ivp([y1, -y0], (0, 1), [1.0, 0.0], method='DOP853', rtol=1e-13, atol=1e-14).y[:, -1]",
+    )
+    return rows
+
+
 common.main(
     {
         "crates/scikit/tests/fixtures/stats_reference.tsv": stats_rows,
         "crates/scikit/tests/fixtures/stats_grid_reference.tsv": stats_grid_rows,
         "crates/scikit/tests/fixtures/fft_signal_reference.tsv": fft_signal_rows,
+        "crates/scikit/tests/fixtures/calc_reference.tsv": calc_rows,
     }
 )
