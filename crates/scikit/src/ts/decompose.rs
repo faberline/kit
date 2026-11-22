@@ -92,9 +92,9 @@ fn centered_moving_average(data: &[f64], period: usize) -> Vec<f64> {
             ma1[i + half] = sum / period as f64;
         }
         // Second pass: 2-MA to center
-        for i in 1..n {
-            if !ma1[i].is_nan() && !ma1[i - 1].is_nan() {
-                trend[i] = (ma1[i] + ma1[i - 1]) / 2.0;
+        for i in 0..n - 1 {
+            if !ma1[i].is_nan() && !ma1[i + 1].is_nan() {
+                trend[i] = (ma1[i] + ma1[i + 1]) / 2.0;
             }
         }
     }
@@ -195,23 +195,19 @@ fn compute_residual(
         .collect()
 }
 
-/// Compute the strength of trend: `1 - Var(residual) / Var(detrended)`.
+/// Compute the strength of trend: `1 - Var(residual) / Var(trend + residual)`
+/// (additive), or `1 - Var(residual) / Var(trend * residual)` (multiplicative).
+/// This is the published definition (Wang, Smith and Hyndman 2006).
 impl DecomposeResult {
     pub fn trend_strength(&self) -> f64 {
-        let detrended: Vec<f64> = self
-            .observed
+        let trend_plus_residual: Vec<f64> = self
+            .trend
             .iter()
-            .zip(self.trend.iter())
-            .filter(|(_, t)| !t.is_nan())
-            .map(|(&o, &t)| match self.model {
-                DecomposeModel::Additive => o - t,
-                DecomposeModel::Multiplicative => {
-                    if t.abs() < 1e-15 {
-                        0.0
-                    } else {
-                        o / t
-                    }
-                }
+            .zip(self.residual.iter())
+            .filter(|(t, r)| !t.is_nan() && !r.is_nan())
+            .map(|(&t, &r)| match self.model {
+                DecomposeModel::Additive => t + r,
+                DecomposeModel::Multiplicative => t * r,
             })
             .collect();
 
@@ -223,7 +219,7 @@ impl DecomposeResult {
             .collect();
 
         let var_r = variance(&residual_clean);
-        let var_d = variance(&detrended);
+        let var_d = variance(&trend_plus_residual);
 
         if var_d < 1e-15 {
             0.0

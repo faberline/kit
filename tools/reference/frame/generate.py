@@ -357,11 +357,93 @@ def groupby_rows():
     return rows
 
 
+# Join inputs. Left: 10,000 rows, key null where i % 97 == 5, else i % 50 (200 rows per key),
+# lv = ((i * 37 + 11) % 101) / 4. Right: 8,000 rows, key null where j % 89 == 7, else
+# j % 4000 + 10 (two rows per key, so the left keys 0 to 9 have no right row), rv = ((j * 53 + 7) % 103) / 2. Every value is a multiple of
+# 0.25, so the sums are exact in pandas and in Rust.
+RIGHT_N = 8000
+JOIN_HOWS = ["inner", "left", "right", "outer"]
+
+
+def join_left():
+    keys = [None if i % 97 == 5 else i % 50 for i in range(N)]
+    vals = [((i * 37 + 11) % 101) / 4.0 for i in range(N)]
+    return pd.DataFrame(
+        {"k": pd.Series(keys, dtype="float64"), "lv": pd.Series(vals, dtype="float64")}
+    )
+
+
+def join_right():
+    keys = [None if j % 89 == 7 else j % 4000 + 10 for j in range(RIGHT_N)]
+    vals = [((j * 53 + 7) % 103) / 2.0 for j in range(RIGHT_N)]
+    return pd.DataFrame(
+        {"k": pd.Series(keys, dtype="float64"), "rv": pd.Series(vals, dtype="float64")}
+    )
+
+
+def join_rows():
+    rows = []
+
+    def add_frame(prefix, out, columns, expr):
+        # The row count, and for each column its non-null count and its sum.
+        rows.append((f"{prefix}.rows", float(len(out)), expr))
+        for column in columns:
+            rows.append((f"{prefix}.{column}_count", float(out[column].count()), expr))
+            rows.append((f"{prefix}.{column}_sum", float(out[column].sum()), expr))
+
+    left, right = join_left(), join_right()
+    for how in JOIN_HOWS:
+        add_frame(
+            f"join.{how}.large",
+            left.merge(right, on="k", how=how),
+            ["k", "lv", "rv"],
+            f"left.merge(right, on='k', how='{how}')",
+        )
+
+    # The three tests moved from tests/it/reference.rs.
+    small_left = pd.DataFrame({"id": [1, 2, 3], "lv": [10, 20, 30]})
+    small_right = pd.DataFrame({"id": [2, 3, 3, 4], "rv": [200, 300, 301, 400]})
+    for how in JOIN_HOWS:
+        add_frame(
+            f"join.{how}.small",
+            small_left.merge(small_right, on="id", how=how),
+            ["id", "lv", "rv"],
+            f"l.merge(r, on='id', how='{how}')",
+        )
+    int_left = pd.DataFrame({"k": pd.Series([1, 2, 3], dtype="int64")})
+    float_right = pd.DataFrame(
+        {"k": pd.Series([2.0, 3.0], dtype="float64"), "rv": pd.Series([5, 6], dtype="int64")}
+    )
+    add_frame(
+        "join.intfloat.inner",
+        int_left.merge(float_right, on="k"),
+        ["rv"],
+        "l.merge(r, on='k') with l.k int64 [1, 2, 3] and r.k float64 [2.0, 3.0]",
+    )
+
+    # The row order of the moved tests: sorted by id, then rv (NaN last), as the Rust test sorts.
+    for how in ["right", "outer"]:
+        ordered = small_left.merge(small_right, on="id", how=how).sort_values(["id", "rv"])
+        expr = f"l.merge(r, on='id', how='{how}').sort_values(['id', 'rv'])"
+        rows.append((f"join.{how}.small.id_sorted", ordered["id"].tolist(), expr))
+        rows.append((f"join.{how}.small.lv_by_id", ordered["lv"].tolist(), expr))
+    rv_sorted = int_left.merge(float_right, on="k").sort_values("rv")["rv"]
+    rows.append(
+        (
+            "join.intfloat.inner.rv_sorted",
+            rv_sorted.tolist(),
+            "l.merge(r, on='k').sort_values('rv')['rv']",
+        )
+    )
+    return rows
+
+
 common.main(
     {
         "crates/frame/tests/fixtures/series_reference.tsv": series_rows,
         "crates/frame/tests/fixtures/series_window_reference.tsv": series_window_rows,
         "crates/frame/tests/fixtures/window_reference.tsv": window_rows,
         "crates/frame/tests/fixtures/groupby_reference.tsv": groupby_rows,
+        "crates/frame/tests/fixtures/join_reference.tsv": join_rows,
     }
 )

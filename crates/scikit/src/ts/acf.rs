@@ -194,7 +194,7 @@ fn gamma_series(a: f64, x: f64) -> f64 {
 /// Continued fraction representation for Q(a, x) = 1 - P(a, x).
 fn gamma_cf(a: f64, x: f64) -> f64 {
     let ln_gamma_a = ln_gamma(a);
-    let mut c = 1e-30_f64;
+    let mut c = 1e30_f64;
 
     // Modified Lentz's method
     let b0 = x + 1.0 - a;

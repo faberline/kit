@@ -9,6 +9,8 @@ mod fft;
     feature = "ts"
 ))]
 mod reference_numeric;
+#[cfg(feature = "ts")]
+mod reference_ts;
 #[cfg(feature = "stats")]
 mod stats;
 
