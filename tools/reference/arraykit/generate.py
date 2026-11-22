@@ -244,8 +244,12 @@ def linalg_rows():
     l_list = tall_matrix()
     l_mat = numpy.array(l_list)
 
-    def add_list(key, value, source):
-        add(rows, key, common.stable_value(value), source)
+    def add_list(key, value, source, digits=12):
+        add(rows, key, common.stable_value(value, digits), source)
+
+    # Cases with condition number about 1e10 differ between BLAS and LAPACK builds
+    # in the 11th digit, so they keep 6 digits. The Rust check allows 1e-5 for them.
+    cond_digits = 6
 
     # Small inputs from the issue: x, y, two 2 x 3 and 3 x 2 matrices, and a 3 x 3.
     x = numpy.array([1.5, -2.0, 3.0, 0.5])
@@ -259,8 +263,10 @@ def linalg_rows():
     add_list("linalg.solve.well.head", x_well[:5], "numpy.linalg.solve(a, b)[:5]")
     add_list("linalg.solve.well.tail", x_well[-5:], "numpy.linalg.solve(a, b)[-5:]")
     x_cond = numpy.linalg.solve(m, b)
-    add_list("linalg.solve.cond.head", x_cond[:5], "numpy.linalg.solve(m, b)[:5]")
-    add_list("linalg.solve.cond.tail", x_cond[-5:], "numpy.linalg.solve(m, b)[-5:]")
+    add_list("linalg.solve.cond.head", x_cond[:5], "numpy.linalg.solve(m, b)[:5]",
+             digits=cond_digits)
+    add_list("linalg.solve.cond.tail", x_cond[-5:], "numpy.linalg.solve(m, b)[-5:]",
+             digits=cond_digits)
     add_list("linalg.solve.small2d",
              numpy.linalg.solve([[3.0, 1.0], [1.0, 2.0]],
                                 [[9.0, 1.0], [8.0, 3.0]]).ravel(),
@@ -272,7 +278,7 @@ def linalg_rows():
     add_list("linalg.inv.well.row0_head", numpy.linalg.inv(a)[0, :5],
              "numpy.linalg.inv(a)[0, :5]")
     add_list("linalg.inv.cond.trace", float(numpy.trace(numpy.linalg.inv(m))),
-             "numpy.trace(numpy.linalg.inv(m))")
+             "numpy.trace(numpy.linalg.inv(m))", digits=cond_digits)
     add_list("linalg.inv.small_scale", float(numpy.linalg.inv([[1e-13]])[0][0]),
              "numpy.linalg.inv([[1e-13]])[0][0]")
 
@@ -296,7 +302,7 @@ def linalg_rows():
     add_list("linalg.svd.well.s", numpy.linalg.svd(a, compute_uv=False),
              "numpy.linalg.svd(a, compute_uv=False)")
     add_list("linalg.svd.cond.s", numpy.linalg.svd(m, compute_uv=False),
-             "numpy.linalg.svd(m, compute_uv=False)")
+             "numpy.linalg.svd(m, compute_uv=False)", digits=cond_digits)
     add_list("linalg.svd.rank_deficient",
              numpy.linalg.svd([[0.0, 0.0], [1.0, 0.0]], compute_uv=False),
              "numpy.linalg.svd([[0, 0], [1, 0]], compute_uv=False)")
