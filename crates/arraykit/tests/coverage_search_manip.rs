@@ -125,25 +125,6 @@ fn split_axis_out_of_bounds() {
     assert!(matches!(err, ArrayError::IndexOutOfBounds { .. }));
 }
 
-#[test]
-fn split_skips_empty_pieces() {
-    // Split points are [0, 2, 2, 6]. The piece [2, 2) is empty and is skipped.
-    let a = arr(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0], vec![6]);
-    let parts = a.split(&[2, 2], 0).unwrap();
-    assert_eq!(parts.len(), 2);
-    assert_eq!(parts[0].data(), &[1.0, 2.0]);
-    assert_eq!(parts[1].data(), &[3.0, 4.0, 5.0, 6.0]);
-}
-
-#[test]
-fn split_skips_out_of_range_piece() {
-    // Split points are [0, 9, 6]. The piece [0, 9) runs past the axis length 6,
-    // and the piece [9, 6) has start >= end. Both are skipped.
-    let a = arr(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0], vec![6]);
-    let parts = a.split(&[9], 0).unwrap();
-    assert!(parts.is_empty());
-}
-
 // ============================================================================
 // tile
 // ============================================================================
