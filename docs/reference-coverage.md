@@ -44,19 +44,19 @@ Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` l
 | arraykit | arraykit::array/manip::tile | - | - | - | not covered |
 | arraykit | arraykit::array/manip::unique | - | - | - | not covered |
 | arraykit | arraykit::array/manip::vstack | - | - | - | not covered |
-| arraykit | arraykit::array/math::abs | - | - | - | not covered |
-| arraykit | arraykit::array/math::abs_int | - | - | - | not covered |
-| arraykit | arraykit::array/math::abs_int | - | - | - | not covered |
-| arraykit | arraykit::array/math::clip | - | - | - | not covered |
-| arraykit | arraykit::array/math::cos | - | - | - | not covered |
-| arraykit | arraykit::array/math::exp | - | - | - | not covered |
-| arraykit | arraykit::array/math::linspace | - | - | - | not covered |
-| arraykit | arraykit::array/math::log | - | - | - | not covered |
-| arraykit | arraykit::array/math::pow | - | - | - | not covered |
-| arraykit | arraykit::array/math::sin | - | - | - | not covered |
-| arraykit | arraykit::array/math::sqrt | - | - | - | not covered |
-| arraykit | arraykit::array/math::tan | - | - | - | not covered |
-| arraykit | arraykit::array/math::where_cond | - | - | - | not covered |
+| arraykit | arraykit::array/math::abs | `numpy.abs(x)` | 1e-9 rel | `abs_matches_numpy` | covered |
+| arraykit | arraykit::array/math::abs_int | `numpy.abs(v)` on int32 | exact | `abs_int_i32_matches_numpy` | covered |
+| arraykit | arraykit::array/math::abs_int | `numpy.abs(v)` on int64 | exact | `abs_int_i64_matches_numpy` | covered |
+| arraykit | arraykit::array/math::clip | `numpy.clip(x, -5.0, 5.0)` | 1e-9 rel | `clip_matches_numpy` | covered |
+| arraykit | arraykit::array/math::cos | `numpy.cos(x)` | 1e-9 rel | `cos_matches_numpy` | covered |
+| arraykit | arraykit::array/math::exp | `numpy.exp(x)` | 1e-9 rel | `exp_matches_numpy` | covered |
+| arraykit | arraykit::array/math::linspace | `numpy.linspace(0.0, 1.0, 11)`; `numpy.linspace(-5.0, 5.0, 10001)` (first two, last, abs-sum) | 1e-9 rel | `linspace_matches_numpy` | covered |
+| arraykit | arraykit::array/math::log | `numpy.log(x)` | 1e-9 rel | `log_matches_numpy` | covered |
+| arraykit | arraykit::array/math::pow | `numpy.power(x, 2.5)`; `numpy.power(x, 3.0)` | 1e-9 rel | `pow_matches_numpy` | covered |
+| arraykit | arraykit::array/math::sin | `numpy.sin(x)` | 1e-9 rel | `sin_matches_numpy` | covered |
+| arraykit | arraykit::array/math::sqrt | `numpy.sqrt(x)` | 1e-9 rel | `sqrt_matches_numpy` | covered |
+| arraykit | arraykit::array/math::tan | `numpy.tan(x)` | 1e-9 rel | `tan_matches_numpy` | covered |
+| arraykit | arraykit::array/math::where_cond | `numpy.where(c, x, -x)` | 1e-9 rel | `where_cond_matches_numpy` | covered |
 | arraykit | arraykit::array/ndarray::arange | - | - | - | not covered |
 | arraykit | arraykit::array/ndarray::broadcast_to | - | - | - | not covered |
 | arraykit | arraykit::array/ndarray::diag | - | - | - | not covered |
@@ -125,23 +125,23 @@ Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` l
 | arraykit | arraykit::array/stats::var_axis | `numpy.var(x, axis, ddof=1)` | 1e-9 rel | `var_axis_matches_numpy` | covered |
 | arraykit | arraykit::array/stats::var_pop | `numpy.var(x)` | 1e-9 rel | `var_pop_matches_numpy` | covered |
 | arraykit | arraykit::array/stats::zscore | `scipy.stats.zscore(x, ddof=1)` | 1e-9 rel | `zscore_matches_scipy` | covered |
-| arraykit | arraykit::array/window::count | - | - | - | not covered |
-| arraykit | arraykit::array/window::diff | - | - | - | not covered |
-| arraykit | arraykit::array/window::expand_dims | - | - | - | not covered |
-| arraykit | arraykit::array/window::flip | - | - | - | not covered |
-| arraykit | arraykit::array/window::gradient | - | - | - | not covered |
-| arraykit | arraykit::array/window::interp | - | - | - | not covered |
-| arraykit | arraykit::array/window::max | - | - | - | not covered |
-| arraykit | arraykit::array/window::mean | - | - | - | not covered |
-| arraykit | arraykit::array/window::min | - | - | - | not covered |
-| arraykit | arraykit::array/window::pad | - | - | - | not covered |
-| arraykit | arraykit::array/window::roll | - | - | - | not covered |
-| arraykit | arraykit::array/window::rolling | - | - | - | not covered |
-| arraykit | arraykit::array/window::rot90 | - | - | - | not covered |
-| arraykit | arraykit::array/window::squeeze | - | - | - | not covered |
-| arraykit | arraykit::array/window::std | - | - | - | not covered |
-| arraykit | arraykit::array/window::sum | - | - | - | not covered |
-| arraykit | arraykit::array/window::var | - | - | - | not covered |
+| arraykit | arraykit::array/window::count | `numpy.minimum(numpy.arange(1, n + 1), w)` | exact | `rolling_count_matches_numpy` | covered |
+| arraykit | arraykit::array/window::diff | `numpy.diff(x, 1)`; `numpy.diff(x, 2)` | 1e-9 rel | `diff_matches_numpy` | covered |
+| arraykit | arraykit::array/window::expand_dims | `numpy.expand_dims(a, axis).shape` | exact | `expand_dims_matches_numpy` | covered |
+| arraykit | arraykit::array/window::flip | `numpy.flip(x)` | 1e-9 rel | `flip_matches_numpy` | covered |
+| arraykit | arraykit::array/window::gradient | `numpy.gradient(x)` | 1e-9 rel | `gradient_matches_numpy` | covered |
+| arraykit | arraykit::array/window::interp | `numpy.interp(xq, xp, fp)` | 1e-9 rel | `interp_matches_numpy` | covered |
+| arraykit | arraykit::array/window::max | `sliding_window_view(x, w).max(axis=1)` | 1e-9 rel; first w-1 entries: NaN | `rolling_max_matches_numpy` | covered |
+| arraykit | arraykit::array/window::mean | `sliding_window_view(x, w).mean(axis=1)` | 1e-9 rel; first w-1 entries: 0.0 | `rolling_mean_matches_numpy` | covered |
+| arraykit | arraykit::array/window::min | `sliding_window_view(x, w).min(axis=1)` | 1e-9 rel; first w-1 entries: NaN | `rolling_min_matches_numpy` | covered |
+| arraykit | arraykit::array/window::pad | `numpy.pad(x, w)` | 1e-9 rel | `pad_matches_numpy` | covered |
+| arraykit | arraykit::array/window::roll | `numpy.roll(x, shift)` | 1e-9 rel | `roll_matches_numpy` | covered |
+| arraykit | arraykit::array/window::rolling | `sliding_window_view(x, 1).sum(axis=1)`; `numpy.sum(x)` | 1e-9 rel | `rolling_matches_numpy` | covered |
+| arraykit | arraykit::array/window::rot90 | `numpy.rot90(m, k)` | 1e-9 rel (data); exact (shape) | `rot90_matches_numpy` | covered |
+| arraykit | arraykit::array/window::squeeze | `numpy.atleast_1d(numpy.squeeze(a)).shape` | exact | `squeeze_matches_numpy` | covered |
+| arraykit | arraykit::array/window::std | `sliding_window_view(x, w).std(axis=1, ddof=1)` | 1e-9 rel; first w-1 entries: NaN | `rolling_std_matches_numpy` | covered |
+| arraykit | arraykit::array/window::sum | `sliding_window_view(x, w).sum(axis=1)` | 1e-9 rel; first w-1 entries: 0.0 | `rolling_sum_matches_numpy` | covered |
+| arraykit | arraykit::array/window::var | `sliding_window_view(x, w).var(axis=1, ddof=1)` | 1e-9 rel; first w-1 entries: NaN | `rolling_var_matches_numpy` | covered |
 | frame | frame::frame/dataframe::apply | - | - | - | not covered |
 | frame | frame::frame/dataframe::applymap | - | - | - | not covered |
 | frame | frame::frame/dataframe::assign | - | - | - | not covered |

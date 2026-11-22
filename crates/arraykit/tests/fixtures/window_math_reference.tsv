@@ -1,0 +1,123 @@
+key	value	source
+window.sum.w3	36.0,38.5,41.0,43.5,46.0,48.5,25.75,28.25	sliding_window_view(x, 3).sum(axis=1)
+window.sum.w50.head	611.25,619.25,627.25,610.0,618.0	sliding_window_view(x, 50).sum(axis=1)[:5]
+window.sum.w50.tail	641.75,624.5,632.5,640.5,623.25	sliding_window_view(x, 50).sum(axis=1)[-5:]
+window.sum.w50.abssum	6219595.5	numpy.sum(numpy.abs(sliding_window_view(x, 50).sum(axis=1)))
+window.mean.w3	12.0,12.8333333333,13.6666666667,14.5,15.3333333333,16.1666666667,8.58333333333,9.41666666667	sliding_window_view(x, 3).mean(axis=1)
+window.mean.w50.head	12.225,12.385,12.545,12.2,12.36	sliding_window_view(x, 50).mean(axis=1)[:5]
+window.mean.w50.tail	12.835,12.49,12.65,12.81,12.465	sliding_window_view(x, 50).mean(axis=1)[-5:]
+window.mean.w50.abssum	124391.91	numpy.sum(numpy.abs(sliding_window_view(x, 50).mean(axis=1)))
+window.min.w3	2.75,5.25,5.25,5.25,7.75,7.75,1.0,1.0	sliding_window_view(x, 3).min(axis=1)
+window.min.w50.head	0.0,0.0,0.0,0.0,0.0	sliding_window_view(x, 50).min(axis=1)[:5]
+window.min.w50.tail	0.5,0.25,0.25,0.25,0.25	sliding_window_view(x, 50).min(axis=1)[-5:]
+window.min.w50.abssum	1775.5	numpy.sum(numpy.abs(sliding_window_view(x, 50).min(axis=1)))
+window.max.w3	21.25,21.25,21.25,23.75,23.75,23.75,17.0,17.0	sliding_window_view(x, 3).max(axis=1)
+window.max.w50.head	24.5,24.5,24.5,24.5,24.5	sliding_window_view(x, 50).max(axis=1)[:5]
+window.max.w50.tail	25.0,25.0,25.0,25.0,25.0	sliding_window_view(x, 50).max(axis=1)[-5:]
+window.max.w50.abssum	247007.0	numpy.sum(numpy.abs(sliding_window_view(x, 50).max(axis=1)))
+window.std.w3	9.25,8.03248612407,8.03248612407,9.25,8.03248612407,8.03248612407,8.03248612407,8.03248612407	sliding_window_view(x, 3).std(axis=1, ddof=1)
+window.std.w50.head	7.423461498,7.30026732807,7.37890159682,7.36684519745,7.29938493355	sliding_window_view(x, 50).std(axis=1, ddof=1)[:5]
+window.std.w50.tail	7.28967154435,7.47034272361,7.31419503292,7.35914674513,7.41929537608	sliding_window_view(x, 50).std(axis=1, ddof=1)[-5:]
+window.std.w50.abssum	73223.6491123	numpy.sum(numpy.abs(sliding_window_view(x, 50).std(axis=1, ddof=1)))
+window.var.w3	85.5625,64.5208333333,64.5208333333,85.5625,64.5208333333,64.5208333333,64.5208333333,64.5208333333	sliding_window_view(x, 3).var(axis=1, ddof=1)
+window.var.w50.head	55.1077806122,53.2939030612,54.4481887755,54.2704081633,53.2810204082	sliding_window_view(x, 50).var(axis=1, ddof=1)[:5]
+window.var.w50.tail	53.1393112245,55.8060204082,53.4974489796,54.1570408163,55.0459438776	sliding_window_view(x, 50).var(axis=1, ddof=1)[-5:]
+window.var.w50.abssum	538848.517551	numpy.sum(numpy.abs(sliding_window_view(x, 50).var(axis=1, ddof=1)))
+window.sum.w4mp2	14.75,36.0,41.25,53.0,64.75,51.25,63.0,49.5,36.0	numpy.sum(x[max(0, i - 3):i + 1]) for i >= 1
+window.mean.w4mp2	7.375,12.0,10.3125,13.25,16.1875,12.8125,15.75,12.375,9.0	numpy.mean(x[max(0, i - 3):i + 1]) for i >= 1
+window.count.w4	1,2,3,4,4,4,4,4,4,4	numpy.minimum(numpy.arange(1, n + 1), 4)
+window.rolling.w1	2.75,12.0,21.25,5.25,14.5,23.75,7.75,17.0,1.0,10.25	sliding_window_view(x, 1).sum(axis=1)
+window.rolling.full	115.5	numpy.sum(x)
+window.diff.n1	9.25,9.25,-16.0,9.25,9.25,-16.0,9.25,-16.0,9.25	numpy.diff(x, 1)
+window.diff.n2	0.0,-25.25,25.25,0.0,-25.25,25.25,-25.25,25.25	numpy.diff(x, 2)
+window.diff.large.head	9.25,9.25,-16.0,9.25,9.25	numpy.diff(x, 1)[:5]
+window.diff.large.tail	9.25,-16.0,9.25,9.25,-16.0	numpy.diff(x, 1)[-5:]
+window.diff.large.abssum	117216.0	numpy.sum(numpy.abs(numpy.diff(x, 1)))
+window.flip.small	10.25,1.0,17.0,7.75,23.75,14.5,5.25,21.25,12.0,2.75	numpy.flip(x)
+window.flip.large.head	2.75,18.75,9.5,0.25,16.25	numpy.flip(x)[:5]
+window.flip.large.tail	14.5,5.25,21.25,12.0,2.75	numpy.flip(x)[-5:]
+window.flip.large.abssum	124990.25	numpy.sum(numpy.abs(numpy.flip(x)))
+window.roll.p3	17.0,1.0,10.25,2.75,12.0,21.25,5.25,14.5,23.75,7.75	numpy.roll(x, 3)
+window.roll.m4	14.5,23.75,7.75,17.0,1.0,10.25,2.75,12.0,21.25,5.25	numpy.roll(x, -4)
+window.roll.p13	17.0,1.0,10.25,2.75,12.0,21.25,5.25,14.5,23.75,7.75	numpy.roll(x, 13)
+window.pad.w2	0.0,0.0,2.75,12.0,21.25,5.25,14.5,23.75,7.75,17.0,1.0,10.25,0.0,0.0	numpy.pad(x, 2)
+window.pad.w0	2.75,12.0,21.25,5.25,14.5,23.75,7.75,17.0,1.0,10.25	numpy.pad(x, 0)
+window.gradient.small	9.25,9.25,-3.375,-3.375,9.25,-3.375,-3.375,-3.375,-3.375,9.25	numpy.gradient(x)
+window.gradient.large.head	9.25,9.25,-3.375,-3.375,9.25	numpy.gradient(x)[:5]
+window.gradient.large.tail	-3.375,-3.375,9.25,-3.375,-16.0	numpy.gradient(x)[-5:]
+window.gradient.large.abssum	49472.375	numpy.sum(numpy.abs(numpy.gradient(x)))
+window.interp.small	2.75,2.75,4.6,12.0,6.31666666667,22.2083333333,10.25,10.25,10.25	numpy.interp(xq, [1.5 * i for i in range(10)], x)
+window.interp.large.head	2.75,9.85,12.15,3.25,5.55	numpy.interp(xq, [0.5 * i for i in range(1001)], x[:1001])[:5]
+window.interp.large.tail	13.0,15.3,11.45,8.7,9.9	numpy.interp(xq, [0.5 * i for i in range(1001)], x[:1001])[-5:]
+window.interp.large.abssum	124959.3	numpy.sum(numpy.abs(numpy.interp(xq, [0.5 * i for i in range(1001)], x[:1001])))
+window.squeeze.shape	3,2	list(numpy.squeeze(numpy.zeros((1, 3, 1, 2))).shape)
+window.squeeze.ones	1	list(numpy.atleast_1d(numpy.squeeze(numpy.zeros((1, 1, 1)))).shape)
+window.expand_dims.a0	1,2,3	list(numpy.expand_dims(numpy.zeros((2, 3)), 0).shape)
+window.expand_dims.a1	2,1,3	list(numpy.expand_dims(numpy.zeros((2, 3)), 1).shape)
+window.expand_dims.a2	2,3,1	list(numpy.expand_dims(numpy.zeros((2, 3)), 2).shape)
+window.rot90.k0.data	0.0,1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0,11.0	numpy.rot90(m, 0).ravel()
+window.rot90.k0.shape	3,4	list(numpy.rot90(m, 0).shape)
+window.rot90.k1.data	3.0,7.0,11.0,2.0,6.0,10.0,1.0,5.0,9.0,0.0,4.0,8.0	numpy.rot90(m, 1).ravel()
+window.rot90.k1.shape	4,3	list(numpy.rot90(m, 1).shape)
+window.rot90.k2.data	11.0,10.0,9.0,8.0,7.0,6.0,5.0,4.0,3.0,2.0,1.0,0.0	numpy.rot90(m, 2).ravel()
+window.rot90.k2.shape	3,4	list(numpy.rot90(m, 2).shape)
+window.rot90.k3.data	8.0,4.0,0.0,9.0,5.0,1.0,10.0,6.0,2.0,11.0,7.0,3.0	numpy.rot90(m, 3).ravel()
+window.rot90.k3.shape	4,3	list(numpy.rot90(m, 3).shape)
+window.rot90.k5.data	3.0,7.0,11.0,2.0,6.0,10.0,1.0,5.0,9.0,0.0,4.0,8.0	numpy.rot90(m, 5).ravel()
+window.rot90.k5.shape	4,3	list(numpy.rot90(m, 5).shape)
+math.sin.small	0.319519193622,-0.479425538604,0.624723953754,-0.823080879012,0.909297426826,-0.967807997511,0.999292788975,-0.977530117665,0.875452174688,-0.778073196888	numpy.sin(x)
+math.sin.large.head	0.319519193622,-0.479425538604,0.624723953754,-0.823080879012,0.909297426826	numpy.sin(x)[:5]
+math.sin.large.tail	-0.571561318742,0.311119354981,-0.14112000806,-0.0331792165476,0.319519193622	numpy.sin(x)[-5:]
+math.sin.large.abssum	6336.41469542	numpy.sum(numpy.abs(numpy.sin(x)))
+math.cos.small	-0.947579803978,0.87758256189,-0.780845683606,0.567924173289,-0.416146836547,0.251689650072,0.037602152888,-0.210795799431,0.483304758753,-0.628173622723	numpy.cos(x)
+math.cos.large.head	-0.947579803978,0.87758256189,-0.780845683606,0.567924173289,-0.416146836547	numpy.cos(x)[:5]
+math.cos.large.tail	-0.82055935734,0.950370847068,-0.9899924966,0.999449418224,-0.947579803978	numpy.cos(x)[-5:]
+math.cos.large.abssum	6379.73287261	numpy.sum(numpy.abs(numpy.cos(x)))
+math.tan.small	-0.337195022816,-0.546302489844,-0.800060712213,-1.44927953013,-2.18503986326,-3.84524352605,26.575414231,4.63733205455,1.81138745033,1.23862761622	numpy.tan(x)
+math.tan.large.head	-0.337195022816,-0.546302489844,-0.800060712213,-1.44927953013,-2.18503986326	numpy.tan(x)[:5]
+math.tan.large.tail	0.696550851111,0.327366265433,0.142546543074,-0.033197494483,-0.337195022816	numpy.tan(x)[-5:]
+math.tan.large.abssum	67743.6268957	numpy.sum(numpy.abs(numpy.tan(x)))
+math.exp.small	5.82946637309e-05,0.606530659713,6310.68810809,0.000710174388843,7.38905609893,76879.9197647,0.00865169520312,90.0171313005,1.01300935986e-05,0.105399224562	numpy.exp(x)
+math.exp.large.head	5.82946637309e-05,0.606530659713,6310.68810809,0.000710174388843,7.38905609893	numpy.exp(x)[:5]
+math.exp.large.tail	42.5210820001,4.78511739213e-06,0.0497870683679,518.012824668,5.82946637309e-05	numpy.exp(x)[-5:]
+math.exp.large.abssum	120097131.148	numpy.sum(numpy.abs(numpy.exp(x)))
+math.abs.small	9.75,0.5,8.75,7.25,2.0,11.25,4.75,4.5,11.5,2.25	numpy.abs(x)
+math.abs.large.head	9.75,0.5,8.75,7.25,2.0	numpy.abs(x)[:5]
+math.abs.large.tail	3.75,12.25,3.0,6.25,9.75	numpy.abs(x)[-5:]
+math.abs.large.abssum	63122.25	numpy.sum(numpy.abs(numpy.abs(x)))
+math.sqrt.small	1.73205080757,3.5,4.63680924775,2.34520787991,3.84057287393,4.89897948557,2.82842712475,4.15331193146,1.11803398875,3.2403703492	numpy.sqrt(x)
+math.sqrt.large.head	1.73205080757,3.5,4.63680924775,2.34520787991,3.84057287393	numpy.sqrt(x)[:5]
+math.sqrt.large.tail	4.06201920232,0.707106781187,3.1224989992,4.35889894354,1.73205080757	numpy.sqrt(x)[-5:]
+math.sqrt.large.abssum	33736.6167757	numpy.sum(numpy.abs(numpy.sqrt(x)))
+math.log.small	1.09861228867,2.50552593699,3.06805293513,1.70474809224,2.69124308279,3.17805383035,2.07944154168,2.84781214348,0.223143551314,2.35137525716	numpy.log(x)
+math.log.large.head	1.09861228867,2.50552593699,3.06805293513,1.70474809224,2.69124308279	numpy.log(x)[:5]
+math.log.large.tail	2.80336038091,-0.69314718056,2.27726728501,2.94443897917,1.09861228867	numpy.log(x)[-5:]
+math.log.large.abssum	23075.3268822	numpy.sum(numpy.abs(numpy.log(x)))
+math.pow.e25.small	15.5884572681,525.21875,2143.36507477,70.9425383673,835.564635885,2821.81218369,181.019335984,1235.8698816,1.74692810742,357.250831	numpy.power(x, 2.5)
+math.pow.e25.large.head	15.5884572681,525.21875,2143.36507477,70.9425383673,835.564635885	numpy.power(x, 2.5)[:5]
+math.pow.e25.large.tail	1105.88472783,0.176776695297,296.832561111,1573.56251862,15.5884572681	numpy.power(x, 2.5)[-5:]
+math.pow.e25.large.abssum	9311800.83891	numpy.sum(numpy.abs(numpy.power(x, 2.5)))
+math.pow.e3.small	-926.859375,-0.125,669.921875,-381.078125,8.0,1423.828125,-107.171875,91.125,-1520.875,-11.390625	numpy.power(x, 3.0)
+math.pow.e3.large.head	-926.859375,-0.125,669.921875,-381.078125,8.0	numpy.power(x, 3.0)[:5]
+math.pow.e3.large.tail	52.734375,-1838.265625,-27.0,244.140625,-926.859375	numpy.power(x, 3.0)[-5:]
+math.pow.e3.large.abssum	5030204.20312	numpy.sum(numpy.abs(numpy.power(x, 3.0)))
+math.clip.small	-5.0,-0.5,5.0,-5.0,2.0,5.0,-4.75,4.5,-5.0,-2.25	numpy.clip(x, -5.0, 5.0)
+math.clip.large.head	-5.0,-0.5,5.0,-5.0,2.0	numpy.clip(x, -5.0, 5.0)[:5]
+math.clip.large.tail	3.75,-5.0,-3.0,5.0,-5.0	numpy.clip(x, -5.0, 5.0)[-5:]
+math.clip.large.abssum	40100.0	numpy.sum(numpy.abs(numpy.clip(x, -5.0, 5.0)))
+math.linspace.s11	0.0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0	numpy.linspace(0.0, 1.0, 11)
+math.linspace.s10001.first2	-5.0,-4.999	numpy.linspace(-5.0, 5.0, 10001)[:2]
+math.linspace.s10001.last	5.0	numpy.linspace(-5.0, 5.0, 10001)[-1:]
+math.linspace.s10001.abssum	25005.0	numpy.sum(numpy.abs(numpy.linspace(-5.0, 5.0, 10001)))
+math.where_cond.small	-9.75,0.5,-8.75,-7.25,-2.0,-11.25,-4.75,-4.5,11.5,-2.25	numpy.where(c, x, -x), c[i] = (i % 3 == 0)
+math.where_cond.large.head	-9.75,0.5,-8.75,-7.25,-2.0	numpy.where(c, x, -x), c[i] = (i % 3 == 0)[:5]
+math.where_cond.large.tail	-3.75,-12.25,3.0,-6.25,-9.75	numpy.where(c, x, -x), c[i] = (i % 3 == 0)[-5:]
+math.where_cond.large.abssum	63122.25	numpy.sum(numpy.abs(numpy.where(c, x, -x), c[i] = (i % 3 == 0)))
+math.abs_int.i32.small	39,2,35,29,8,45,19,18,46,9	numpy.abs(v)
+math.abs_int.i64.small	390000000000,20000000000,350000000000,290000000000,80000000000,450000000000,190000000000,180000000000,460000000000,90000000000	numpy.abs(v)
+math.abs_int.i32.large.head	39,2,35,29,8	numpy.abs(v)[:5]
+math.abs_int.i32.large.tail	15,49,12,25,39	numpy.abs(v)[-5:]
+math.abs_int.i32.large.sum	252489	int(numpy.sum(numpy.abs(v)))
+math.abs_int.i64.large.head	390000000000,20000000000,350000000000,290000000000,80000000000	numpy.abs(v)[:5]
+math.abs_int.i64.large.tail	150000000000,490000000000,120000000000,250000000000,390000000000	numpy.abs(v)[-5:]
+math.abs_int.i64.large.sum	2524890000000000	int(numpy.sum(numpy.abs(v)))
