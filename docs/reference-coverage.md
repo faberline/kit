@@ -174,16 +174,16 @@ Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` l
 | frame | frame::frame/dataframe::sort_values | - | - | - | not covered |
 | frame | frame::frame/dataframe::sort_values_by | - | - | - | not covered |
 | frame | frame::frame/dataframe::tail | - | - | - | not covered |
-| frame | frame::frame/index::range | - | - | - | not covered |
-| frame | frame::frame/index::reset | - | - | - | not covered |
-| frame | frame::frame/index::slice | - | - | - | not covered |
-| frame | frame::frame/multi_index::argsort | - | - | - | not covered |
-| frame | frame::frame/multi_index::droplevel | - | - | - | not covered |
-| frame | frame::frame/multi_index::reorder_levels | - | - | - | not covered |
-| frame | frame::frame/multi_index::select_level | - | - | - | not covered |
-| frame | frame::frame/multi_index::slice | - | - | - | not covered |
-| frame | frame::frame/multi_index::swaplevel | - | - | - | not covered |
-| frame | frame::frame/multi_index::unique | - | - | - | not covered |
+| frame | frame::frame/index::range | `list(pd.RangeIndex(10))`; `len(pd.RangeIndex(10000))`; `sum(pd.RangeIndex(10000))` | 1e-9 rel | `index_range_matches_pandas` | covered |
+| frame | frame::frame/index::reset | `pd.Series(range(6), index=pd.Index(SMALL_INT)).reset_index(drop=True).index`; the same on the 10,000-row `BIG_INT` index (len, sum) | 1e-9 rel | `index_reset_matches_pandas` | covered |
+| frame | frame::frame/index::slice | `pd.Index(SMALL_INT).take(SLICE_POS)`; `pd.RangeIndex(10).take([7, 2, 2, 9])`; `pd.Index(BIG_INT).take(BIG_POS)` (len, sum, first 5, last 5) | 1e-9 rel | `index_slice_matches_pandas` | covered |
+| frame | frame::frame/multi_index::argsort | `list(mi.argsort())`; `list(mi_large.argsort())` (first 5, last 5, checksum) | 1e-9 rel | `multi_index_argsort_matches_pandas` | covered |
+| frame | frame::frame/multi_index::droplevel | `mi.droplevel(1)` (levels and names) | 1e-9 rel | `multi_index_droplevel_matches_pandas` | covered |
+| frame | frame::frame/multi_index::reorder_levels | `mi.reorder_levels([2, 0, 1])` (levels and names) | 1e-9 rel | `multi_index_reorder_levels_matches_pandas` | covered |
+| frame | frame::frame/multi_index::select_level | `np.flatnonzero`-style positions of `mi.get_level_values(1) == 2`; of `mi_large.get_level_values(2) == 3` (count, sum) | 1e-9 rel | `multi_index_select_level_matches_pandas` | covered |
+| frame | frame::frame/multi_index::slice | `mi.take([11, 0, 4, 4, 7])` (levels and names) | 1e-9 rel | `multi_index_slice_matches_pandas` | covered |
+| frame | frame::frame/multi_index::swaplevel | `mi.swaplevel(0, 2)` (levels and names) | 1e-9 rel | `multi_index_swaplevel_matches_pandas` | covered |
+| frame | frame::frame/multi_index::unique | `mi.unique()` (levels and names); `len(mi_large.unique())`; first 5 of level 0 | 1e-9 rel | `multi_index_unique_matches_pandas` | covered |
 | frame | frame::frame/ops/groupby::agg | `df.groupby('g')['v'].agg(name) for the nine names of agg` | 1e-9 rel | groupby_agg_matches_pandas | covered |
 | frame | frame::frame/ops/groupby::aggregate | `df.groupby('g')['v'].agg(lambda x: x.max() - x.min())` | 1e-9 rel | groupby_aggregate_matches_pandas | covered |
 | frame | frame::frame/ops/groupby::count | `df.groupby('g')['v'].count()` | 1e-9 rel | groupby_count_matches_pandas | covered |
