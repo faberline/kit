@@ -275,14 +275,30 @@ mod tests {
         let mut rng1 = KitRng::new(42);
         let mut rng2 = KitRng::new(123);
 
-        let mut same = true;
-        for _ in 0..10 {
-            if rng1.next_u64() != rng2.next_u64() {
-                same = false;
-                break;
-            }
-        }
-        assert!(!same, "different seeds should produce different sequences");
+        let differs = (0..10).any(|_| rng1.next_u64() != rng2.next_u64());
+        assert!(
+            differs,
+            "different seeds should produce different sequences"
+        );
+    }
+
+    #[test]
+    fn normal_standard_retries_when_first_uniform_is_zero() {
+        // With state 0 and inc 1 the first output of next_f64 is exactly 0.0.
+        let mut rng = KitRng { state: 0, inc: 1 };
+        assert_eq!(rng.next_f64(), 0.0);
+
+        let mut rng = KitRng { state: 0, inc: 1 };
+        let value = rng.normal_standard();
+        assert!(value.is_finite());
+    }
+
+    #[test]
+    fn binomial_retries_when_waiting_time_uniform_is_zero() {
+        // n above 30 takes the waiting-time method; its first uniform is 0.0.
+        let mut rng = KitRng { state: 0, inc: 1 };
+        let value = rng.binomial(31, 0.5);
+        assert!(value <= 31);
     }
 
     #[test]
