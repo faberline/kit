@@ -1,0 +1,135 @@
+key	value	source
+search.searchsorted.small.left	0,0,2,2,3,3,4,6	numpy.searchsorted(S6, Q8, side="left")
+search.searchsorted.large.left.len	2000	numpy.searchsorted(numpy.sort(FL), QL, side="left")
+search.searchsorted.large.left.sum	10582251.0	numpy.searchsorted(numpy.sort(FL), QL, side="left")
+search.searchsorted.large.left.head	0,2773,5644,8515,0	numpy.searchsorted(numpy.sort(FL), QL, side="left")
+search.searchsorted.small.right	0,2,2,3,3,4,6,6	numpy.searchsorted(S6, Q8, side="right")
+search.searchsorted.large.right.len	2000	numpy.searchsorted(numpy.sort(FL), QL, side="right")
+search.searchsorted.large.right.sum	10753043.0	numpy.searchsorted(numpy.sort(FL), QL, side="right")
+search.searchsorted.large.right.head	0,2872,5743,8614,0	numpy.searchsorted(numpy.sort(FL), QL, side="right")
+search.sort_axis.1d	-1.5,-1.5,0.5,2.0,3.0,3.0	numpy.sort(A6)
+search.sort_axis.1d.shape	6	numpy.sort(A6)
+search.sort_axis.2d.axis0	-1.0,-4.0,-3.0,-2.0,0.0,1.0,2.0,-1.0,5.0,6.0,3.0,4.0	numpy.sort(GS, axis=0)
+search.sort_axis.2d.axis0.shape	3,4	numpy.sort(GS, axis=0)
+search.sort_axis.2d.axis1	-2.0,-1.0,2.0,6.0,-3.0,1.0,4.0,5.0,-4.0,-1.0,0.0,3.0	numpy.sort(GS, axis=1)
+search.sort_axis.2d.axis1.shape	3,4	numpy.sort(GS, axis=1)
+search.sort_axis.3d.axis0	-1.0,2.0,-2.0,-2.0,1.0,-3.0,-3.0,0.0,-4.0,-4.0,-1.0,-1.0,6.0,6.0,2.0,5.0,5.0,1.0,4.0,4.0,0.0,3.0,3.0,6.0	numpy.sort(XS, axis=0)
+search.sort_axis.3d.axis0.shape	2,3,4	numpy.sort(XS, axis=0)
+search.sort_axis.3d.axis1	-1.0,-4.0,-3.0,-2.0,0.0,1.0,2.0,-1.0,5.0,6.0,3.0,4.0,-4.0,-3.0,-2.0,0.0,1.0,2.0,-1.0,5.0,6.0,3.0,4.0,6.0	numpy.sort(XS, axis=1)
+search.sort_axis.3d.axis1.shape	2,3,4	numpy.sort(XS, axis=1)
+search.sort_axis.3d.axis2	-2.0,-1.0,2.0,6.0,-3.0,1.0,4.0,5.0,-4.0,-1.0,0.0,3.0,-2.0,2.0,5.0,6.0,-3.0,0.0,1.0,4.0,-4.0,-1.0,3.0,6.0	numpy.sort(XS, axis=2)
+search.sort_axis.3d.axis2.shape	2,3,4	numpy.sort(XS, axis=2)
+search.sort_axis.large.head	0.0,0.0,0.0,0.0,0.0	numpy.sort(FL)[:5]
+search.sort_axis.large.tail	25.0,25.0,25.0,25.0,25.0	numpy.sort(FL)[-5:]
+search.sort_axis.large.sum	124990.25	numpy.sum(numpy.sort(FL))
+search.sort_axis.large.wsum	835418086.25	numpy.sum(numpy.sort(FL) * numpy.arange(1, 10001))
+search.argsort_axis.1d	1,4,3,5,0,2	numpy.argsort(A6, kind="stable")
+search.argsort_axis.1d.shape	6	numpy.argsort(A6, kind="stable")
+search.argsort_axis.2d.axis0	0,2,1,0,2,1,0,2,1,0,2,1	numpy.argsort(GS, kind="stable", axis=0)
+search.argsort_axis.2d.axis0.shape	3,4	numpy.argsort(GS, kind="stable", axis=0)
+search.argsort_axis.2d.axis1	3,0,2,1,2,1,3,0,1,3,0,2	numpy.argsort(GS, kind="stable", axis=1)
+search.argsort_axis.2d.axis1.shape	3,4	numpy.argsort(GS, kind="stable", axis=1)
+search.argsort_axis.3d.axis0	0,1,1,0,1,1,0,1,1,0,1,0,1,0,0,1,0,0,1,0,0,1,0,1	numpy.argsort(XS, kind="stable", axis=0)
+search.argsort_axis.3d.axis0.shape	2,3,4	numpy.argsort(XS, kind="stable", axis=0)
+search.argsort_axis.3d.axis1	0,2,1,0,2,1,0,2,1,0,2,1,2,1,0,1,1,0,2,0,0,2,1,2	numpy.argsort(XS, kind="stable", axis=1)
+search.argsort_axis.3d.axis1.shape	2,3,4	numpy.argsort(XS, kind="stable", axis=1)
+search.argsort_axis.3d.axis2	3,0,2,1,2,1,3,0,1,3,0,2,2,1,3,0,1,3,0,2,0,2,1,3	numpy.argsort(XS, kind="stable", axis=2)
+search.argsort_axis.3d.axis2.shape	2,3,4	numpy.argsort(XS, kind="stable", axis=2)
+search.argsort_axis.large.head	27,128,229,330,431	numpy.argsort(FL, kind="stable")[:5]
+search.argsort_axis.large.tail	9551,9652,9753,9854,9955	numpy.argsort(FL, kind="stable")[-5:]
+search.argsort_axis.large.len	10000	len(numpy.argsort(FL, kind="stable"))
+search.argsort_axis.large.wsum	250823512434	numpy.sum(numpy.argsort(FL, kind="stable") * numpy.arange(1, 10001))
+search.unique_full.small.values	-1.5,0.5,2.0,3.0	numpy.unique(A6)
+search.unique_full.small.indices	1,3,5,0	numpy.unique(A6, return_index=True)[1]
+search.unique_full.small.inverse	3,0,3,1,0,2	numpy.unique(A6, return_inverse=True)[2]
+search.unique_full.small.counts	2,1,1,2	numpy.unique(A6, return_counts=True)[3]
+search.unique_full.nan.values	0.5,1.0,nan	numpy.unique(U6)
+search.unique_full.nan.indices	2,0,1	numpy.unique(U6, return_index=True)[1]
+search.unique_full.nan.inverse	1,2,0,2,1	numpy.unique(U6, return_inverse=True)[2]
+search.unique_full.nan.counts	1,2,2	numpy.unique(U6, return_counts=True)[3]
+search.unique_full.2d.values	0.0,1.0,2.0,3.0	numpy.unique(U23.ravel())
+search.unique_full.2d.indices	5,1,3,0	numpy.unique(U23.ravel(), return_index=True)[1]
+search.unique_full.2d.inverse	3,1,3,2,1,0	numpy.unique(U23.ravel(), return_inverse=True)[2]
+search.unique_full.2d.counts	1,2,1,2	numpy.unique(U23.ravel(), return_counts=True)[3]
+search.unique_full.large.values	0.0,0.25,0.5,0.75,1.0,1.25,1.5,1.75,2.0,2.25,2.5,2.75,3.0,3.25,3.5,3.75,4.0,4.25,4.5,4.75,5.0,5.25,5.5,5.75,6.0,6.25,6.5,6.75,7.0,7.25,7.5,7.75,8.0,8.25,8.5,8.75,9.0,9.25,9.5,9.75,10.0,10.25,10.5,10.75,11.0,11.25,11.5,11.75,12.0,12.25,12.5,12.75,13.0,13.25,13.5,13.75,14.0,14.25,14.5,14.75,15.0,15.25,15.5,15.75,16.0,16.25,16.5,16.75,17.0,17.25,17.5,17.75,18.0,18.25,18.5,18.75,19.0,19.25,19.5,19.75,20.0,20.25,20.5,20.75,21.0,21.25,21.5,21.75,22.0,22.25,22.5,22.75,23.0,23.25,23.5,23.75,24.0,24.25,24.5,24.75,25.0	numpy.unique(FL)
+search.unique_full.large.indices	27,98,68,38,8,79,49,19,90,60,30,0,71,41,11,82,52,22,93,63,33,3,74,44,14,85,55,25,96,66,36,6,77,47,17,88,58,28,99,69,39,9,80,50,20,91,61,31,1,72,42,12,83,53,23,94,64,34,4,75,45,15,86,56,26,97,67,37,7,78,48,18,89,59,29,100,70,40,10,81,51,21,92,62,32,2,73,43,13,84,54,24,95,65,35,5,76,46,16,87,57	numpy.unique(FL, return_index=True)[1]
+search.unique_full.large.counts	99,99,99,99,99,99,99,99,99,99,99,100,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99,99	numpy.unique(FL, return_counts=True)[3]
+search.unique_full.large.inverse.sum	499961	numpy.sum(numpy.unique(FL, return_inverse=True)[2])
+search.unique_full.large.inverse.wsum	2500039982	numpy.sum(numpy.unique(FL, return_inverse=True)[2] * numpy.arange(1, 10001))
+search.where_select.small	3.0,20.0,3.0,40.0,50.0,2.0	numpy.where(c6, A6, [10, 20, 30, 40, 50, 60])
+search.where_select.small.shape	6	numpy.where(c6, A6, [10, 20, 30, 40, 50, 60])
+search.where_select.2d	-1.0,-2.0,-3.0,4.0,5.0,6.0	numpy.where(M23 > 3.0, M23, -M23)
+search.where_select.2d.shape	2,3	numpy.where(M23 > 3.0, M23, -M23)
+search.where_select.large.len	10000	numpy.where(i % 3 == 0, FL, -FL - 1.0)
+search.where_select.large.sum	-48325.75	numpy.where(i % 3 == 0, FL, -FL - 1.0)
+search.where_select.large.head	2.75,-13.0,-22.25,5.25,-15.5	numpy.where(i % 3 == 0, FL, -FL - 1.0)
+search.nonzero.1d	1,2,4	numpy.nonzero([False, True, True, False, True])[0]
+search.nonzero.2d.axis0	0,0,1,2	numpy.nonzero(numpy.arange(12).reshape(3, 4) % 3 == 0)[0]
+search.nonzero.2d.axis1	0,3,2,1	numpy.nonzero(numpy.arange(12).reshape(3, 4) % 3 == 0)[1]
+search.nonzero.3d.axis0	0,0,0,1,1	numpy.nonzero(numpy.arange(24).reshape(2, 3, 4) % 5 == 0)[0]
+search.nonzero.3d.axis1	0,1,2,0,2	numpy.nonzero(numpy.arange(24).reshape(2, 3, 4) % 5 == 0)[1]
+search.nonzero.3d.axis2	0,1,2,3,0	numpy.nonzero(numpy.arange(24).reshape(2, 3, 4) % 5 == 0)[2]
+search.nonzero.large.len	3334	numpy.nonzero(i % 3 == 0 for i in range(10000))[0]
+search.nonzero.large.sum	16668333.0	numpy.nonzero(i % 3 == 0 for i in range(10000))[0]
+search.nonzero.large.head	0,3,6,9,12	numpy.nonzero(i % 3 == 0 for i in range(10000))[0]
+search.nonzero.none.len	0	len(numpy.nonzero(numpy.zeros(4, dtype=bool))[0])
+ops.add.same	3.5,0.5,-1.0,8.5,-1.25,1.0	numpy.add(A6, B6)
+ops.add.same.shape	6	numpy.add(A6, B6)
+ops.add.row	2.0,4.0,6.0,5.0,7.0,9.0	numpy.add(M23, V3)
+ops.add.row.shape	2,3	numpy.add(M23, V3)
+ops.add.col	11.0,12.0,13.0,24.0,25.0,26.0	numpy.add(M23, C21)
+ops.add.col.shape	2,3	numpy.add(M23, C21)
+ops.add.outer	10.5,11.5,12.5,20.5,21.5,22.5	numpy.add(C21, M13)
+ops.add.outer.shape	2,3	numpy.add(C21, M13)
+ops.add.large.len	10000	numpy.add(FL, FD)
+ops.add.large.sum	186238.625	numpy.add(FL, FD)
+ops.add.large.head	3.75,19.625,23.375,14.0,17.75	numpy.add(FL, FD)
+ops.sub.same	2.5,-3.5,7.0,-7.5,-1.75,3.0	numpy.subtract(A6, B6)
+ops.sub.same.shape	6	numpy.subtract(A6, B6)
+ops.sub.row	0.0,0.0,0.0,3.0,3.0,3.0	numpy.subtract(M23, V3)
+ops.sub.row.shape	2,3	numpy.subtract(M23, V3)
+ops.sub.col	-9.0,-8.0,-7.0,-16.0,-15.0,-14.0	numpy.subtract(M23, C21)
+ops.sub.col.shape	2,3	numpy.subtract(M23, C21)
+ops.sub.outer	9.5,8.5,7.5,19.5,18.5,17.5	numpy.subtract(C21, M13)
+ops.sub.outer.shape	2,3	numpy.subtract(C21, M13)
+ops.sub.large.len	10000	numpy.subtract(FL, FD)
+ops.sub.large.sum	63741.875	numpy.subtract(FL, FD)
+ops.sub.large.head	1.75,4.375,19.125,-3.5,11.25	numpy.subtract(FL, FD)
+ops.mul.same	1.5,-3.0,-12.0,4.0,-0.375,-2.0	numpy.multiply(A6, B6)
+ops.mul.same.shape	6	numpy.multiply(A6, B6)
+ops.mul.row	1.0,4.0,9.0,4.0,10.0,18.0	numpy.multiply(M23, V3)
+ops.mul.row.shape	2,3	numpy.multiply(M23, V3)
+ops.mul.col	10.0,20.0,30.0,80.0,100.0,120.0	numpy.multiply(M23, C21)
+ops.mul.col.shape	2,3	numpy.multiply(M23, C21)
+ops.mul.outer	5.0,15.0,25.0,10.0,30.0,50.0	numpy.multiply(C21, M13)
+ops.mul.outer.shape	2,3	numpy.multiply(C21, M13)
+ops.mul.large.len	10000	numpy.multiply(FL, FD)
+ops.mul.large.sum	765898.6875	numpy.multiply(FL, FD)
+ops.mul.large.head	2.75,91.5,45.15625,45.9375,47.125	numpy.multiply(FL, FD)
+ops.div.same	6.0,-0.75,-0.75,0.0625,-6.0,-2.0	numpy.divide(A6, B6)
+ops.div.same.shape	6	numpy.divide(A6, B6)
+ops.div.row	1.0,1.0,1.0,4.0,2.5,2.0	numpy.divide(M23, V3)
+ops.div.row.shape	2,3	numpy.divide(M23, V3)
+ops.div.col	0.1,0.2,0.3,0.2,0.25,0.3	numpy.divide(M23, C21)
+ops.div.col.shape	2,3	numpy.divide(M23, C21)
+ops.div.outer	20.0,6.666666666666667,4.0,40.0,13.333333333333334,8.0	numpy.divide(C21, M13)
+ops.div.outer.shape	2,3	numpy.divide(C21, M13)
+ops.div.large.len	10000	numpy.divide(FL, FD)
+ops.div.large.sum	53101.84387852832	numpy.divide(FL, FD)
+ops.div.large.head	2.75,1.5737704918032787,10.0,0.6,4.461538461538462	numpy.divide(FL, FD)
+ops.div.zero	inf,-inf,nan	numpy.array([1.0, -1.0, 0.0]) / numpy.array([0.0, 0.0, 0.0])
+ops.div.zero.shape	3	numpy.array([1.0, -1.0, 0.0]) / numpy.array([0.0, 0.0, 0.0])
+ops.add_scalar.small	5.5,1.0,5.5,3.0,1.0,4.5	A6 + 2.5
+ops.add_scalar.small.shape	6	A6 + 2.5
+ops.add_scalar.2d	3.5,4.5,5.5,6.5,7.5,8.5	M23 + 2.5
+ops.add_scalar.2d.shape	2,3	M23 + 2.5
+ops.add_scalar.large.len	10000	FL + 1.25
+ops.add_scalar.large.sum	137490.25	FL + 1.25
+ops.add_scalar.large.head	4.0,13.25,22.5,6.5,15.75	FL + 1.25
+ops.mul_scalar.small	-1.5,0.75,-1.5,-0.25,0.75,-1.0	A6 * -0.5
+ops.mul_scalar.small.shape	6	A6 * -0.5
+ops.mul_scalar.2d	-0.5,-1.0,-1.5,-2.0,-2.5,-3.0	M23 * -0.5
+ops.mul_scalar.2d.shape	2,3	M23 * -0.5
+ops.mul_scalar.large.len	10000	FL * -3.0
+ops.mul_scalar.large.sum	-374970.75	FL * -3.0
+ops.mul_scalar.large.head	-8.25,-36.0,-63.75,-15.75,-43.5	FL * -3.0
