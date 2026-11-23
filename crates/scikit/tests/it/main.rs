@@ -30,3 +30,6 @@ mod reference_spatial_sparse;
 
 #[cfg(feature = "signal")]
 mod reference_filter_scipy;
+
+#[cfg(all(feature = "fft", feature = "signal"))]
+mod reference_stft_scipy;

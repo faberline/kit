@@ -475,23 +475,6 @@ def fft_signal_rows():
         add(f"peaks_{name}_height", d[peaks], psrc + " x[peaks]")
         add(f"peaks_{name}_prominence", props["prominences"], psrc + " prominences")
 
-    x256 = sample(256)
-    stft_src = (
-        "numpy.fft.rfft(x[s:s+w] * scipy.signal.windows.hann(w, sym=True)) "
-        "(kit stft: symmetric Hann, no scaling, no padding)"
-    )
-    for w, h, fs in ((64, 32, 100.0), (100, 25, 1000.0)):
-        prefix = f"stft_w{w}_h{h}"
-        starts = list(range(0, 256 - w + 1, h))
-        win = sg.windows.hann(w, sym=True)
-        zs = [np.fft.rfft(x256[s : s + w] * win) for s in starts]
-        add(f"{prefix}_n_frames", float(len(starts)), stft_src)
-        add(f"{prefix}_freqs", np.fft.rfftfreq(w, 1.0 / fs), stft_src)
-        add(f"{prefix}_times", [(s + (w - 1) / 2) / fs for s in starts], stft_src)
-        add_complex(f"{prefix}_frame0", zs[0], stft_src)
-        add_complex(f"{prefix}_last", zs[-1], stft_src)
-        add_complex(f"{prefix}_all", np.concatenate(zs), stft_src)
-
     return rows
 
 
@@ -1016,9 +999,47 @@ def filter_rows():
     return rows
 
 
+STFT_FIXTURE = "crates/scikit/tests/fixtures/stft_scipy_reference.tsv"
+
+# (case name, input length, keyword arguments of scipy.signal.stft). fs is 100.0 in every case.
+STFT_CASES = (
+    ("default", 256, {"nperseg": 64}),
+    ("nobound", 256, {"nperseg": 64, "noverlap": 32, "boundary": None, "padded": False}),
+    ("density", 256, {"nperseg": 64, "noverlap": 32, "boundary": None, "padded": False, "scaling": "psd"}),
+    ("hamming_odd", 250, {"window": "hamming", "nperseg": 33, "noverlap": 16}),
+    ("blackman_pad", 256, {"window": "blackman", "nperseg": 40, "noverlap": 10, "boundary": None, "padded": True}),
+)
+
+
+def stft_rows():
+    """Rows of the scikit::signal::stft group (stft_scipy_reference.tsv).
+
+    The spectrogram is written frame first, then frequency bin: Z.T.ravel().
+    """
+    warnings.filterwarnings("ignore")
+    rows = []
+
+    def add(key, value, source):
+        rows.append((key, common.stable_value(value), source))
+
+    for case, n, kwargs in STFT_CASES:
+        f, t, z = sg.stft(sample(n), fs=100.0, **kwargs)
+        opts = ", ".join(f"{k}={v!r}" for k, v in kwargs.items())
+        src = f"scipy.signal.stft(sample({n}), fs=100.0, {opts})"
+        prefix = f"stft.{case}"
+        zt = z.T
+        add(f"{prefix}.n_frames", float(zt.shape[0]), src + " Z.shape[1]")
+        add(f"{prefix}.times", t, src + " t")
+        add(f"{prefix}.freqs", f, src + " f")
+        add(f"{prefix}.re", zt.real.ravel(), src + " Z.T.real.ravel()")
+        add(f"{prefix}.im", zt.imag.ravel(), src + " Z.T.imag.ravel()")
+    return rows
+
+
 common.main(
     {
         FILTER_FIXTURE: filter_rows,
+        STFT_FIXTURE: stft_rows,
         "crates/scikit/tests/fixtures/stats_reference.tsv": stats_rows,
         "crates/scikit/tests/fixtures/stats_grid_reference.tsv": stats_grid_rows,
         "crates/scikit/tests/fixtures/fft_signal_reference.tsv": fft_signal_rows,

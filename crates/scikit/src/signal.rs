@@ -20,5 +20,5 @@ pub use filter::{
 };
 pub use filtfilt::filtfilt;
 pub use peaks::{find_peaks, Peak, PeakOptions};
-pub use stft::{stft, StftResult};
+pub use stft::{stft, stft_with, StftOptions, StftResult, StftScaling, StftWindow};
 pub use windows::{blackman, hamming, hann, kaiser};

@@ -84,7 +84,11 @@ A SciPy name of `none` means a kit helper or a kit type with no SciPy name. Its 
 | signal::find_peaks | scipy.signal.find_peaks | partial | crates/scikit/src/signal/peaks.rs; PeakOptions fields only |
 | signal::Peak | none | has | crates/scikit/src/signal/peaks.rs |
 | signal::PeakOptions | scipy.signal.find_peaks (keyword arguments) | has | crates/scikit/src/signal/peaks.rs |
-| signal::stft | scipy.signal.stft | partial | crates/scikit/src/signal/stft.rs; Hann window only; panics on a bad size |
+| signal::stft | scipy.signal.stft (boundary=None, padded=False) | partial | crates/scikit/src/signal/stft.rs; periodic Hann window, scaling 'spectrum' only; panics on a bad size |
+| signal::stft_with | scipy.signal.stft (window, noverlap, boundary, padded, scaling) | partial | crates/scikit/src/signal/stft.rs; windows Hann, Hamming, Blackman only; no detrend, nfft, return_onesided or axis; panics when x is shorter than nperseg (SciPy shrinks nperseg) |
+| signal::StftOptions | none (keyword arguments) | has | crates/scikit/src/signal/stft.rs |
+| signal::StftWindow | none (window argument) | has | crates/scikit/src/signal/stft.rs |
+| signal::StftScaling | none (scaling argument) | has | crates/scikit/src/signal/stft.rs |
 | signal::StftResult | none (tuple in SciPy) | has | crates/scikit/src/signal/stft.rs |
 | signal::hann | scipy.signal.windows.hann | has | crates/scikit/src/signal/windows.rs |
 | signal::hamming | scipy.signal.windows.hamming | has | crates/scikit/src/signal/windows.rs |
