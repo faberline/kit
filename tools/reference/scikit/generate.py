@@ -415,20 +415,6 @@ def fft_signal_rows():
     )
     add("lfilter_a0_2", sg.lfilter([1.0, 2.0], [2.0, -1.0], sample(64)), "scipy.signal.lfilter([1.0, 2.0], [2.0, -1.0], sample(64))")
 
-    ff_note = "forward and backward sg.lfilter (kit filtfilt has no padding and a zero initial state)"
-    x64 = sample(64)
-    add(
-        "filtfilt_iir_64",
-        sg.lfilter(b_iir, a_iir, sg.lfilter(b_iir, a_iir, x64)[::-1])[::-1],
-        ff_note + ", b = [0.2, 0.3, 0.2], a = [1.0, -0.5], sample(64)",
-    )
-    fir = [0.25] * 4
-    x100 = sample(100)
-    add(
-        "filtfilt_fir_100",
-        sg.lfilter(fir, [1.0], sg.lfilter(fir, [1.0], x100)[::-1])[::-1],
-        ff_note + ", b = [0.25] * 4, a = [1.0], sample(100)",
-    )
 
     sos4 = sg.butter(4, 0.3, btype="lowpass", output="sos")
     sos3 = sg.butter(3, 0.2, btype="highpass", output="sos")
@@ -1039,6 +1025,11 @@ def filter_rows():
         b, a = FILTERS[filt]
         y = sg.filtfilt(b, a, xf, **options)
         add(f"filtfilt.{name}", np.asarray(y, dtype=float).tolist(), f"scipy.signal.filtfilt(b, a, x{extra})")
+    # The FIR case of the deleted row filtfilt_fir_100: F4 on 100 values, the defaults.
+    b4, a4 = FILTERS["f4"]
+    y100 = sg.filtfilt(b4, a4, sample(100))
+    add("filtfilt.f4_n100_default", np.asarray(y100, dtype=float).tolist(),
+        "scipy.signal.filtfilt([0.25, 0.25, 0.25, 0.25], [1.0], sample(100))")
     return rows
 
 

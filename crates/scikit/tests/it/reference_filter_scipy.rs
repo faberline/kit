@@ -165,6 +165,14 @@ fn filtfilt_matches_scipy_default() {
     }
 }
 
+// The FIR case of the deleted test filtfilt_matches_scipy_lfilter: F4 on 100 values.
+#[test]
+fn filtfilt_matches_scipy_fir_100() {
+    let x = sig(100);
+    let (b, a) = filter("f4");
+    close_list(&filtfilt(b, a, &x), "filtfilt.f4_n100_default");
+}
+
 #[test]
 fn filtfilt_matches_scipy_padtypes() {
     let x = sig(64);
