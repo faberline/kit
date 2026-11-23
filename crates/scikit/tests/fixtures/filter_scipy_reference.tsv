@@ -1,0 +1,18 @@
+key	value	source
+lfilter_zi.f1	1.2,0.2	scipy.signal.lfilter_zi(b, a)
+lfilter_state.f1.y	3.85,5.7,11.25,15.45,16.45,18.375,20.7625,20.85625,17.278125,14.3890625,14.36953125,15.784765625,15.3923828125,16.6211914062,18.6605957031,18.5802978516,19.9651489258,22.0825744629,22.0412872314,18.3956436157	scipy.signal.lfilter(b, a, x, zi=scipy.signal.lfilter_zi(b, a) * x[0]), y
+lfilter_state.f1.zf	13.2728218079,0.35	scipy.signal.lfilter(b, a, x, zi=scipy.signal.lfilter_zi(b, a) * x[0]), zf
+lfilter_zi.f2	0.901373144742,0.0286463655969,0.154792858049	scipy.signal.lfilter_zi(b, a)
+lfilter_state.f2.y	2.74965114804,3.66077614804,7.83210249804,13.7480795423,15.2815623753,13.7331252227,14.8422137469,16.0487955175,13.5300689643,8.96959049086,7.29456172982,10.4261406441,12.5104101868,12.1251964615,13.5166140991,14.426517884,14.1700768565,16.0331984918,17.0949367083,14.2472946712	scipy.signal.lfilter(b, a, x, zi=scipy.signal.lfilter_zi(b, a) * x[0]), y
+lfilter_state.f2.zf	8.51701325574,-2.78138895563,0.974497689988	scipy.signal.lfilter(b, a, x, zi=scipy.signal.lfilter_zi(b, a) * x[0]), zf
+lfilter_zi.f3	1.0	scipy.signal.lfilter_zi(b, a)
+lfilter_state.f3.y	5.5,14.75,30.9375,23.609375,23.02734375,36.7568359375,28.8142089844,28.0785522461,16.5196380615,14.8799095154,28.3449773788,20.3362443447,19.5840610862,33.2710152715,25.3177538179,24.5794384545,38.2698596136,30.3174649034,29.5793662259,18.0198415565	scipy.signal.lfilter(b, a, x, zi=scipy.signal.lfilter_zi(b, a) * x[0]), y
+lfilter_state.f3.zf	5.37996038912	scipy.signal.lfilter(b, a, x, zi=scipy.signal.lfilter_zi(b, a) * x[0]), zf
+lfilter_zi.f4	0.75,0.5,0.25	scipy.signal.lfilter_zi(b, a)
+lfilter_state.f4.y	2.75,5.0625,9.6875,10.3125,13.25,16.1875,12.8125,15.75,12.375,9.0,11.9375,8.5625,11.5,14.4375,11.0625,14.0,16.9375,13.5625,16.5,13.125	scipy.signal.lfilter(b, a, x, zi=scipy.signal.lfilter_zi(b, a) * x[0]), y
+lfilter_state.f4.zf	7.0,4.875,0.4375	scipy.signal.lfilter(b, a, x, zi=scipy.signal.lfilter_zi(b, a) * x[0]), zf
+lfilter_zi.f5	0.875,-0.1875	scipy.signal.lfilter_zi(b, a)
+lfilter_state.f5.y	5.15625,14.40625,31.05625,23.75125,21.14475,34.9683,28.001015,25.7784745,14.43344085,12.502184805,26.9323113565,20.0794749265,17.8306113423,31.71623591,24.7318096388,22.4979193006,36.4011948263,29.4205665178,27.1860504727,15.83875849	scipy.signal.lfilter(b, a, x, zi=scipy.signal.lfilter_zi(b, a) * x[0]), y
+lfilter_state.f5.zf	2.90802249974,-1.583875849	scipy.signal.lfilter(b, a, x, zi=scipy.signal.lfilter_zi(b, a) * x[0]), zf
+lfilter_state.f1.y_zero	0.55,3.5,10.15,14.9,16.175,18.2375,20.69375,20.821875,17.2609375,14.38046875,14.365234375,15.7826171875,15.3913085938,16.6206542969,18.6603271484,18.5801635742,19.9650817871,22.0825408936,22.0412704468,18.3956352234	scipy.signal.lfilter(b, a, x, zi=numpy.zeros(2)), y
+lfilter_state.f1.zf_zero	13.2728176117,0.35	scipy.signal.lfilter(b, a, x, zi=numpy.zeros(2)), zf

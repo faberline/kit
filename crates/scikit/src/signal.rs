@@ -15,7 +15,9 @@ mod stft;
 mod windows;
 
 pub use convolve::{convolve, correlate, ConvolveMode};
-pub use filter::{butter, lfilter, sosfilt, FilterType, SosSection};
+pub use filter::{
+    butter, lfilter, lfilter_with_state, lfilter_zi, sosfilt, FilterType, SosSection,
+};
 pub use filtfilt::filtfilt;
 pub use peaks::{find_peaks, Peak, PeakOptions};
 pub use stft::{stft, StftResult};

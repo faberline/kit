@@ -988,8 +988,44 @@ def spatial_sparse_rows():
     return rows
 
 
+FILTER_FIXTURE = "crates/scikit/tests/fixtures/filter_scipy_reference.tsv"
+
+# The filters of the lfilter rows: name -> (b, a). F1 to F5 only; a single tap has no SciPy value.
+FILTERS = {
+    "f1": ([0.2, 0.3, 0.2], [1.0, -0.5]),
+    "f2": ([0.0985, 0.2956, 0.2956, 0.0985], [1.0, -0.5772, 0.4218, -0.0563]),
+    "f3": ([2.0, 1.0], [2.0, -0.5]),
+    "f4": ([0.25, 0.25, 0.25, 0.25], [1.0]),
+    "f5": ([1.0, 0.5], [1.0, -0.3, 0.1]),
+}
+
+
+def filter_rows():
+    """Rows of the scikit::signal filter group (filter_scipy_reference.tsv): lfilter_zi and lfilter with a state."""
+    warnings.filterwarnings("ignore")
+    rows = []
+
+    def add(key, value, source):
+        rows.append((key, common.stable_value(value), source))
+
+    x = sample(20)
+    for name, (b, a) in FILTERS.items():
+        zi = sg.lfilter_zi(b, a)
+        add(f"lfilter_zi.{name}", zi.tolist(), "scipy.signal.lfilter_zi(b, a)")
+        zi_x = zi * x[0]
+        y, zf = sg.lfilter(b, a, x, zi=zi_x)
+        add(f"lfilter_state.{name}.y", np.asarray(y, dtype=float).tolist(), "scipy.signal.lfilter(b, a, x, zi=scipy.signal.lfilter_zi(b, a) * x[0]), y")
+        add(f"lfilter_state.{name}.zf", np.asarray(zf, dtype=float).tolist(), "scipy.signal.lfilter(b, a, x, zi=scipy.signal.lfilter_zi(b, a) * x[0]), zf")
+    b1, a1 = FILTERS["f1"]
+    y0, zf0 = sg.lfilter(b1, a1, x, zi=np.zeros(2))
+    add("lfilter_state.f1.y_zero", np.asarray(y0, dtype=float).tolist(), "scipy.signal.lfilter(b, a, x, zi=numpy.zeros(2)), y")
+    add("lfilter_state.f1.zf_zero", np.asarray(zf0, dtype=float).tolist(), "scipy.signal.lfilter(b, a, x, zi=numpy.zeros(2)), zf")
+    return rows
+
+
 common.main(
     {
+        FILTER_FIXTURE: filter_rows,
         "crates/scikit/tests/fixtures/stats_reference.tsv": stats_rows,
         "crates/scikit/tests/fixtures/stats_grid_reference.tsv": stats_grid_rows,
         "crates/scikit/tests/fixtures/fft_signal_reference.tsv": fft_signal_rows,
