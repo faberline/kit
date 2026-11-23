@@ -74,6 +74,8 @@ A SciPy name of `none` means a kit helper or a kit type with no SciPy name. Its 
 | signal::correlate | scipy.signal.correlate | has | crates/scikit/src/signal/convolve.rs |
 | signal::ConvolveMode | none (mode argument) | has | crates/scikit/src/signal/convolve.rs |
 | signal::lfilter | scipy.signal.lfilter | has | crates/scikit/src/signal/filter.rs |
+| signal::lfilter_zi | scipy.signal.lfilter_zi | has | crates/scikit/src/signal/filter.rs |
+| signal::lfilter_with_state | scipy.signal.lfilter (zi argument) | has | crates/scikit/src/signal/filter.rs |
 | signal::sosfilt | scipy.signal.sosfilt | has | crates/scikit/src/signal/filter.rs |
 | signal::butter | scipy.signal.butter | has | crates/scikit/src/signal/filter.rs; fixed in issue 56 (odd order) |
 | signal::FilterType | none (ftype argument) | has | crates/scikit/src/signal/filter.rs |
