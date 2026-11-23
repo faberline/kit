@@ -780,6 +780,13 @@ def ts_rows():
     res = ARIMA(b, order=(2, 0, 0), trend="c").smooth(np.r_[mean200, phi200, 1.0])
     fv = np.asarray(res.fittedvalues, dtype=float)
     put(vec_rows("arima_fitted_200", fv[2:], "statsmodels.tsa.arima.model.ARIMA(b, order=(2, 0, 0), trend='c').smooth(...).fittedvalues[2:]"))
+    # d = 1 fitted values on the levels: fitted[t] = b[t-1] + one-step prediction of diff[t-1], for t >= p + 1
+    for p in (1, 2):
+        dd = np.diff(b, n=1)
+        phi, mean = ar_part(dd, p)
+        fv_diff = np.asarray(ARIMA(dd, order=(p, 0, 0), trend="c").smooth(np.r_[mean, phi, 1.0]).fittedvalues, dtype=float)
+        levels = (b[:-1] + fv_diff)[p:]
+        put(vec_rows(f"arima_fitted_{p}10", levels, f"b[t-1] + ARIMA(numpy.diff(b, 1), order=({p}, 0, 0), trend='c').smooth(...).fittedvalues[t-1], for t >= {p + 1}"))
     for p, d, q in ((2, 0, 0), (1, 1, 0), (2, 1, 0)):
         dd = np.diff(b, n=d)
         phi, mean = ar_part(dd, p)

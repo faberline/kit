@@ -78,6 +78,11 @@ impl ArimaModel {
 
     /// One-step-ahead predictions on the training data (in-sample).
     pub fn fitted_values(&self, data: &[f64]) -> Vec<f64> {
+        undifference(&self.diff_predictions(data), data, self.d)
+    }
+
+    /// One-step-ahead predictions of the d-times differenced series.
+    fn diff_predictions(&self, data: &[f64]) -> Vec<f64> {
         let diffed = difference(data, self.d);
         let n = diffed.len();
         let mut preds = vec![self.diff_mean; n];
@@ -97,9 +102,7 @@ impl ArimaModel {
             preds[t] = val;
             residuals[t] = diffed[t] - val;
         }
-
-        // Undifference
-        undifference(&preds, data, self.d)
+        preds
     }
 
     /// Forecast `h` steps ahead.
@@ -151,8 +154,7 @@ impl ArimaModel {
     /// AIC = n * ln(RSS/n) + 2 * k, where k = p + q + 1
     pub fn aic(&self, data: &[f64]) -> f64 {
         let diffed = difference(data, self.d);
-        let fitted = self.fitted_values(data);
-        let fitted_diff = difference(&fitted, self.d);
+        let fitted_diff = self.diff_predictions(data);
 
         let n = diffed.len();
         let start = self.p.max(self.q);
@@ -185,25 +187,27 @@ pub fn difference(data: &[f64], d: usize) -> Vec<f64> {
 }
 
 /// Undifference in-sample predictions.
+///
+/// `fitted[t] = pred_diff[t - d] + sum_{k=1..d} (-1)^(k+1) C(d, k) original[t - k]`
+/// for `t >= d`, and `fitted[t] = original[t]` for `t < d`.
 fn undifference(preds_diff: &[f64], original: &[f64], d: usize) -> Vec<f64> {
     if d == 0 {
         return preds_diff.to_vec();
     }
 
-    // For d=1: pred_original[t] = pred_diff[t-1] + original[t-1]
-    // We simply return the original-scale fitted values using cumulative sum
-    let mut result = preds_diff.to_vec();
-    for _ in 0..d {
-        let mut undiffed = Vec::with_capacity(result.len() + 1);
-        undiffed.push(original[0]); // Use first original value as anchor
-        for &r in &result {
-            let prev = *undiffed.last().unwrap();
-            undiffed.push(prev + r);
+    // For t < d there is no prediction: use the observed level.
+    let mut result: Vec<f64> = original.iter().take(d).copied().collect();
+    for t in d..original.len() {
+        // sum_{k=1..d} (-1)^(k+1) * C(d, k) * original[t - k]
+        let mut binom = 1.0;
+        let mut base = 0.0;
+        for k in 1..=d {
+            binom *= (d - k + 1) as f64 / k as f64;
+            let sign = if k % 2 == 1 { 1.0 } else { -1.0 };
+            base += sign * binom * original[t - k];
         }
-        result = undiffed;
+        result.push(preds_diff[t - d] + base);
     }
-    // Trim to match original length
-    result.truncate(original.len());
     result
 }
 
@@ -433,6 +437,51 @@ mod tests {
         let model = ArimaModel::fit(&data, ArimaOrder::new(1, 1, 0)).unwrap();
         let fitted = model.fitted_values(&data);
         assert_eq!(fitted.len(), 50);
+    }
+
+    #[test]
+    fn fitted_values_d1_closed_form() {
+        // Differences [3, -2, 6, -5], mean 0.5; with p = q = 0 every prediction is 0.5.
+        let data = [2.0, 5.0, 3.0, 9.0, 4.0];
+        let model = ArimaModel::fit(&data, ArimaOrder::new(0, 1, 0)).unwrap();
+        let want = [2.0, 2.5, 5.5, 3.5, 9.5];
+        let got = model.fitted_values(&data);
+        assert_eq!(got.len(), want.len());
+        for (i, (a, e)) in got.iter().zip(want.iter()).enumerate() {
+            assert!((a - e).abs() < 1e-12, "fitted[{i}] = {a}, expected {e}");
+        }
+    }
+
+    #[test]
+    fn fitted_values_d2_closed_form() {
+        // Second differences [-5, 8, -9, 5], mean -0.25.
+        // fitted[t] = -0.25 + 2 * data[t-1] - data[t-2] for t >= 2.
+        let data = [1.0, 4.0, 2.0, 8.0, 5.0, 7.0];
+        let model = ArimaModel::fit(&data, ArimaOrder::new(0, 2, 0)).unwrap();
+        let want = [1.0, 4.0, 6.75, -0.25, 13.75, 1.75];
+        let got = model.fitted_values(&data);
+        assert_eq!(got.len(), want.len());
+        for (i, (a, e)) in got.iter().zip(want.iter()).enumerate() {
+            assert!((a - e).abs() < 1e-12, "fitted[{i}] = {a}, expected {e}");
+        }
+    }
+
+    #[test]
+    fn fitted_values_d2_quadratic_is_exact() {
+        // The second difference of i^2 is the constant 2, so the prediction is exact.
+        let data: Vec<f64> = (0..30).map(|i| (i * i) as f64).collect();
+        let model = ArimaModel::fit(&data, ArimaOrder::new(0, 2, 0)).unwrap();
+        let got = model.fitted_values(&data);
+        assert_eq!(got[0], data[0]);
+        assert_eq!(got[1], data[1]);
+        for t in 2..data.len() {
+            assert!(
+                (got[t] - data[t]).abs() < 1e-9,
+                "fitted[{t}] = {}, expected {}",
+                got[t],
+                data[t]
+            );
+        }
     }
 
     #[test]

@@ -296,6 +296,17 @@ fn fitted_values_matches_statsmodels() {
 }
 
 #[test]
+fn fitted_values_d1_matches_statsmodels() {
+    let b = ts_b(120);
+    for p in [1usize, 2] {
+        let key = format!("arima_fitted_{p}10");
+        let m = ArimaModel::fit(&b, ArimaOrder::new(p, 1, 0)).unwrap();
+        // The first p + d values are the start of the state; skip them.
+        check_vec(&m.fitted_values(&b)[p + 1..], &key);
+    }
+}
+
+#[test]
 fn forecast_matches_statsmodels() {
     let b = ts_b(120);
     for (p, d) in [(2, 0), (1, 1), (2, 1)] {

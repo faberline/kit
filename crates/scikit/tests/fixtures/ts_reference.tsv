@@ -30,6 +30,14 @@ arima_fitted_200_head	8.48807810634,8.16263036227,6.72558419825,7.62183916538,7.
 arima_fitted_200_tail	8.15806643842,6.33342700778,7.62678341622,7.79534923279,7.12640472994	statsmodels.tsa.arima.model.ARIMA(b, order=(2, 0, 0), trend='c').smooth(...).fittedvalues[2:]
 arima_fitted_200_abs_sum	898.082499612	statsmodels.tsa.arima.model.ARIMA(b, order=(2, 0, 0), trend='c').smooth(...).fittedvalues[2:]
 arima_fitted_200_len	118.0	statsmodels.tsa.arima.model.ARIMA(b, order=(2, 0, 0), trend='c').smooth(...).fittedvalues[2:]
+arima_fitted_110_head	8.07515832735,10.5038794425,8.38991523333,7.67931571068,7.06597456395	b[t-1] + ARIMA(numpy.diff(b, 1), order=(1, 0, 0), trend='c').smooth(...).fittedvalues[t-1], for t >= 2
+arima_fitted_110_tail	11.2238794425,7.94435462316,6.89931571068,7.45153517412,6.15111740984	b[t-1] + ARIMA(numpy.diff(b, 1), order=(1, 0, 0), trend='c').smooth(...).fittedvalues[t-1], for t >= 2
+arima_fitted_110_abs_sum	903.068504638	b[t-1] + ARIMA(numpy.diff(b, 1), order=(1, 0, 0), trend='c').smooth(...).fittedvalues[t-1], for t >= 2
+arima_fitted_110_len	118.0	b[t-1] + ARIMA(numpy.diff(b, 1), order=(1, 0, 0), trend='c').smooth(...).fittedvalues[t-1], for t >= 2
+arima_fitted_210_head	9.62451537645,8.06875550829,8.46111263363,7.10573890894,5.72276658481	b[t-1] + ARIMA(numpy.diff(b, 1), order=(2, 0, 0), trend='c').smooth(...).fittedvalues[t-1], for t >= 3
+arima_fitted_210_tail	10.3445153764,7.70079963957,8.02917902688,7.41369477766,6.09470019157	b[t-1] + ARIMA(numpy.diff(b, 1), order=(2, 0, 0), trend='c').smooth(...).fittedvalues[t-1], for t >= 3
+arima_fitted_210_abs_sum	895.663226792	b[t-1] + ARIMA(numpy.diff(b, 1), order=(2, 0, 0), trend='c').smooth(...).fittedvalues[t-1], for t >= 3
+arima_fitted_210_len	117.0	b[t-1] + ARIMA(numpy.diff(b, 1), order=(2, 0, 0), trend='c').smooth(...).fittedvalues[t-1], for t >= 3
 arima_forecast_200	8.48645324147,7.45823698882,7.33909333514,7.58051125379,7.67443397133	ARIMA(numpy.diff(b, 0), order=(2, 0, 0), trend='c').smooth(...).forecast(5)
 arima_aic_200	142.402888068	closed form of ArimaModel::aic: n * ln(RSS / n) + 2 * (p + q + 1), RSS from statsmodels' one-step residuals
 arima_forecast_110	8.33149536241,8.52646036514,8.51998814438,8.55842828502,8.58685478384	ARIMA(numpy.diff(b, 1), order=(1, 0, 0), trend='c').smooth(...).forecast(5) cumulated from b[-1]
