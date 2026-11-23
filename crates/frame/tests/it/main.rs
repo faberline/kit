@@ -4,6 +4,7 @@ mod io_paths;
 mod prop_io;
 mod reference;
 mod reference_groupby;
+mod reference_index;
 mod reference_join;
 mod reference_reshape;
 mod reference_series;
