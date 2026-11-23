@@ -18,7 +18,7 @@ pub use convolve::{convolve, correlate, ConvolveMode};
 pub use filter::{
     butter, lfilter, lfilter_with_state, lfilter_zi, sosfilt, FilterType, SosSection,
 };
-pub use filtfilt::filtfilt;
+pub use filtfilt::{filtfilt, filtfilt_with, FiltfiltOptions, FiltfiltPad};
 pub use peaks::{find_peaks, Peak, PeakOptions};
 pub use stft::{stft, StftResult};
 pub use windows::{blackman, hamming, hann, kaiser};

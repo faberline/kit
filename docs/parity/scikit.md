@@ -80,7 +80,10 @@ A SciPy name of `none` means a kit helper or a kit type with no SciPy name. Its 
 | signal::butter | scipy.signal.butter | has | crates/scikit/src/signal/filter.rs; fixed in issue 56 (odd order) |
 | signal::FilterType | none (ftype argument) | has | crates/scikit/src/signal/filter.rs |
 | signal::SosSection | none (sos rows) | has | crates/scikit/src/signal/filter.rs |
-| signal::filtfilt | scipy.signal.filtfilt | partial | crates/scikit/src/signal/filtfilt.rs; no padding argument |
+| signal::filtfilt | scipy.signal.filtfilt | partial | crates/scikit/src/signal/filtfilt.rs; padtype and padlen as SciPy (method 'pad' only; no axis, no irlen) |
+| signal::filtfilt_with | scipy.signal.filtfilt (padtype, padlen) | partial | crates/scikit/src/signal/filtfilt.rs |
+| signal::FiltfiltOptions | none (keyword arguments) | has | crates/scikit/src/signal/filtfilt.rs |
+| signal::FiltfiltPad | none (padtype argument) | has | crates/scikit/src/signal/filtfilt.rs |
 | signal::find_peaks | scipy.signal.find_peaks | partial | crates/scikit/src/signal/peaks.rs; PeakOptions fields only |
 | signal::Peak | none | has | crates/scikit/src/signal/peaks.rs |
 | signal::PeakOptions | scipy.signal.find_peaks (keyword arguments) | has | crates/scikit/src/signal/peaks.rs |

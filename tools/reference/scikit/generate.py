@@ -1020,6 +1020,25 @@ def filter_rows():
     y0, zf0 = sg.lfilter(b1, a1, x, zi=np.zeros(2))
     add("lfilter_state.f1.y_zero", np.asarray(y0, dtype=float).tolist(), "scipy.signal.lfilter(b, a, x, zi=numpy.zeros(2)), y")
     add("lfilter_state.f1.zf_zero", np.asarray(zf0, dtype=float).tolist(), "scipy.signal.lfilter(b, a, x, zi=numpy.zeros(2)), zf")
+
+    # filtfilt (method='pad'): 64 values, the SciPy defaults unless the case names an option.
+    xf = sample(64)
+    ff_cases = [
+        ("f1_default", "f1", {}, ""),
+        ("f1_even", "f1", {"padtype": "even"}, ", padtype='even'"),
+        ("f1_constant", "f1", {"padtype": "constant"}, ", padtype='constant'"),
+        ("f1_odd10", "f1", {"padtype": "odd", "padlen": 10}, ", padtype='odd', padlen=10"),
+        ("f1_none", "f1", {"padtype": None}, ", padtype=None"),
+        ("f2_default", "f2", {}, ""),
+        ("f3_default", "f3", {}, ""),
+        ("f4_default", "f4", {}, ""),
+        ("f5_default", "f5", {}, ""),
+        ("f4_even30", "f4", {"padtype": "even", "padlen": 30}, ", padtype='even', padlen=30"),
+    ]
+    for name, filt, options, extra in ff_cases:
+        b, a = FILTERS[filt]
+        y = sg.filtfilt(b, a, xf, **options)
+        add(f"filtfilt.{name}", np.asarray(y, dtype=float).tolist(), f"scipy.signal.filtfilt(b, a, x{extra})")
     return rows
 
 
