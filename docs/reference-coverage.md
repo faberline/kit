@@ -9,13 +9,13 @@ Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` l
 
 | Crate | Function | Reference expression | Tolerance | Test | Status |
 |---|---|---|---|---|---|
-| arraykit | arraykit::array/indexing::advanced_index | - | - | - | not covered |
-| arraykit | arraykit::array/indexing::bool_index | - | - | - | not covered |
-| arraykit | arraykit::array/indexing::bool_index_array | - | - | - | not covered |
-| arraykit | arraykit::array/indexing::bool_set | - | - | - | not covered |
-| arraykit | arraykit::array/indexing::fancy_index | - | - | - | not covered |
-| arraykit | arraykit::array/indexing::fancy_set | - | - | - | not covered |
-| arraykit | arraykit::array/indexing::take | - | - | - | not covered |
+| arraykit | arraykit::array/indexing::advanced_index | `G[:, [5, 1, 1]]`, `G[numpy.ix_([3, 0], [4, 2, 2])]`, `G[2, :]`, `G[:, 3]`, boolean and fancy axes, `G[1, 4]`, a 3-D case, `G[]`, and 50 x 40 from a 100 x 100 grid. arraykit takes the outer product of the axis selections like `numpy.ix_`; `Single` on every axis returns a 1-element array, NumPy a 0-d scalar | 1e-9 rel | `advanced_index_matches_numpy` | covered |
+| arraykit | arraykit::array/indexing::bool_index | `a[mask]` on 6 values, on a 2-D input with a 2-D mask (result 1-D), and on `i % 3 == 0` for 10,000 values | 1e-9 rel | `bool_index_matches_numpy` | covered |
+| arraykit | arraykit::array/indexing::bool_index_array | `a[mask]` with a mask of the same shape as the array: 4 x 6 and 100 x 100 (length, sum, head) | 1e-9 rel | `bool_index_array_matches_numpy` | covered |
+| arraykit | arraykit::array/indexing::bool_set | `a[mask] = 9.5` on 6 values and `a[mask] = -1.0` on 10,000 values (length, sum, head) | 1e-9 rel | `bool_set_matches_numpy` | covered |
+| arraykit | arraykit::array/indexing::fancy_index | `a[[4, 0, 0, 5]]` on 1-D; `G[[3, 0, 3]]` on 2-D (rows); `a[perm]` on 10,000 values (length, sum, head) | 1e-9 rel | `fancy_index_matches_numpy` | covered |
+| arraykit | arraykit::array/indexing::fancy_set | `a[[4, 0, 2]] = [10, 20, 30]`; `a[[1, 1, 3]] = [7, 8, 9]` with a repeated index (the later value wins); `a[perm] = values` on 10,000 values | 1e-9 rel | `fancy_set_matches_numpy` | covered |
+| arraykit | arraykit::array/indexing::take | `numpy.take(a, idx, axis)` on 1-D, 2-D and 3-D input (axes 0, 1 and 2) and on 10,000 values; 100 x 40 result on axis 1 | 1e-9 rel | `take_matches_numpy` | covered |
 | arraykit | arraykit::array/linalg::det | `numpy.linalg.slogdet(a)[1]` (log of the 50 x 50 det); `numpy.linalg.det(t3)`; `numpy.linalg.det([[1e-7, 0], [0, 1e-7]])` | 1e-9 rel | `det_matches_numpy`, `det_of_small_scale_matrix` | covered |
 | arraykit | arraykit::array/linalg::dot | `numpy.dot(x, y)`; `numpy.dot(p23, q32).ravel()` | 1e-9 rel | `dot_matches_numpy` | covered |
 | arraykit | arraykit::array/linalg::inner | `numpy.inner(x, y)` | 1e-9 rel | `inner_matches_numpy` | covered |
