@@ -574,8 +574,99 @@ def reshape_rows():
     return rows
 
 
+# Index and MultiIndex cases. reference_index.rs rebuilds each input with the same formulas.
+SMALL_INT = [5, 3, 9, 3, 8, 1]
+SLICE_POS = [4, 0, 0, 5, 2]
+SLICE_RANGE = [7, 2, 2, 9]
+
+
+def big_int():
+    return [(i * 37 + 11) % 101 for i in range(N)]
+
+
+def big_pos():
+    return [(k * 7919 + 3) % 10000 for k in range(2500)]
+
+
+def mi_small():
+    n = 12
+    return pd.MultiIndex.from_arrays(
+        [[i % 3 for i in range(n)], [(i * 5 + 1) % 4 for i in range(n)], [(i * 7) % 5 for i in range(n)]],
+        names=["a", "b", "c"],
+    )
+
+
+def mi_large():
+    return pd.MultiIndex.from_arrays(
+        [[i % 50 for i in range(N)], [(i * 37 + 11) % 101 for i in range(N)], [(i * 13) % 7 for i in range(N)]],
+        names=["a", "b", "c"],
+    )
+
+
+def index_rows():
+    rows = []
+
+    def add(key, value, source):
+        rows.append((key, value, source))
+
+    def add_multi(prefix, r, source):
+        for j in range(r.nlevels):
+            add(f"{prefix}.level{j}", [int(x) for x in r.get_level_values(j)], source)
+        add(f"{prefix}.names", ",".join(r.names), source)
+
+    # Index.range, reset and slice.
+    add("index.range.small.values", list(pd.RangeIndex(10)), "list(pd.RangeIndex(10))")
+    add("index.range.large.len", len(pd.RangeIndex(N)), "len(pd.RangeIndex(10000))")
+    add("index.range.large.sum", sum(pd.RangeIndex(N)), "sum(pd.RangeIndex(10000))")
+
+    reset_small = pd.Series(range(6), index=pd.Index(SMALL_INT)).reset_index(drop=True).index
+    expr = "pd.Series(range(N), index=pd.Index(BIG_INT)).reset_index(drop=True).index"
+    reset_big = pd.Series(range(N), index=pd.Index(big_int())).reset_index(drop=True).index
+    add("index.reset.small.values", list(reset_small), "pd.Series(range(6), index=pd.Index(SMALL_INT)).reset_index(drop=True).index")
+    add("index.reset.large.len", len(reset_big), expr)
+    add("index.reset.large.sum", sum(reset_big), expr)
+
+    add("index.slice.small.int", list(pd.Index(SMALL_INT).take(SLICE_POS)), "pd.Index(SMALL_INT).take(SLICE_POS)")
+    add("index.slice.small.range", list(pd.RangeIndex(10).take(SLICE_RANGE)), "pd.RangeIndex(10).take([7, 2, 2, 9])")
+    big_slice = [int(x) for x in pd.Index(big_int()).take(big_pos())]
+    expr = "pd.Index(BIG_INT).take(BIG_POS)"
+    add("index.slice.large.len", len(big_slice), expr)
+    add("index.slice.large.sum", sum(big_slice), expr)
+    add("index.slice.large.first5", big_slice[:5], expr)
+    add("index.slice.large.last5", big_slice[-5:], expr)
+
+    # MultiIndex: each result gives its levels and its names.
+    small = mi_small()
+    add_multi("multi_index.swaplevel.small", small.swaplevel(0, 2), "mi.swaplevel(0, 2)")
+    add_multi("multi_index.droplevel.small", small.droplevel(1), "mi.droplevel(1)")
+    add_multi("multi_index.reorder_levels.small", small.reorder_levels([2, 0, 1]), "mi.reorder_levels([2, 0, 1])")
+    add_multi("multi_index.slice.small", small.take([11, 0, 4, 4, 7]), "mi.take([11, 0, 4, 4, 7])")
+
+    positions = [i for i, x in enumerate(small.get_level_values(1)) if x == 2]
+    add("multi_index.select_level.small.positions", positions, "positions where mi.get_level_values(1) == 2")
+    large = mi_large()
+    pos_large = [i for i, x in enumerate(large.get_level_values(2)) if x == 3]
+    expr = "positions where mi_large.get_level_values(2) == 3"
+    add("multi_index.select_level.large.len", len(pos_large), expr)
+    add("multi_index.select_level.large.sum", sum(pos_large), expr)
+
+    add_multi("multi_index.unique.small", small.unique(), "mi.unique()")
+    uniq = large.unique()
+    add("multi_index.unique.large.len", len(uniq), "len(mi_large.unique())")
+    add("multi_index.unique.large.first5_level0", [int(x) for x in list(uniq.get_level_values(0))[:5]], "mi_large.unique().get_level_values(0)[:5]")
+
+    add("multi_index.argsort.small", [int(x) for x in small.argsort()], "list(mi.argsort())")
+    order = [int(x) for x in large.argsort()]
+    expr = "list(mi_large.argsort())"
+    add("multi_index.argsort.large.first5", order[:5], expr)
+    add("multi_index.argsort.large.last5", order[-5:], expr)
+    add("multi_index.argsort.large.checksum", sum(r * (k + 1) for k, r in enumerate(order)), "sum(r * (k + 1) for k, r in enumerate(mi_large.argsort()))")
+    return rows
+
+
 common.main(
     {
+        "crates/frame/tests/fixtures/index_reference.tsv": index_rows,
         "crates/frame/tests/fixtures/series_reference.tsv": series_rows,
         "crates/frame/tests/fixtures/series_window_reference.tsv": series_window_rows,
         "crates/frame/tests/fixtures/window_reference.tsv": window_rows,
