@@ -21,11 +21,31 @@ pub struct SosSection {
 /// `b` = numerator coefficients, `a` = denominator coefficients.
 /// Uses direct form II transposed.
 pub fn lfilter(b: &[f64], a: &[f64], x: &[f64]) -> Vec<f64> {
+    let n = b.len().max(a.len());
+    lfilter_with_state(b, a, x, &vec![0.0; n.saturating_sub(1)]).0
+}
+
+/// Apply a transfer-function filter with an initial state (SciPy `lfilter(b, a, x, zi=zi)`).
+///
+/// `zi` is the delay line at the start, with `max(b.len(), a.len()) - 1` values.
+/// Returns `(y, zf)`: the output and the final delay line.
+///
+/// # Panics
+/// Panics when `a[0]` is zero, or when `zi` has the wrong length.
+pub fn lfilter_with_state(b: &[f64], a: &[f64], x: &[f64], zi: &[f64]) -> (Vec<f64>, Vec<f64>) {
     assert!(!a.is_empty() && a[0].abs() > 1e-14, "a[0] must be nonzero");
     let a0 = a[0];
 
     let n = b.len().max(a.len());
-    let mut d = vec![0.0; n]; // delay line
+    assert!(
+        zi.len() == n - 1,
+        "zi length must be {}, got {}",
+        n - 1,
+        zi.len()
+    );
+    // The delay line: the first n - 1 entries start from zi, the last is 0.
+    let mut d = vec![0.0; n];
+    d[..n - 1].copy_from_slice(zi);
     let mut y = Vec::with_capacity(x.len());
 
     for &xi in x {
@@ -40,7 +60,94 @@ pub fn lfilter(b: &[f64], a: &[f64], x: &[f64]) -> Vec<f64> {
         d[n - 1] = 0.0;
     }
 
-    y
+    (y, d[..n - 1].to_vec())
+}
+
+/// Initial state of a filter for a step input of 1 (SciPy `lfilter_zi(b, a)`).
+///
+/// Multiply the result by the first input value to start the filter at steady
+/// state. SciPy raises an error for a single tap (`b` and `a` of length 1);
+/// this function returns an empty state for it.
+///
+/// # Panics
+/// Panics when `a[0]` is zero, or when the steady-state system is singular
+/// (a pole at z = 1).
+///
+/// ```
+/// use scikit::signal::lfilter_zi;
+/// let zi = lfilter_zi(&[1.0], &[1.0]);
+/// assert!(zi.is_empty());
+/// ```
+pub fn lfilter_zi(b: &[f64], a: &[f64]) -> Vec<f64> {
+    assert!(!a.is_empty() && a[0].abs() > 1e-14, "a[0] must be nonzero");
+    let a0 = a[0];
+
+    let n = b.len().max(a.len());
+    if n == 1 {
+        return Vec::new();
+    }
+    // Normalise by a[0] and pad the shorter of b and a with zeros.
+    let mut bn: Vec<f64> = b.iter().map(|v| v / a0).collect();
+    let mut an: Vec<f64> = a.iter().map(|v| v / a0).collect();
+    bn.resize(n, 0.0);
+    an.resize(n, 0.0);
+
+    let size = n - 1;
+    // Companion matrix C of a: first row -a[1..], subdiagonal ones.
+    let mut c = vec![vec![0.0; size]; size];
+    for (j, cell) in c[0].iter_mut().enumerate() {
+        *cell = -an[j + 1];
+    }
+    for i in 1..size {
+        c[i][i - 1] = 1.0;
+    }
+    // m = I - C^T, rhs[k] = b[k + 1] - a[k + 1] * b[0]
+    let mut m = vec![vec![0.0; size]; size];
+    for (i, row) in m.iter_mut().enumerate() {
+        for (j, cell) in row.iter_mut().enumerate() {
+            let identity = if i == j { 1.0 } else { 0.0 };
+            *cell = identity - c[j][i];
+        }
+    }
+    let rhs: Vec<f64> = (0..size).map(|k| bn[k + 1] - an[k + 1] * bn[0]).collect();
+    solve_linear(m, rhs)
+}
+
+/// Solve `m x = rhs` by Gaussian elimination with partial pivoting.
+///
+/// # Panics
+/// Panics with a message that contains `singular` when a pivot has an
+/// absolute value below 1e-14.
+fn solve_linear(mut m: Vec<Vec<f64>>, mut rhs: Vec<f64>) -> Vec<f64> {
+    let n = rhs.len();
+    for col in 0..n {
+        let pivot = (col..n)
+            .max_by(|&i, &j| m[i][col].abs().total_cmp(&m[j][col].abs()))
+            .unwrap_or(col);
+        assert!(
+            m[pivot][col].abs() >= 1e-14,
+            "singular system: a pole at z = 1 (pivot {} in column {col})",
+            m[pivot][col]
+        );
+        m.swap(col, pivot);
+        rhs.swap(col, pivot);
+        let pivot_row = m[col].clone();
+        let pivot_rhs = rhs[col];
+        for row in col + 1..n {
+            let factor = m[row][col] / pivot_row[col];
+            for (cell, p) in m[row].iter_mut().zip(&pivot_row).skip(col) {
+                *cell -= factor * p;
+            }
+            rhs[row] -= factor * pivot_rhs;
+        }
+    }
+
+    let mut x = vec![0.0; n];
+    for row in (0..n).rev() {
+        let tail: f64 = (row + 1..n).map(|k| m[row][k] * x[k]).sum();
+        x[row] = (rhs[row] - tail) / m[row][row];
+    }
+    x
 }
 
 /// Filter data using cascaded second-order sections.

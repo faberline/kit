@@ -1,6 +1,6 @@
 # Reference coverage
 
-Numeric rows: 410
+Numeric rows: 412
 Not numeric rows: 198
 
 Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` lists. A numeric function needs a reference value from a Python library (numpy, scipy, pandas or statsmodels, pinned in `tools/reference/requirements.txt`), a tolerance and a test. Status `not covered` means that no reference test exists yet. `-` means not written yet. `tools/reference/check_table.sh` checks this file.
@@ -322,6 +322,8 @@ Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` l
 | scikit | scikit::signal/convolve::correlate | scipy.signal.correlate(sample(n), b, mode, method='direct'), 3 modes, 2 cases | 1e-9 rel; exact zeros 1e-12 abs | correlate_matches_scipy | covered |
 | scikit | scikit::signal/filter::butter | scipy.signal.sosfilt(scipy.signal.butter(order, wn, btype=t, output='sos'), sample(64)) | 1e-9 rel; exact zeros 1e-12 abs | butter_matches_scipy | covered |
 | scikit | scikit::signal/filter::lfilter | scipy.signal.lfilter(b, a, sample(n)), 4 cases | 1e-9 rel; exact zeros 1e-12 abs | lfilter_matches_scipy | covered |
+| scikit | scikit::signal/filter::lfilter_with_state | scipy.signal.lfilter(b, a, x, zi=zi), y and zf, 5 filters, and a zero state | 1e-9 rel; exact zeros 1e-12 abs | lfilter_with_state_matches_scipy, lfilter_with_state_zero_state_matches_scipy | covered |
+| scikit | scikit::signal/filter::lfilter_zi | scipy.signal.lfilter_zi(b, a), 5 filters | 1e-9 rel; exact zeros 1e-12 abs; SciPy raises for a single tap, kit returns an empty state | lfilter_zi_matches_scipy, lfilter_zi_single_tap_is_empty | covered |
 | scikit | scikit::signal/filter::sosfilt | scipy.signal.sosfilt(sos, sample(64)), sos of butter(4, 0.3, lowpass) and butter(3, 0.2, highpass) | 1e-9 rel; exact zeros 1e-12 abs | sosfilt_matches_scipy | covered |
 | scikit | scikit::signal/filtfilt::filtfilt | forward and backward scipy.signal.lfilter (scipy.signal.filtfilt differs: it pads and uses lfilter_zi) | 1e-9 rel; exact zeros 1e-12 abs | filtfilt_matches_scipy_lfilter | covered |
 | scikit | scikit::signal/peaks::find_peaks | scipy.signal.find_peaks(sample(40), options), 4 option sets | 1e-9 rel; exact zeros 1e-12 abs | find_peaks_matches_scipy | covered |

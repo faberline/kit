@@ -27,3 +27,6 @@ mod reference_calc;
 
 #[cfg(all(feature = "spatial", feature = "sparse"))]
 mod reference_spatial_sparse;
+
+#[cfg(feature = "signal")]
+mod reference_filter_scipy;
