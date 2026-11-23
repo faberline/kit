@@ -345,11 +345,11 @@ fn fillna_column_matches_pandas() {
     assert_close(p.sum().unwrap(), "dataframe.fillna_column.p.sum");
     assert_close(p.count() as f64, "dataframe.fillna_column.p.count");
     assert_close(
-        null.get("q").unwrap().count() as f64,
+        filled.get("q").unwrap().count() as f64,
         "dataframe.fillna_column.q.count",
     );
     assert_close(
-        weighted(&col_f64(&null, "r")),
+        weighted(&col_f64(&filled, "r")),
         "dataframe.fillna_column.r.wsum",
     );
 }
