@@ -1,5 +1,6 @@
 """Reference values for arraykit::array/stats, arraykit::array/linalg,
-arraykit::array/window, arraykit::array/math and arraykit::array/manip (NumPy 2.4.6, SciPy 1.17.1).
+arraykit::array/window, arraykit::array/math, arraykit::array/manip and
+arraykit::array/indexing (NumPy 2.4.6, SciPy 1.17.1).
 Each group writes its own fixture file.
 
 Run from the repository root:
@@ -619,10 +620,119 @@ def manip_rows():
     return rows
 
 
+INDEXING_FIXTURE = "crates/arraykit/tests/fixtures/indexing_reference.tsv"
+
+# Indexing inputs. Integer formulas, as in the Rust test (see reference_indexing.rs).
+X234 = numpy.arange(24.0).reshape(2, 3, 4)
+PERM = numpy.array([(i * 7919 + 13) % 10000 for i in range(M_N)])
+BOOL_LARGE = numpy.array([i % 3 == 0 for i in range(M_N)])
+FL2 = FL.reshape(100, 100)
+ROWS50 = [(i * 37 + 5) % 100 for i in range(50)]
+COLS40 = [(i * 11 + 3) % 100 for i in range(40)]
+
+
+def indexing_rows():
+    rows = []
+
+    def put(key, value, source):
+        add(rows, key, value, source)
+
+    def put_array(key, array, source):
+        # The flat values, then the shape under `<key>.shape`.
+        put(key, array.ravel().tolist(), source)
+        put(f"{key}.shape", list(array.shape), source)
+
+    def put_big(key, array, source):
+        # Length, sum and the first 5 values of a large result.
+        put(f"{key}.len", int(array.size), source)
+        put(f"{key}.sum", float(numpy.sum(array)), source)
+        put(f"{key}.head", array.ravel()[:5].tolist(), source)
+
+    # fancy_index: integer array indexing.
+    put_array("indexing.fancy_index.small", A6[[4, 0, 0, 5]], "A6[[4, 0, 0, 5]]")
+    put_array("indexing.fancy_index.2d", G46[[3, 0, 3]], "G46[[3, 0, 3]]")
+    put_big("indexing.fancy_index.large", FL[PERM], "FL[PERM]")
+
+    # bool_index: a flat boolean mask.
+    put_array("indexing.bool_index.small",
+              A6[numpy.array([True, False, True, True, False, True])],
+              "A6[numpy.array([True, False, True, True, False, True])]")
+    put_array("indexing.bool_index.2d",
+              M23[numpy.array([True, False, True, False, True, True]).reshape(2, 3)],
+              "M23[numpy.array([True, False, True, False, True, True]).reshape(2, 3)]")
+    put_big("indexing.bool_index.large", FL[BOOL_LARGE], "FL[BOOL_LARGE]")
+
+    # bool_index_array: a mask with the same dimensions as the array.
+    put_array("indexing.bool_index_array.2d",
+              G46[numpy.array([(i * 5 + 2) % 7 < 3 for i in range(24)]).reshape(4, 6)],
+              "G46[numpy.array([(i * 5 + 2) % 7 < 3 for i in range(24)]).reshape(4, 6)]")
+    put_big("indexing.bool_index_array.large",
+            FL2[numpy.array([i % 7 < 3 for i in range(M_N)]).reshape(100, 100)],
+            "FL2[numpy.array([i % 7 < 3 for i in range(10000)]).reshape(100, 100)]")
+
+    # bool_set: a copy of the input with a[mask] = value.
+    a = A6.copy()
+    a[numpy.array([True, False, True, True, False, True])] = 9.5
+    put_array("indexing.bool_set.small", a,
+              "a = A6.copy(); a[numpy.array([True, False, True, True, False, True])] = 9.5")
+    a = FL.copy()
+    a[BOOL_LARGE] = -1.0
+    put_big("indexing.bool_set.large", a, "a = FL.copy(); a[BOOL_LARGE] = -1.0")
+
+    # fancy_set: a copy of a 1-D input with a[indices] = values.
+    a = A6.copy()
+    a[[4, 0, 2]] = [10.0, 20.0, 30.0]
+    put_array("indexing.fancy_set.small", a, "a = A6.copy(); a[[4, 0, 2]] = [10.0, 20.0, 30.0]")
+    a = A6.copy()
+    a[[1, 1, 3]] = [7.0, 8.0, 9.0]
+    put_array("indexing.fancy_set.dup", a, "a = A6.copy(); a[[1, 1, 3]] = [7.0, 8.0, 9.0]")
+    a = FL.copy()
+    a[PERM] = numpy.array([(i % 13) / 2.0 for i in range(M_N)])
+    put_big("indexing.fancy_set.large", a,
+            "a = FL.copy(); a[PERM] = numpy.array([(i % 13) / 2.0 for i in range(10000)])")
+
+    # advanced_index: one selection per axis. arraykit takes the outer product of
+    # the axis selections, like numpy.ix_ (NumPy would pair two index arrays).
+    put_array("indexing.advanced_index.full_fancy", G46[:, [5, 1, 1]], "G46[:, [5, 1, 1]]")
+    put_array("indexing.advanced_index.fancy_fancy", G46[numpy.ix_([3, 0], [4, 2, 2])],
+              "G46[numpy.ix_([3, 0], [4, 2, 2])]")
+    put_array("indexing.advanced_index.single_full", G46[2, :], "G46[2, :]")
+    put_array("indexing.advanced_index.full_single", G46[:, 3], "G46[:, 3]")
+    put_array("indexing.advanced_index.bool_full",
+              G46[numpy.array([True, False, True, True]), :],
+              "G46[numpy.array([True, False, True, True]), :]")
+    put_array("indexing.advanced_index.bool_fancy",
+              G46[numpy.ix_(numpy.array([True, False, True, True]), [5, 0])],
+              "G46[numpy.ix_(numpy.array([True, False, True, True]), [5, 0])]")
+    # NumPy returns a 0-d scalar here; arraykit returns one element (see its "Scalar result").
+    put("indexing.advanced_index.single_single", [float(G46[1, 4])], "G46[1, 4]")
+    put_array("indexing.advanced_index.3d_trailing", X234[1][[2, 0], :], "X234[1][[2, 0], :]")
+    put_array("indexing.advanced_index.empty", G46, "G46")
+    put_big("indexing.advanced_index.large", FL2[numpy.ix_(ROWS50, COLS40)],
+            "FL2[numpy.ix_(ROWS50, COLS40)]")
+    put("indexing.advanced_index.large.shape", [50, 40], "FL2[numpy.ix_(ROWS50, COLS40)].shape")
+
+    # take: numpy.take(a, indices, axis).
+    put_array("indexing.take.small", numpy.take(A6, [5, 0, 0, 3], axis=0),
+              "numpy.take(A6, [5, 0, 0, 3], axis=0)")
+    put_array("indexing.take.axis0", numpy.take(G46, [3, 1, 1], axis=0),
+              "numpy.take(G46, [3, 1, 1], axis=0)")
+    put_array("indexing.take.axis1", numpy.take(G46, [5, 0, 2, 2], axis=1),
+              "numpy.take(G46, [5, 0, 2, 2], axis=1)")
+    put_array("indexing.take.3d_axis2", numpy.take(X234, [3, 0], axis=2),
+              "numpy.take(X234, [3, 0], axis=2)")
+    put_big("indexing.take.large", numpy.take(FL, PERM, axis=0), "numpy.take(FL, PERM, axis=0)")
+    put_big("indexing.take.large2d", numpy.take(FL2, COLS40, axis=1),
+            "numpy.take(FL2, COLS40, axis=1)")
+    put("indexing.take.large2d.shape", [100, 40], "numpy.take(FL2, COLS40, axis=1).shape")
+    return rows
+
+
 if __name__ == "__main__":
     common.main({
         FIXTURE: stats_rows,
         LINALG_FIXTURE: linalg_rows,
         WINDOW_MATH_FIXTURE: window_math_rows,
         MANIP_FIXTURE: manip_rows,
+        INDEXING_FIXTURE: indexing_rows,
     })
