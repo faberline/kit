@@ -65,12 +65,12 @@ Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` l
 | arraykit | arraykit::array/ndarray::slice | - | - | - | not covered |
 | arraykit | arraykit::array/ndarray::transpose | - | - | - | not covered |
 | arraykit | arraykit::array/ndarray::transpose_axes | - | - | - | not covered |
-| arraykit | arraykit::array/ops::add | - | - | - | not covered |
-| arraykit | arraykit::array/ops::add_scalar | - | - | - | not covered |
-| arraykit | arraykit::array/ops::div | - | - | - | not covered |
-| arraykit | arraykit::array/ops::mul | - | - | - | not covered |
-| arraykit | arraykit::array/ops::mul_scalar | - | - | - | not covered |
-| arraykit | arraykit::array/ops::sub | - | - | - | not covered |
+| arraykit | arraykit::array/ops::add | `numpy.add(a, b)` on the same shape, a row, a column and an outer broadcast, and on 10,000 values | 1e-9 rel | `add_matches_numpy` | covered |
+| arraykit | arraykit::array/ops::add_scalar | `A + 2.5` on 6 values, `M + 2.5` on a 2 x 3 matrix, `FL + 1.25` on 10,000 values | 1e-9 rel | `add_scalar_matches_numpy` | covered |
+| arraykit | arraykit::array/ops::div | `numpy.divide(a, b)` on the same shape, a row, a column and an outer broadcast, and on 10,000 values; `1 / 0`, `-1 / 0` and `0 / 0` give `inf`, `-inf` and `nan` | 1e-9 rel | `div_matches_numpy` | covered |
+| arraykit | arraykit::array/ops::mul | `numpy.multiply(a, b)` on the same shape, a row, a column and an outer broadcast, and on 10,000 values | 1e-9 rel | `mul_matches_numpy` | covered |
+| arraykit | arraykit::array/ops::mul_scalar | `A * -0.5` on 6 values, `M * -0.5` on a 2 x 3 matrix, `FL * -3.0` on 10,000 values | 1e-9 rel | `mul_scalar_matches_numpy` | covered |
+| arraykit | arraykit::array/ops::sub | `numpy.subtract(a, b)` on the same shape, a row, a column and an outer broadcast, and on 10,000 values | 1e-9 rel | `sub_matches_numpy` | covered |
 | arraykit | arraykit::array/random::bernoulli | - | - | - | not covered |
 | arraykit | arraykit::array/random::binomial | - | - | - | not covered |
 | arraykit | arraykit::array/random::choice | - | - | - | not covered |
@@ -82,12 +82,12 @@ Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` l
 | arraykit | arraykit::array/random::randint | - | - | - | not covered |
 | arraykit | arraykit::array/random::shuffle | - | - | - | not covered |
 | arraykit | arraykit::array/random::uniform | - | - | - | not covered |
-| arraykit | arraykit::array/search::argsort_axis | - | - | - | not covered |
-| arraykit | arraykit::array/search::nonzero | - | - | - | not covered |
-| arraykit | arraykit::array/search::searchsorted | - | - | - | not covered |
-| arraykit | arraykit::array/search::sort_axis | - | - | - | not covered |
-| arraykit | arraykit::array/search::unique_full | - | - | - | not covered |
-| arraykit | arraykit::array/search::where_select | - | - | - | not covered |
+| arraykit | arraykit::array/search::argsort_axis | `numpy.argsort(a, kind="stable", axis=k)` on 1-D, 2-D (axes 0 and 1) and 3-D (axes 0 to 2) input, and on 10,000 values (head, tail, length, weighted sum) | exact (indices); 1e-9 rel (sums) | `argsort_axis_matches_numpy` | covered |
+| arraykit | arraykit::array/search::nonzero | `numpy.nonzero` on 1-D, 2-D and 3-D input (one index array per axis), on 10,000 values (length, sum, head) and on an all-false input | exact (indices); 1e-9 rel (sums) | `nonzero_matches_numpy` | covered |
+| arraykit | arraykit::array/search::searchsorted | `numpy.searchsorted(a, v, side="left")` and `side="right"` on 6 sorted values, and on 10,000 sorted values with 2,000 probes (length, sum, head) | exact (indices); 1e-9 rel (sums) | `searchsorted_matches_numpy` | covered |
+| arraykit | arraykit::array/search::sort_axis | `numpy.sort(a, axis=k)` on 1-D, 2-D (axes 0 and 1) and 3-D (axes 0 to 2) input, and on 10,000 values (head, tail, sum, weighted sum) | 1e-9 rel | `sort_axis_matches_numpy` | covered |
+| arraykit | arraykit::array/search::unique_full | `numpy.unique(a, return_index=True, return_inverse=True, return_counts=True)` on 6 values, on 5 values with NaN, on a flattened 2 x 3 array, and on 10,000 values | exact | `unique_full_matches_numpy` | covered |
+| arraykit | arraykit::array/search::where_select | `numpy.where(c, x, y)` on 6 values, on a 2 x 3 array and on 10,000 values (length, sum, head) | 1e-9 rel | `where_select_matches_numpy` | covered |
 | arraykit | arraykit::array/stats::argmax | `numpy.argmax(x)` | 1e-9 rel | `argmax_matches_numpy` | covered |
 | arraykit | arraykit::array/stats::argmin | `numpy.argmin(x)` | 1e-9 rel | `argmin_matches_numpy` | covered |
 | arraykit | arraykit::array/stats::checked_sum | `numpy.sum(x) for int32 (NumPy widens to int64; checked_sum errors instead)` | 1e-9 rel | `checked_sum_matches_numpy` | covered |
