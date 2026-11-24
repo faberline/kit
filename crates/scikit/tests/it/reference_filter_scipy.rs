@@ -5,7 +5,9 @@
 //! `tests/fixtures/filter_scipy_reference.tsv`. No Python runs in CI: the
 //! fixture is the only source of the expected values.
 
-use scikit::signal::{lfilter, lfilter_with_state, lfilter_zi};
+use scikit::signal::{
+    filtfilt, filtfilt_with, lfilter, lfilter_with_state, lfilter_zi, FiltfiltOptions, FiltfiltPad,
+};
 
 const FIXTURE: &str = include_str!("../fixtures/filter_scipy_reference.tsv");
 
@@ -142,4 +144,110 @@ fn lfilter_zi_rejects_zero_leading_coefficient() {
 fn lfilter_zi_rejects_singular_system() {
     // A pole at z = 1 makes I - C^T singular.
     lfilter_zi(&[1.0, 1.0], &[1.0, -1.0]);
+}
+
+/// The coefficients of the filter `name` (F1 to F5).
+fn filter(name: &str) -> (&'static [f64], &'static [f64]) {
+    let (_, b, a) = FILTERS
+        .iter()
+        .find(|(n, _, _)| *n == name)
+        .unwrap_or_else(|| panic!("no filter {name}"));
+    (b, a)
+}
+
+// The defaults of SciPy: padtype 'odd', padlen 3 * ntaps, method 'pad'.
+#[test]
+fn filtfilt_matches_scipy_default() {
+    let x = sig(64);
+    for name in ["f1", "f2", "f3", "f4", "f5"] {
+        let (b, a) = filter(name);
+        close_list(&filtfilt(b, a, &x), &format!("filtfilt.{name}_default"));
+    }
+}
+
+// The FIR case of the deleted test filtfilt_matches_scipy_lfilter: F4 on 100 values.
+#[test]
+fn filtfilt_matches_scipy_fir_100() {
+    let x = sig(100);
+    let (b, a) = filter("f4");
+    close_list(&filtfilt(b, a, &x), "filtfilt.f4_n100_default");
+}
+
+#[test]
+fn filtfilt_matches_scipy_padtypes() {
+    let x = sig(64);
+    let (b, a) = filter("f1");
+    let cases = [
+        (
+            "filtfilt.f1_even",
+            FiltfiltOptions {
+                padtype: FiltfiltPad::Even,
+                padlen: None,
+            },
+        ),
+        (
+            "filtfilt.f1_constant",
+            FiltfiltOptions {
+                padtype: FiltfiltPad::Constant,
+                padlen: None,
+            },
+        ),
+        (
+            "filtfilt.f1_odd10",
+            FiltfiltOptions {
+                padtype: FiltfiltPad::Odd,
+                padlen: Some(10),
+            },
+        ),
+        (
+            "filtfilt.f1_none",
+            FiltfiltOptions {
+                padtype: FiltfiltPad::None,
+                padlen: None,
+            },
+        ),
+    ];
+    for (key, options) in cases {
+        close_list(&filtfilt_with(b, a, &x, &options), key);
+    }
+
+    let (b4, a4) = filter("f4");
+    let even30 = FiltfiltOptions {
+        padtype: FiltfiltPad::Even,
+        padlen: Some(30),
+    };
+    close_list(&filtfilt_with(b4, a4, &x, &even30), "filtfilt.f4_even30");
+}
+
+// SciPy sets padlen to 0 for padtype None, so a given padlen changes nothing.
+#[test]
+fn filtfilt_none_ignores_padlen() {
+    let x = sig(64);
+    let (b, a) = filter("f1");
+    let without = FiltfiltOptions {
+        padtype: FiltfiltPad::None,
+        padlen: None,
+    };
+    let with = FiltfiltOptions {
+        padtype: FiltfiltPad::None,
+        padlen: Some(10),
+    };
+    assert_eq!(
+        filtfilt_with(b, a, &x, &without),
+        filtfilt_with(b, a, &x, &with)
+    );
+}
+
+// The default padlen of F1 is 3 * 3 = 9, so 6 values are too few.
+#[test]
+#[should_panic(expected = "padlen")]
+fn filtfilt_rejects_short_signal() {
+    let (b, a) = filter("f1");
+    filtfilt(b, a, &sig(6));
+}
+
+#[test]
+fn filtfilt_empty_input_is_empty() {
+    let (b, a) = filter("f1");
+    assert!(filtfilt(b, a, &[]).is_empty());
 }

@@ -1,6 +1,6 @@
 # Reference coverage
 
-Numeric rows: 412
+Numeric rows: 413
 Not numeric rows: 198
 
 Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` lists. A numeric function needs a reference value from a Python library (numpy, scipy, pandas or statsmodels, pinned in `tools/reference/requirements.txt`), a tolerance and a test. Status `not covered` means that no reference test exists yet. `-` means not written yet. `tools/reference/check_table.sh` checks this file.
@@ -325,7 +325,8 @@ Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` l
 | scikit | scikit::signal/filter::lfilter_with_state | scipy.signal.lfilter(b, a, x, zi=zi), y and zf, 5 filters, and a zero state | 1e-9 rel; exact zeros 1e-12 abs | lfilter_with_state_matches_scipy, lfilter_with_state_zero_state_matches_scipy | covered |
 | scikit | scikit::signal/filter::lfilter_zi | scipy.signal.lfilter_zi(b, a), 5 filters | 1e-9 rel; exact zeros 1e-12 abs; SciPy raises for a single tap, kit returns an empty state | lfilter_zi_matches_scipy, lfilter_zi_single_tap_is_empty | covered |
 | scikit | scikit::signal/filter::sosfilt | scipy.signal.sosfilt(sos, sample(64)), sos of butter(4, 0.3, lowpass) and butter(3, 0.2, highpass) | 1e-9 rel; exact zeros 1e-12 abs | sosfilt_matches_scipy | covered |
-| scikit | scikit::signal/filtfilt::filtfilt | forward and backward scipy.signal.lfilter (scipy.signal.filtfilt differs: it pads and uses lfilter_zi) | 1e-9 rel; exact zeros 1e-12 abs | filtfilt_matches_scipy_lfilter | covered |
+| scikit | scikit::signal/filtfilt::filtfilt | scipy.signal.filtfilt(b, a, sample(64)), defaults, 5 filters | 1e-9 rel; exact zeros 1e-12 abs | filtfilt_matches_scipy_default | covered |
+| scikit | scikit::signal/filtfilt::filtfilt_with | scipy.signal.filtfilt(b, a, sample(64), padtype=..., padlen=...), odd/even/constant/None and padlen 10 and 30 | 1e-9 rel; exact zeros 1e-12 abs | filtfilt_matches_scipy_padtypes, filtfilt_none_ignores_padlen, filtfilt_rejects_short_signal, filtfilt_empty_input_is_empty | covered |
 | scikit | scikit::signal/peaks::find_peaks | scipy.signal.find_peaks(sample(40), options), 4 option sets | 1e-9 rel; exact zeros 1e-12 abs | find_peaks_matches_scipy | covered |
 | scikit | scikit::signal/stft::stft | numpy.fft.rfft of x[s:s+w] * scipy.signal.windows.hann(w, sym=True), 2 configs | 1e-9 rel; exact zeros 1e-12 abs | stft_matches_numpy_hann | covered |
 | scikit | scikit::signal/windows::blackman | scipy.signal.windows.blackman(n, sym=True), n in 9, 64 | 1e-9 rel; exact zeros 1e-12 abs | blackman_matches_scipy | covered |
