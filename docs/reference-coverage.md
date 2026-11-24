@@ -57,31 +57,31 @@ Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` l
 | arraykit | arraykit::array/math::sqrt | `numpy.sqrt(x)` | 1e-9 rel | `sqrt_matches_numpy` | covered |
 | arraykit | arraykit::array/math::tan | `numpy.tan(x)` | 1e-9 rel | `tan_matches_numpy` | covered |
 | arraykit | arraykit::array/math::where_cond | `numpy.where(c, x, -x)` | 1e-9 rel | `where_cond_matches_numpy` | covered |
-| arraykit | arraykit::array/ndarray::arange | - | - | - | not covered |
-| arraykit | arraykit::array/ndarray::broadcast_to | - | - | - | not covered |
-| arraykit | arraykit::array/ndarray::diag | - | - | - | not covered |
-| arraykit | arraykit::array/ndarray::flatten | - | - | - | not covered |
-| arraykit | arraykit::array/ndarray::reshape | - | - | - | not covered |
-| arraykit | arraykit::array/ndarray::slice | - | - | - | not covered |
-| arraykit | arraykit::array/ndarray::transpose | - | - | - | not covered |
-| arraykit | arraykit::array/ndarray::transpose_axes | - | - | - | not covered |
+| arraykit | arraykit::array/ndarray::arange | `numpy.arange(0, 10, 3)`, `numpy.arange(10, 0, -3)`, `numpy.arange(5.0, 0.0, -1.5)`, `numpy.arange(0.0, 1.0, 0.1)` (10 values), `len(numpy.arange(5, 5, 1))` | 1e-9 rel | `arange_matches_numpy` | covered |
+| arraykit | arraykit::array/ndarray::broadcast_to | `numpy.broadcast_to` of (1, 3) to (4, 3), (3, 1) to (3, 4), (3,) to (2, 3) and (1, 1) to (2, 3, 2) | 1e-9 rel | `broadcast_to_matches_numpy` | covered |
+| arraykit | arraykit::array/ndarray::diag | `numpy.diag(x[:4])` (1-D to 4 x 4); `numpy.diag` of a 3 x 8 and an 8 x 3 input | 1e-9 rel | `diag_matches_numpy` | covered |
+| arraykit | arraykit::array/ndarray::flatten | `x.reshape(2, 3, 4).flatten()` | 1e-9 rel | `flatten_matches_numpy` | covered |
+| arraykit | arraykit::array/ndarray::reshape | `x.reshape(2, 3, 4).reshape(4, 6)`, `x.reshape(4, 3, 2)` on 24 values | 1e-9 rel | `reshape_matches_numpy` | covered |
+| arraykit | arraykit::array/ndarray::slice | `x[1:4, ::2]`, `x[::-1, 1]`, `x[-3:, :-1]`, `x[2]` on 4 x 6; `x[1:20:4]` on 1-D; `x[:, 1:, ::3]` on 2 x 3 x 4 | 1e-9 rel | `slice_matches_numpy` | covered |
+| arraykit | arraykit::array/ndarray::transpose | `x.T` of a 4 x 6 and of a 2 x 3 x 4 input (NumPy reverses all axes) | 1e-9 rel | `transpose_matches_numpy` | covered |
+| arraykit | arraykit::array/ndarray::transpose_axes | `numpy.transpose(x, (1, 2, 0))` and `numpy.transpose(x, (2, 0, 1))` on 2 x 3 x 4 | 1e-9 rel | `transpose_axes_matches_numpy` | covered |
 | arraykit | arraykit::array/ops::add | `numpy.add(a, b)` on the same shape, a row, a column and an outer broadcast, and on 10,000 values | 1e-9 rel | `add_matches_numpy` | covered |
 | arraykit | arraykit::array/ops::add_scalar | `A + 2.5` on 6 values, `M + 2.5` on a 2 x 3 matrix, `FL + 1.25` on 10,000 values | 1e-9 rel | `add_scalar_matches_numpy` | covered |
 | arraykit | arraykit::array/ops::div | `numpy.divide(a, b)` on the same shape, a row, a column and an outer broadcast, and on 10,000 values; `1 / 0`, `-1 / 0` and `0 / 0` give `inf`, `-inf` and `nan` | 1e-9 rel | `div_matches_numpy` | covered |
 | arraykit | arraykit::array/ops::mul | `numpy.multiply(a, b)` on the same shape, a row, a column and an outer broadcast, and on 10,000 values | 1e-9 rel | `mul_matches_numpy` | covered |
 | arraykit | arraykit::array/ops::mul_scalar | `A * -0.5` on 6 values, `M * -0.5` on a 2 x 3 matrix, `FL * -3.0` on 10,000 values | 1e-9 rel | `mul_scalar_matches_numpy` | covered |
 | arraykit | arraykit::array/ops::sub | `numpy.subtract(a, b)` on the same shape, a row, a column and an outer broadcast, and on 10,000 values | 1e-9 rel | `sub_matches_numpy` | covered |
-| arraykit | arraykit::array/random::bernoulli | - | - | - | not covered |
-| arraykit | arraykit::array/random::binomial | - | - | - | not covered |
-| arraykit | arraykit::array/random::choice | - | - | - | not covered |
-| arraykit | arraykit::array/random::next_f64 | - | - | - | not covered |
-| arraykit | arraykit::array/random::next_u64 | - | - | - | not covered |
-| arraykit | arraykit::array/random::normal | - | - | - | not covered |
-| arraykit | arraykit::array/random::normal_standard | - | - | - | not covered |
-| arraykit | arraykit::array/random::poisson | - | - | - | not covered |
-| arraykit | arraykit::array/random::randint | - | - | - | not covered |
-| arraykit | arraykit::array/random::shuffle | - | - | - | not covered |
-| arraykit | arraykit::array/random::uniform | - | - | - | not covered |
+| arraykit | arraykit::array/random::bernoulli | `scipy.stats.bernoulli(0.3)` (mean, variance, excess kurtosis) | 5 standard errors of the mean and of the variance, 100,000 draws, fixed seed | `bernoulli_matches_scipy` | covered |
+| arraykit | arraykit::array/random::binomial | `scipy.stats.binom(20, 0.3)`, `scipy.stats.binom(100, 0.3)`, `scipy.stats.binom(100, 0.8)` (direct, waiting-time and flip paths) | 5 standard errors of the mean and of the variance, 100,000 draws, fixed seed | `binomial_matches_scipy` | covered |
+| arraykit | arraykit::array/random::choice | `scipy.stats.randint(0, 7)` | 5 standard errors of the mean and of the variance, 100,000 draws, fixed seed | `choice_matches_scipy` | covered |
+| arraykit | arraykit::array/random::next_f64 | `scipy.stats.uniform(0, 1)` | 5 standard errors of the mean and of the variance, 100,000 draws, fixed seed; every draw in [0, 1) | `next_f64_matches_scipy_uniform` | covered |
+| arraykit | arraykit::array/random::next_u64 | `scipy.stats.uniform(0, 1)` on next_u64 / 2^64 | 5 standard errors of the mean and of the variance, 100,000 draws, fixed seed | `next_u64_matches_scipy_uniform, same_seed_gives_same_sequence` | covered |
+| arraykit | arraykit::array/random::normal | `scipy.stats.norm(3.0, 2.0)` | 5 standard errors of the mean and of the variance, 100,000 draws, fixed seed | `normal_matches_scipy` | covered |
+| arraykit | arraykit::array/random::normal_standard | `scipy.stats.norm(0, 1)` | 5 standard errors of the mean and of the variance, 100,000 draws, fixed seed | `normal_standard_matches_scipy` | covered |
+| arraykit | arraykit::array/random::poisson | `scipy.stats.poisson(4.0)` (Knuth) and `scipy.stats.poisson(50.0)` (normal approximation in KitRng) | 5 standard errors of the mean and of the variance, 100,000 draws, fixed seed | `poisson_matches_scipy` | covered |
+| arraykit | arraykit::array/random::randint | `scipy.stats.randint(-3, 7)`; every draw in -3..=6 | 5 standard errors of the mean and of the variance, 100,000 draws, fixed seed | `randint_matches_scipy` | covered |
+| arraykit | arraykit::array/random::shuffle | `scipy.stats.randint(0, 10)` for the value at position 0; every result is a permutation | 5 standard errors of the mean and of the variance, 100,000 draws, fixed seed | `shuffle_matches_scipy` | covered |
+| arraykit | arraykit::array/random::uniform | `scipy.stats.uniform(loc=2.0, scale=3.0)` | 5 standard errors of the mean and of the variance, 100,000 draws, fixed seed | `uniform_matches_scipy` | covered |
 | arraykit | arraykit::array/search::argsort_axis | `numpy.argsort(a, kind="stable", axis=k)` on 1-D, 2-D (axes 0 and 1) and 3-D (axes 0 to 2) input, and on 10,000 values (head, tail, length, weighted sum) | exact (indices); 1e-9 rel (sums) | `argsort_axis_matches_numpy` | covered |
 | arraykit | arraykit::array/search::nonzero | `numpy.nonzero` on 1-D, 2-D and 3-D input (one index array per axis), on 10,000 values (length, sum, head) and on an all-false input | exact (indices); 1e-9 rel (sums) | `nonzero_matches_numpy` | covered |
 | arraykit | arraykit::array/search::searchsorted | `numpy.searchsorted(a, v, side="left")` and `side="right"` on 6 sorted values, and on 10,000 sorted values with 2,000 probes (length, sum, head) | exact (indices); 1e-9 rel (sums) | `searchsorted_matches_numpy` | covered |

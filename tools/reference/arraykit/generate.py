@@ -885,6 +885,100 @@ def search_ops_rows():
     return rows
 
 
+NDARRAY_FIXTURE = "crates/arraykit/tests/fixtures/ndarray_reference.tsv"
+
+# Input of the ndarray cases: 24 values, the same formula as in reference_ndarray.rs.
+X24 = numpy.array([((i * 37 + 11) % 101) / 4.0 for i in range(24)])
+
+
+def moments_mvk(dist):
+    """[mean, variance, excess kurtosis] of a SciPy frozen distribution."""
+    return common.stable_value([float(v) for v in dist.stats(moments="mvk")])
+
+
+def ndarray_rows():
+    rows = []
+
+    def put(key, value, source):
+        add(rows, key, value, source)
+
+    def put_array(key, array, source):
+        # The flat values, then the shape under `<key>.shape`.
+        put(key, array.ravel().tolist(), source)
+        put(f"{key}.shape", list(array.shape), source)
+
+    # arange: the list holds all values; `empty_len` holds the length only.
+    put_array("arange.int", numpy.arange(0, 10, 3), "numpy.arange(0, 10, 3)")
+    put_array("arange.negative_step", numpy.arange(10, 0, -3), "numpy.arange(10, 0, -3)")
+    put_array("arange.float_step", numpy.arange(5.0, 0.0, -1.5), "numpy.arange(5.0, 0.0, -1.5)")
+    put_array("arange.tenths", numpy.arange(0.0, 1.0, 0.1), "numpy.arange(0.0, 1.0, 0.1)")
+    put("arange.empty_len", [len(numpy.arange(5, 5, 1))], "len(numpy.arange(5, 5, 1))")
+
+    put_array("reshape.3d_to_2d", X24.reshape(2, 3, 4).reshape(4, 6),
+              "X.reshape(2, 3, 4).reshape(4, 6)")
+    put_array("reshape.to_3d", X24.reshape(4, 3, 2), "X.reshape(4, 3, 2)")
+    put_array("flatten.3d", X24.reshape(2, 3, 4).flatten(), "X.reshape(2, 3, 4).flatten()")
+
+    put_array("transpose.2d", X24.reshape(4, 6).T, "X.reshape(4, 6).T")
+    put_array("transpose.3d", X24.reshape(2, 3, 4).T, "X.reshape(2, 3, 4).T")
+    put_array("transpose_axes.120", numpy.transpose(X24.reshape(2, 3, 4), (1, 2, 0)),
+              "numpy.transpose(X.reshape(2, 3, 4), (1, 2, 0))")
+    put_array("transpose_axes.201", numpy.transpose(X24.reshape(2, 3, 4), (2, 0, 1)),
+              "numpy.transpose(X.reshape(2, 3, 4), (2, 0, 1))")
+
+    put_array("diag.build", numpy.diag(X24[:4]), "numpy.diag(X[:4])")
+    put_array("diag.extract_wide", numpy.diag(X24.reshape(3, 8)), "numpy.diag(X.reshape(3, 8))")
+    put_array("diag.extract_tall", numpy.diag(X24.reshape(8, 3)), "numpy.diag(X.reshape(8, 3))")
+
+    put_array("slice.range_step", X24.reshape(4, 6)[1:4, ::2],
+              "X.reshape(4, 6)[1:4, ::2]")
+    put_array("slice.reverse_index", X24.reshape(4, 6)[::-1, 1],
+              "X.reshape(4, 6)[::-1, 1]")
+    put_array("slice.negative", X24.reshape(4, 6)[-3:, :-1],
+              "X.reshape(4, 6)[-3:, :-1]")
+    put_array("slice.row", X24.reshape(4, 6)[2], "X.reshape(4, 6)[2]")
+    put_array("slice.1d_step", X24[1:20:4], "X[1:20:4]")
+    put_array("slice.3d", X24.reshape(2, 3, 4)[:, 1:, ::3],
+              "X.reshape(2, 3, 4)[:, 1:, ::3]")
+
+    put_array("broadcast_to.row", numpy.broadcast_to(X24[:3].reshape(1, 3), (4, 3)),
+              "numpy.broadcast_to(X[:3].reshape(1, 3), (4, 3))")
+    put_array("broadcast_to.col", numpy.broadcast_to(X24[:3].reshape(3, 1), (3, 4)),
+              "numpy.broadcast_to(X[:3].reshape(3, 1), (3, 4))")
+    put_array("broadcast_to.vector", numpy.broadcast_to(X24[:3], (2, 3)),
+              "numpy.broadcast_to(X[:3], (2, 3))")
+    put_array("broadcast_to.scalar_like", numpy.broadcast_to(X24[:1].reshape(1, 1), (2, 3, 2)),
+              "numpy.broadcast_to(X[:1].reshape(1, 1), (2, 3, 2))")
+
+    # random: SciPy closed forms, [mean, variance, excess kurtosis].
+    put("random.uniform01", moments_mvk(scipy.stats.uniform(0, 1)), "scipy.stats.uniform(0, 1).stats(moments='mvk')")
+    put("random.uniform", moments_mvk(scipy.stats.uniform(loc=2.0, scale=3.0)),
+        "scipy.stats.uniform(loc=2.0, scale=3.0).stats(moments='mvk')")
+    put("random.normal_standard", moments_mvk(scipy.stats.norm(0, 1)),
+        "scipy.stats.norm(0, 1).stats(moments='mvk')")
+    put("random.normal", moments_mvk(scipy.stats.norm(3.0, 2.0)),
+        "scipy.stats.norm(3.0, 2.0).stats(moments='mvk')")
+    put("random.randint", moments_mvk(scipy.stats.randint(-3, 7)),
+        "scipy.stats.randint(-3, 7).stats(moments='mvk')")
+    put("random.bernoulli", moments_mvk(scipy.stats.bernoulli(0.3)),
+        "scipy.stats.bernoulli(0.3).stats(moments='mvk')")
+    put("random.binomial.n20", moments_mvk(scipy.stats.binom(20, 0.3)),
+        "scipy.stats.binom(20, 0.3).stats(moments='mvk')")
+    put("random.binomial.n100", moments_mvk(scipy.stats.binom(100, 0.3)),
+        "scipy.stats.binom(100, 0.3).stats(moments='mvk')")
+    put("random.binomial.n100_flip", moments_mvk(scipy.stats.binom(100, 0.8)),
+        "scipy.stats.binom(100, 0.8).stats(moments='mvk')")
+    put("random.poisson.l4", moments_mvk(scipy.stats.poisson(4.0)),
+        "scipy.stats.poisson(4.0).stats(moments='mvk')")
+    put("random.poisson.l50", moments_mvk(scipy.stats.poisson(50.0)),
+        "scipy.stats.poisson(50.0).stats(moments='mvk')")
+    put("random.choice", moments_mvk(scipy.stats.randint(0, 7)),
+        "scipy.stats.randint(0, 7).stats(moments='mvk')")
+    put("random.shuffle.position0", moments_mvk(scipy.stats.randint(0, 10)),
+        "scipy.stats.randint(0, 10).stats(moments='mvk')")
+    return rows
+
+
 if __name__ == "__main__":
     common.main({
         FIXTURE: stats_rows,
@@ -893,4 +987,5 @@ if __name__ == "__main__":
         MANIP_FIXTURE: manip_rows,
         INDEXING_FIXTURE: indexing_rows,
         SEARCH_OPS_FIXTURE: search_ops_rows,
+        NDARRAY_FIXTURE: ndarray_rows,
     })
