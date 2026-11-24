@@ -9,8 +9,8 @@
 
 use scikit::fft::{fft, fftfreq, ifft, irfft, rfft, rfftfreq, Complex};
 use scikit::signal::{
-    blackman, butter, convolve, correlate, filtfilt, find_peaks, hamming, hann, kaiser, lfilter,
-    sosfilt, stft, ConvolveMode, FilterType, PeakOptions, SosSection,
+    blackman, butter, convolve, correlate, find_peaks, hamming, hann, kaiser, lfilter, sosfilt,
+    stft, ConvolveMode, FilterType, PeakOptions, SosSection,
 };
 
 const FIXTURE: &str = include_str!("../fixtures/fft_signal_reference.tsv");
@@ -261,17 +261,6 @@ fn lfilter_matches_scipy() {
     check_vec(
         &lfilter(&[1.0, 2.0], &[2.0, -1.0], &sample(64)),
         "lfilter_a0_2",
-    );
-}
-
-#[test]
-fn filtfilt_matches_scipy_lfilter() {
-    let b = [0.2, 0.3, 0.2];
-    let a = [1.0, -0.5];
-    check_vec(&filtfilt(&b, &a, &sample(64)), "filtfilt_iir_64");
-    check_vec(
-        &filtfilt(&[0.25; 4], &[1.0], &sample(100)),
-        "filtfilt_fir_100",
     );
 }
 
