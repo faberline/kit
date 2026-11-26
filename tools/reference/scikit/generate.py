@@ -415,20 +415,6 @@ def fft_signal_rows():
     )
     add("lfilter_a0_2", sg.lfilter([1.0, 2.0], [2.0, -1.0], sample(64)), "scipy.signal.lfilter([1.0, 2.0], [2.0, -1.0], sample(64))")
 
-    ff_note = "forward and backward sg.lfilter (kit filtfilt has no padding and a zero initial state)"
-    x64 = sample(64)
-    add(
-        "filtfilt_iir_64",
-        sg.lfilter(b_iir, a_iir, sg.lfilter(b_iir, a_iir, x64)[::-1])[::-1],
-        ff_note + ", b = [0.2, 0.3, 0.2], a = [1.0, -0.5], sample(64)",
-    )
-    fir = [0.25] * 4
-    x100 = sample(100)
-    add(
-        "filtfilt_fir_100",
-        sg.lfilter(fir, [1.0], sg.lfilter(fir, [1.0], x100)[::-1])[::-1],
-        ff_note + ", b = [0.25] * 4, a = [1.0], sample(100)",
-    )
 
     sos4 = sg.butter(4, 0.3, btype="lowpass", output="sos")
     sos3 = sg.butter(3, 0.2, btype="highpass", output="sos")
@@ -763,6 +749,13 @@ def ts_rows():
     res = ARIMA(b, order=(2, 0, 0), trend="c").smooth(np.r_[mean200, phi200, 1.0])
     fv = np.asarray(res.fittedvalues, dtype=float)
     put(vec_rows("arima_fitted_200", fv[2:], "statsmodels.tsa.arima.model.ARIMA(b, order=(2, 0, 0), trend='c').smooth(...).fittedvalues[2:]"))
+    # d = 1 fitted values on the levels: fitted[t] = b[t-1] + one-step prediction of diff[t-1], for t >= p + 1
+    for p in (1, 2):
+        dd = np.diff(b, n=1)
+        phi, mean = ar_part(dd, p)
+        fv_diff = np.asarray(ARIMA(dd, order=(p, 0, 0), trend="c").smooth(np.r_[mean, phi, 1.0]).fittedvalues, dtype=float)
+        levels = (b[:-1] + fv_diff)[p:]
+        put(vec_rows(f"arima_fitted_{p}10", levels, f"b[t-1] + ARIMA(numpy.diff(b, 1), order=({p}, 0, 0), trend='c').smooth(...).fittedvalues[t-1], for t >= {p + 1}"))
     for p, d, q in ((2, 0, 0), (1, 1, 0), (2, 1, 0)):
         dd = np.diff(b, n=d)
         phi, mean = ar_part(dd, p)
@@ -996,6 +989,30 @@ def filter_rows():
     y0, zf0 = sg.lfilter(b1, a1, x, zi=np.zeros(2))
     add("lfilter_state.f1.y_zero", np.asarray(y0, dtype=float).tolist(), "scipy.signal.lfilter(b, a, x, zi=numpy.zeros(2)), y")
     add("lfilter_state.f1.zf_zero", np.asarray(zf0, dtype=float).tolist(), "scipy.signal.lfilter(b, a, x, zi=numpy.zeros(2)), zf")
+
+    # filtfilt (method='pad'): 64 values, the SciPy defaults unless the case names an option.
+    xf = sample(64)
+    ff_cases = [
+        ("f1_default", "f1", {}, ""),
+        ("f1_even", "f1", {"padtype": "even"}, ", padtype='even'"),
+        ("f1_constant", "f1", {"padtype": "constant"}, ", padtype='constant'"),
+        ("f1_odd10", "f1", {"padtype": "odd", "padlen": 10}, ", padtype='odd', padlen=10"),
+        ("f1_none", "f1", {"padtype": None}, ", padtype=None"),
+        ("f2_default", "f2", {}, ""),
+        ("f3_default", "f3", {}, ""),
+        ("f4_default", "f4", {}, ""),
+        ("f5_default", "f5", {}, ""),
+        ("f4_even30", "f4", {"padtype": "even", "padlen": 30}, ", padtype='even', padlen=30"),
+    ]
+    for name, filt, options, extra in ff_cases:
+        b, a = FILTERS[filt]
+        y = sg.filtfilt(b, a, xf, **options)
+        add(f"filtfilt.{name}", np.asarray(y, dtype=float).tolist(), f"scipy.signal.filtfilt(b, a, x{extra})")
+    # The FIR case of the deleted row filtfilt_fir_100: F4 on 100 values, the defaults.
+    b4, a4 = FILTERS["f4"]
+    y100 = sg.filtfilt(b4, a4, sample(100))
+    add("filtfilt.f4_n100_default", np.asarray(y100, dtype=float).tolist(),
+        "scipy.signal.filtfilt([0.25, 0.25, 0.25, 0.25], [1.0], sample(100))")
     return rows
 
 

@@ -1,6 +1,7 @@
 """Reference values for arraykit::array/stats, arraykit::array/linalg,
-arraykit::array/window, arraykit::array/math, arraykit::array/manip and
-arraykit::array/indexing (NumPy 2.4.6, SciPy 1.17.1).
+arraykit::array/window, arraykit::array/math, arraykit::array/manip,
+arraykit::array/indexing, arraykit::array/search and arraykit::array/ops
+(NumPy 2.4.6, SciPy 1.17.1).
 Each group writes its own fixture file.
 
 Run from the repository root:
@@ -728,6 +729,256 @@ def indexing_rows():
     return rows
 
 
+SEARCH_OPS_FIXTURE = "crates/arraykit/tests/fixtures/search_ops_reference.tsv"
+
+# Search and ops inputs. Integer formulas, as in the Rust test (see reference_search_ops.rs).
+S6 = numpy.sort(A6)
+Q8 = numpy.array([-2.0, -1.5, 0.0, 0.5, 1.0, 2.0, 3.0, 4.0])
+SORTED_FL = numpy.sort(FL)
+QL = numpy.array([((i * 29 + 3) % 117) / 4.0 - 1.0 for i in range(2000)])
+GS = numpy.array([((i * 7 + 3) % 11) - 4.0 for i in range(12)]).reshape(3, 4)
+XS = numpy.array([((i * 7 + 3) % 11) - 4.0 for i in range(24)]).reshape(2, 3, 4)
+U6 = numpy.array([1.0, numpy.nan, 0.5, numpy.nan, 1.0])
+U23 = numpy.array([[3.0, 1.0, 3.0], [2.0, 1.0, 0.0]])
+B6 = numpy.array([0.5, 2.0, -4.0, 8.0, 0.25, -1.0])
+C21 = numpy.array([[10.0], [20.0]])
+FD = numpy.array([(((i * 53 + 7) % 97) + 1) / 8.0 for i in range(M_N)])
+C6 = numpy.array([True, False, True, False, False, True])
+Y6 = numpy.array([10.0, 20.0, 30.0, 40.0, 50.0, 60.0])
+MASK3 = numpy.arange(M_N) % 3 == 0
+
+
+def search_ops_rows():
+    rows = []
+
+    def put(key, value, source):
+        add(rows, key, value, source)
+
+    def put_array(key, array, source):
+        # The flat values, then the shape under `<key>.shape`.
+        put(key, array.ravel().tolist(), source)
+        put(f"{key}.shape", list(array.shape), source)
+
+    def put_big(key, array, source):
+        # Length, sum and the first 5 values of a large result.
+        put(f"{key}.len", int(array.size), source)
+        put(f"{key}.sum", float(numpy.sum(array)), source)
+        put(f"{key}.head", array.ravel()[:5].tolist(), source)
+
+    # searchsorted: insertion points into a sorted 1-D array.
+    for side in ("left", "right"):
+        put(f"search.searchsorted.small.{side}",
+            numpy.searchsorted(S6, Q8, side=side).tolist(),
+            f'numpy.searchsorted(S6, Q8, side="{side}")')
+        put_big(f"search.searchsorted.large.{side}",
+                numpy.searchsorted(SORTED_FL, QL, side=side),
+                f'numpy.searchsorted(numpy.sort(FL), QL, side="{side}")')
+
+    # sort_axis: sorted copies along one axis.
+    put_array("search.sort_axis.1d", numpy.sort(A6), "numpy.sort(A6)")
+    for ax in (0, 1):
+        put_array(f"search.sort_axis.2d.axis{ax}", numpy.sort(GS, axis=ax),
+                  f"numpy.sort(GS, axis={ax})")
+    for ax in (0, 1, 2):
+        put_array(f"search.sort_axis.3d.axis{ax}", numpy.sort(XS, axis=ax),
+                  f"numpy.sort(XS, axis={ax})")
+    sorted_fl = numpy.sort(FL)
+    put("search.sort_axis.large.head", sorted_fl[:5].tolist(), "numpy.sort(FL)[:5]")
+    put("search.sort_axis.large.tail", sorted_fl[-5:].tolist(), "numpy.sort(FL)[-5:]")
+    put("search.sort_axis.large.sum", float(numpy.sum(sorted_fl)), "numpy.sum(numpy.sort(FL))")
+    put("search.sort_axis.large.wsum",
+        float(numpy.sum(sorted_fl * numpy.arange(1, M_N + 1))),
+        "numpy.sum(numpy.sort(FL) * numpy.arange(1, 10001))")
+
+    # argsort_axis: the indices of a stable sort along one axis.
+    put_array("search.argsort_axis.1d", numpy.argsort(A6, kind="stable"),
+              'numpy.argsort(A6, kind="stable")')
+    for ax in (0, 1):
+        put_array(f"search.argsort_axis.2d.axis{ax}",
+                  numpy.argsort(GS, kind="stable", axis=ax),
+                  f'numpy.argsort(GS, kind="stable", axis={ax})')
+    for ax in (0, 1, 2):
+        put_array(f"search.argsort_axis.3d.axis{ax}",
+                  numpy.argsort(XS, kind="stable", axis=ax),
+                  f'numpy.argsort(XS, kind="stable", axis={ax})')
+    idx = numpy.argsort(FL, kind="stable")
+    put("search.argsort_axis.large.head", idx[:5].tolist(),
+        'numpy.argsort(FL, kind="stable")[:5]')
+    put("search.argsort_axis.large.tail", idx[-5:].tolist(),
+        'numpy.argsort(FL, kind="stable")[-5:]')
+    put("search.argsort_axis.large.len", int(idx.size),
+        'len(numpy.argsort(FL, kind="stable"))')
+    put("search.argsort_axis.large.wsum",
+        int(numpy.sum(idx * numpy.arange(1, M_N + 1))),
+        'numpy.sum(numpy.argsort(FL, kind="stable") * numpy.arange(1, 10001))')
+
+    # unique_full: values, first indices, inverse and counts. Flattened input.
+    for name, x, text in (("small", A6, "A6"), ("nan", U6, "U6"),
+                          ("2d", U23.ravel(), "U23.ravel()")):
+        values, first, inverse, counts = numpy.unique(
+            x, return_index=True, return_inverse=True, return_counts=True)
+        inverse = inverse.ravel()
+        put(f"search.unique_full.{name}.values", values.tolist(), f"numpy.unique({text})")
+        put(f"search.unique_full.{name}.indices", first.tolist(),
+            f"numpy.unique({text}, return_index=True)[1]")
+        put(f"search.unique_full.{name}.inverse", inverse.tolist(),
+            f"numpy.unique({text}, return_inverse=True)[2]")
+        put(f"search.unique_full.{name}.counts", counts.tolist(),
+            f"numpy.unique({text}, return_counts=True)[3]")
+    values, first, inverse, counts = numpy.unique(
+        FL, return_index=True, return_inverse=True, return_counts=True)
+    inverse = inverse.ravel()
+    put("search.unique_full.large.values", values.tolist(), "numpy.unique(FL)")
+    put("search.unique_full.large.indices", first.tolist(),
+        "numpy.unique(FL, return_index=True)[1]")
+    put("search.unique_full.large.counts", counts.tolist(),
+        "numpy.unique(FL, return_counts=True)[3]")
+    put("search.unique_full.large.inverse.sum", int(numpy.sum(inverse)),
+        "numpy.sum(numpy.unique(FL, return_inverse=True)[2])")
+    put("search.unique_full.large.inverse.wsum",
+        int(numpy.sum(inverse * numpy.arange(1, M_N + 1))),
+        "numpy.sum(numpy.unique(FL, return_inverse=True)[2] * numpy.arange(1, 10001))")
+
+    # where_select: numpy.where(condition, x, y).
+    put_array("search.where_select.small", numpy.where(C6, A6, Y6),
+              "numpy.where(c6, A6, [10, 20, 30, 40, 50, 60])")
+    put_array("search.where_select.2d", numpy.where(M23 > 3.0, M23, -M23),
+              "numpy.where(M23 > 3.0, M23, -M23)")
+    put_big("search.where_select.large", numpy.where(MASK3, FL, -FL - 1.0),
+            "numpy.where(i % 3 == 0, FL, -FL - 1.0)")
+
+    # nonzero: one index array per axis.
+    put("search.nonzero.1d", numpy.nonzero([False, True, True, False, True])[0].tolist(),
+        "numpy.nonzero([False, True, True, False, True])[0]")
+    for ax in (0, 1):
+        put(f"search.nonzero.2d.axis{ax}",
+            numpy.nonzero(numpy.arange(12).reshape(3, 4) % 3 == 0)[ax].tolist(),
+            f"numpy.nonzero(numpy.arange(12).reshape(3, 4) % 3 == 0)[{ax}]")
+    for ax in (0, 1, 2):
+        put(f"search.nonzero.3d.axis{ax}",
+            numpy.nonzero(numpy.arange(24).reshape(2, 3, 4) % 5 == 0)[ax].tolist(),
+            f"numpy.nonzero(numpy.arange(24).reshape(2, 3, 4) % 5 == 0)[{ax}]")
+    put_big("search.nonzero.large", numpy.nonzero(MASK3)[0],
+            "numpy.nonzero(i % 3 == 0 for i in range(10000))[0]")
+    put("search.nonzero.none.len", int(numpy.nonzero(numpy.zeros(4, dtype=bool))[0].size),
+        "len(numpy.nonzero(numpy.zeros(4, dtype=bool))[0])")
+
+    # ops: element-wise arithmetic with broadcasting, and the scalar forms.
+    for name, fn in (("add", "add"), ("sub", "subtract"), ("mul", "multiply"),
+                     ("div", "divide")):
+        ufunc = getattr(numpy, fn)
+        put_array(f"ops.{name}.same", ufunc(A6, B6), f"numpy.{fn}(A6, B6)")
+        put_array(f"ops.{name}.row", ufunc(M23, V3), f"numpy.{fn}(M23, V3)")
+        put_array(f"ops.{name}.col", ufunc(M23, C21), f"numpy.{fn}(M23, C21)")
+        put_array(f"ops.{name}.outer", ufunc(C21, M13), f"numpy.{fn}(C21, M13)")
+        put_big(f"ops.{name}.large", ufunc(FL, FD), f"numpy.{fn}(FL, FD)")
+    with numpy.errstate(divide="ignore", invalid="ignore"):
+        zero = numpy.array([1.0, -1.0, 0.0]) / numpy.array([0.0, 0.0, 0.0])
+    put_array("ops.div.zero", zero,
+              "numpy.array([1.0, -1.0, 0.0]) / numpy.array([0.0, 0.0, 0.0])")
+    put_array("ops.add_scalar.small", A6 + 2.5, "A6 + 2.5")
+    put_array("ops.add_scalar.2d", M23 + 2.5, "M23 + 2.5")
+    put_big("ops.add_scalar.large", FL + 1.25, "FL + 1.25")
+    put_array("ops.mul_scalar.small", A6 * -0.5, "A6 * -0.5")
+    put_array("ops.mul_scalar.2d", M23 * -0.5, "M23 * -0.5")
+    put_big("ops.mul_scalar.large", FL * -3.0, "FL * -3.0")
+    return rows
+
+
+NDARRAY_FIXTURE = "crates/arraykit/tests/fixtures/ndarray_reference.tsv"
+
+# Input of the ndarray cases: 24 values, the same formula as in reference_ndarray.rs.
+X24 = numpy.array([((i * 37 + 11) % 101) / 4.0 for i in range(24)])
+
+
+def moments_mvk(dist):
+    """[mean, variance, excess kurtosis] of a SciPy frozen distribution."""
+    return common.stable_value([float(v) for v in dist.stats(moments="mvk")])
+
+
+def ndarray_rows():
+    rows = []
+
+    def put(key, value, source):
+        add(rows, key, value, source)
+
+    def put_array(key, array, source):
+        # The flat values, then the shape under `<key>.shape`.
+        put(key, array.ravel().tolist(), source)
+        put(f"{key}.shape", list(array.shape), source)
+
+    # arange: the list holds all values; `empty_len` holds the length only.
+    put_array("arange.int", numpy.arange(0, 10, 3), "numpy.arange(0, 10, 3)")
+    put_array("arange.negative_step", numpy.arange(10, 0, -3), "numpy.arange(10, 0, -3)")
+    put_array("arange.float_step", numpy.arange(5.0, 0.0, -1.5), "numpy.arange(5.0, 0.0, -1.5)")
+    put_array("arange.tenths", numpy.arange(0.0, 1.0, 0.1), "numpy.arange(0.0, 1.0, 0.1)")
+    put("arange.empty_len", [len(numpy.arange(5, 5, 1))], "len(numpy.arange(5, 5, 1))")
+
+    put_array("reshape.3d_to_2d", X24.reshape(2, 3, 4).reshape(4, 6),
+              "X.reshape(2, 3, 4).reshape(4, 6)")
+    put_array("reshape.to_3d", X24.reshape(4, 3, 2), "X.reshape(4, 3, 2)")
+    put_array("flatten.3d", X24.reshape(2, 3, 4).flatten(), "X.reshape(2, 3, 4).flatten()")
+
+    put_array("transpose.2d", X24.reshape(4, 6).T, "X.reshape(4, 6).T")
+    put_array("transpose.3d", X24.reshape(2, 3, 4).T, "X.reshape(2, 3, 4).T")
+    put_array("transpose_axes.120", numpy.transpose(X24.reshape(2, 3, 4), (1, 2, 0)),
+              "numpy.transpose(X.reshape(2, 3, 4), (1, 2, 0))")
+    put_array("transpose_axes.201", numpy.transpose(X24.reshape(2, 3, 4), (2, 0, 1)),
+              "numpy.transpose(X.reshape(2, 3, 4), (2, 0, 1))")
+
+    put_array("diag.build", numpy.diag(X24[:4]), "numpy.diag(X[:4])")
+    put_array("diag.extract_wide", numpy.diag(X24.reshape(3, 8)), "numpy.diag(X.reshape(3, 8))")
+    put_array("diag.extract_tall", numpy.diag(X24.reshape(8, 3)), "numpy.diag(X.reshape(8, 3))")
+
+    put_array("slice.range_step", X24.reshape(4, 6)[1:4, ::2],
+              "X.reshape(4, 6)[1:4, ::2]")
+    put_array("slice.reverse_index", X24.reshape(4, 6)[::-1, 1],
+              "X.reshape(4, 6)[::-1, 1]")
+    put_array("slice.negative", X24.reshape(4, 6)[-3:, :-1],
+              "X.reshape(4, 6)[-3:, :-1]")
+    put_array("slice.row", X24.reshape(4, 6)[2], "X.reshape(4, 6)[2]")
+    put_array("slice.1d_step", X24[1:20:4], "X[1:20:4]")
+    put_array("slice.3d", X24.reshape(2, 3, 4)[:, 1:, ::3],
+              "X.reshape(2, 3, 4)[:, 1:, ::3]")
+
+    put_array("broadcast_to.row", numpy.broadcast_to(X24[:3].reshape(1, 3), (4, 3)),
+              "numpy.broadcast_to(X[:3].reshape(1, 3), (4, 3))")
+    put_array("broadcast_to.col", numpy.broadcast_to(X24[:3].reshape(3, 1), (3, 4)),
+              "numpy.broadcast_to(X[:3].reshape(3, 1), (3, 4))")
+    put_array("broadcast_to.vector", numpy.broadcast_to(X24[:3], (2, 3)),
+              "numpy.broadcast_to(X[:3], (2, 3))")
+    put_array("broadcast_to.scalar_like", numpy.broadcast_to(X24[:1].reshape(1, 1), (2, 3, 2)),
+              "numpy.broadcast_to(X[:1].reshape(1, 1), (2, 3, 2))")
+
+    # random: SciPy closed forms, [mean, variance, excess kurtosis].
+    put("random.uniform01", moments_mvk(scipy.stats.uniform(0, 1)), "scipy.stats.uniform(0, 1).stats(moments='mvk')")
+    put("random.uniform", moments_mvk(scipy.stats.uniform(loc=2.0, scale=3.0)),
+        "scipy.stats.uniform(loc=2.0, scale=3.0).stats(moments='mvk')")
+    put("random.normal_standard", moments_mvk(scipy.stats.norm(0, 1)),
+        "scipy.stats.norm(0, 1).stats(moments='mvk')")
+    put("random.normal", moments_mvk(scipy.stats.norm(3.0, 2.0)),
+        "scipy.stats.norm(3.0, 2.0).stats(moments='mvk')")
+    put("random.randint", moments_mvk(scipy.stats.randint(-3, 7)),
+        "scipy.stats.randint(-3, 7).stats(moments='mvk')")
+    put("random.bernoulli", moments_mvk(scipy.stats.bernoulli(0.3)),
+        "scipy.stats.bernoulli(0.3).stats(moments='mvk')")
+    put("random.binomial.n20", moments_mvk(scipy.stats.binom(20, 0.3)),
+        "scipy.stats.binom(20, 0.3).stats(moments='mvk')")
+    put("random.binomial.n100", moments_mvk(scipy.stats.binom(100, 0.3)),
+        "scipy.stats.binom(100, 0.3).stats(moments='mvk')")
+    put("random.binomial.n100_flip", moments_mvk(scipy.stats.binom(100, 0.8)),
+        "scipy.stats.binom(100, 0.8).stats(moments='mvk')")
+    put("random.poisson.l4", moments_mvk(scipy.stats.poisson(4.0)),
+        "scipy.stats.poisson(4.0).stats(moments='mvk')")
+    put("random.poisson.l50", moments_mvk(scipy.stats.poisson(50.0)),
+        "scipy.stats.poisson(50.0).stats(moments='mvk')")
+    put("random.choice", moments_mvk(scipy.stats.randint(0, 7)),
+        "scipy.stats.randint(0, 7).stats(moments='mvk')")
+    put("random.shuffle.position0", moments_mvk(scipy.stats.randint(0, 10)),
+        "scipy.stats.randint(0, 10).stats(moments='mvk')")
+    return rows
+
+
 if __name__ == "__main__":
     common.main({
         FIXTURE: stats_rows,
@@ -735,4 +986,6 @@ if __name__ == "__main__":
         WINDOW_MATH_FIXTURE: window_math_rows,
         MANIP_FIXTURE: manip_rows,
         INDEXING_FIXTURE: indexing_rows,
+        SEARCH_OPS_FIXTURE: search_ops_rows,
+        NDARRAY_FIXTURE: ndarray_rows,
     })

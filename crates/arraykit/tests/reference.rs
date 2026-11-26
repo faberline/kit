@@ -6,21 +6,11 @@
 
 use arraykit::array::{ArrayError, KitRng, NdArray};
 
-/// Absolute-or-relative check with a 1e-9 scale.
-fn close(a: f64, b: f64) {
-    assert!((a - b).abs() < 1e-9 * (1.0 + b.abs()), "{a} != {b}");
-}
-
 // numpy 1.26: np.arange(0, 5, 0) raises ZeroDivisionError, so the call must be an error.
-// numpy 1.26: len(np.arange(0.0, 1.0, 0.1)) = 10
-// numpy 1.26: np.arange(0.0, 1.0, 0.1)[3] = 0 + 3 * 0.1 = 0.30000000000000004
+// The float length and values of arange are checked in `reference_ndarray.rs`.
 #[test]
-fn arange_zero_step_is_error_and_float_length() {
+fn arange_zero_step_is_error() {
     assert!(NdArray::arange(0i32, 5, 0).is_err());
-
-    let a = NdArray::arange(0.0f64, 1.0, 0.1).unwrap();
-    assert_eq!(a.data().len(), 10);
-    close(a.data()[3], 0.30000000000000004);
 }
 
 // numpy 1.26: np.linalg.eig([[0., -1.], [1., 0.]]) gives eigenvalues +1j and -1j.
