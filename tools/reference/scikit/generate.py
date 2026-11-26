@@ -1033,6 +1033,50 @@ def filter_rows():
     return rows
 
 
+def exact_ridge_case_b():
+    """Ridge closed form of linear_model_reference case B in exact rational arithmetic.
+
+    Inputs: b0 = k/3, b2 = k/4, b1 = b0 + (m - 5)/10000, noise = (r - 50)/250, so every
+    value is a Fraction. Returns (coef, intercept, predictions) rounded to float.
+    """
+    from fractions import Fraction as Fr
+
+    def noise_fr(i):
+        return Fr((i * 7919) % 101 - 50, 250)
+
+    def row(i):
+        b0 = Fr((i * 13 + 5) % 29, 3)
+        b1 = b0 + Fr(((i * 7 + 3) % 11) - 5, 10000)
+        b2 = Fr((i * 5 + 2) % 17, 4)
+        return [b0, b1, b2]
+
+    X = [row(i) for i in range(1000)]
+    y = [Fr(1, 2) + r[0] - Fr(1, 2) * r[1] + 2 * r[2] + noise_fr(i) for i, r in enumerate(X)]
+    Xn = [row(i) for i in range(1000, 1007)]
+    alpha = Fr(1, 10000)
+    p, n = 3, len(X)
+    mx = [sum(r[j] for r in X) / n for j in range(p)]
+    my = sum(y) / n
+    Xc = [[r[j] - mx[j] for j in range(p)] for r in X]
+    yc = [v - my for v in y]
+    M = [
+        [sum(Xc[i][j] * Xc[i][k] for i in range(n)) + (alpha if j == k else 0) for k in range(p)]
+        + [sum(Xc[i][j] * yc[i] for i in range(n))]
+        for j in range(p)
+    ]
+    for c in range(p):
+        piv = next(r for r in range(c, p) if M[r][c] != 0)
+        M[c], M[piv] = M[piv], M[c]
+        for r in range(p):
+            if r != c and M[r][c] != 0:
+                f = M[r][c] / M[c][c]
+                M[r] = [M[r][k] - f * M[c][k] for k in range(p + 1)]
+    w = [M[j][p] / M[j][j] for j in range(p)]
+    intercept = my - sum(mx[j] * w[j] for j in range(p))
+    pred = [sum(r[j] * w[j] for j in range(p)) + intercept for r in Xn]
+    return [float(v) for v in w], intercept, [float(v) for v in pred]
+
+
 def linear_model_rows():
     """Rows of the scikit::linear_model group (linear_model_reference.tsv).
 
@@ -1105,10 +1149,13 @@ def linear_model_rows():
         add(f"{prefix}.intercept", float(intercept), f"y.mean() - X.mean(0) @ w, closed form alpha={alpha}")
         put(vec_rows(f"{prefix}.predict", pred, f"Xnew @ w + intercept, closed form alpha={alpha}, Xnew = XA[i] for i in 1000..1007"))
 
-    coef, intercept, pred = ridge(XB, yB, XBn, 1e-4)
-    put(vec_rows("ridge_ill.coef", coef, f"numpy.linalg.solve(Xc.T @ Xc + 1e-4 * numpy.eye(3), Xc.T @ yc) on centred data; {BSRC}"))
-    add("ridge_ill.intercept", float(intercept), "y.mean() - X.mean(0) @ w, closed form alpha=1e-4, case B")
-    put(vec_rows("ridge_ill.predict", pred, "Xnew @ w + intercept, closed form alpha=1e-4, case B, Xnew = XB[i] for i in 1000..1007"))
+    # Case B has condition number about 1e8, so a float solve differs between BLAS builds
+    # in the 8th digit. Its inputs are exact rationals, so the closed form is computed
+    # with fractions and rounded once: the committed value is then the same on every machine.
+    coef, intercept, pred = exact_ridge_case_b()
+    put(vec_rows("ridge_ill.coef", coef, f"exact rational closed form (Fraction) of numpy.linalg.solve(Xc.T @ Xc + 1e-4 * I, Xc.T @ yc) on centred data; {BSRC}"))
+    add("ridge_ill.intercept", float(intercept), "exact rational y.mean() - X.mean(0) @ w, closed form alpha=1e-4, case B")
+    put(vec_rows("ridge_ill.predict", pred, "exact rational Xnew @ w + intercept, closed form alpha=1e-4, case B, Xnew = XB[i] for i in 1000..1007"))
     return rows
 
 
