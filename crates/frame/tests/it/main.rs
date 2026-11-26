@@ -1,4 +1,5 @@
 mod bench_smoke;
+mod coverage_dataframe;
 mod coverage_index_value;
 mod coverage_window;
 mod frame;
