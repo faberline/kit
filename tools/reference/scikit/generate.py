@@ -1001,13 +1001,15 @@ def filter_rows():
 
 STFT_FIXTURE = "crates/scikit/tests/fixtures/stft_scipy_reference.tsv"
 
-# (case name, input length, keyword arguments of scipy.signal.stft). fs is 100.0 in every case.
+# (case name, input length, keyword arguments of scipy.signal.stft). fs is 100.0
+# unless the arguments give "fs".
 STFT_CASES = (
     ("default", 256, {"nperseg": 64}),
     ("nobound", 256, {"nperseg": 64, "noverlap": 32, "boundary": None, "padded": False}),
     ("density", 256, {"nperseg": 64, "noverlap": 32, "boundary": None, "padded": False, "scaling": "psd"}),
     ("hamming_odd", 250, {"window": "hamming", "nperseg": 33, "noverlap": 16}),
     ("blackman_pad", 256, {"window": "blackman", "nperseg": 40, "noverlap": 10, "boundary": None, "padded": True}),
+    ("nobound_w100_fs1000", 256, {"nperseg": 100, "noverlap": 75, "boundary": None, "padded": False, "fs": 1000.0}),
 )
 
 
@@ -1023,9 +1025,11 @@ def stft_rows():
         rows.append((key, common.stable_value(value), source))
 
     for case, n, kwargs in STFT_CASES:
-        f, t, z = sg.stft(sample(n), fs=100.0, **kwargs)
+        kwargs = dict(kwargs)
+        fs = kwargs.pop("fs", 100.0)
+        f, t, z = sg.stft(sample(n), fs=fs, **kwargs)
         opts = ", ".join(f"{k}={v!r}" for k, v in kwargs.items())
-        src = f"scipy.signal.stft(sample({n}), fs=100.0, {opts})"
+        src = f"scipy.signal.stft(sample({n}), fs={fs!r}, {opts})"
         prefix = f"stft.{case}"
         zt = z.T
         add(f"{prefix}.n_frames", float(zt.shape[0]), src + " Z.shape[1]")

@@ -106,6 +106,15 @@ fn stft_matches_scipy_nobound() {
     check_case("nobound", &result);
 }
 
+/// Replaces the deleted `stft_matches_numpy_hann` case for `w = 100, h = 25, fs = 1000`
+/// (same signal, same length): `noverlap = 75` is `hop = 25`.
+#[test]
+fn stft_matches_scipy_nobound_w100_fs1000() {
+    let x = sig(256);
+    let result = stft(&x, 100, 25, 1000.0);
+    check_case("nobound_w100_fs1000", &result);
+}
+
 #[test]
 fn stft_with_matches_scipy_default() {
     let x = sig(256);

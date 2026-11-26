@@ -10,7 +10,7 @@
 use scikit::fft::{fft, fftfreq, ifft, irfft, rfft, rfftfreq, Complex};
 use scikit::signal::{
     blackman, butter, convolve, correlate, filtfilt, find_peaks, hamming, hann, kaiser, lfilter,
-    sosfilt, stft, ConvolveMode, FilterType, PeakOptions, SosSection,
+    sosfilt, ConvolveMode, FilterType, PeakOptions, SosSection,
 };
 
 const FIXTURE: &str = include_str!("../fixtures/fft_signal_reference.tsv");
@@ -336,27 +336,5 @@ fn find_peaks_matches_scipy() {
         check_vec(&index, &format!("peaks_{name}_index"));
         check_vec(&height, &format!("peaks_{name}_height"));
         check_vec(&prominence, &format!("peaks_{name}_prominence"));
-    }
-}
-
-#[test]
-fn stft_matches_numpy_hann() {
-    let x = sample(256);
-    for (w, h, fs) in [(64usize, 32usize, 100.0), (100, 25, 1000.0)] {
-        let prefix = format!("stft_w{w}_h{h}");
-        let res = stft(&x, w, h, fs);
-        check_vec(&res.frequencies, &format!("{prefix}_freqs"));
-        check_vec(&res.times, &format!("{prefix}_times"));
-        assert_eq!(
-            res.spectrogram.len() as f64,
-            scalar(&format!("{prefix}_n_frames")),
-            "frames of `{prefix}`"
-        );
-        let first = &res.spectrogram[0];
-        let last = res.spectrogram.last().expect("at least one frame");
-        check_complex(first, &format!("{prefix}_frame0"));
-        check_complex(last, &format!("{prefix}_last"));
-        let all: Vec<Complex> = res.spectrogram.iter().flatten().cloned().collect();
-        check_complex(&all, &format!("{prefix}_all"));
     }
 }
