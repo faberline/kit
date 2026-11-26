@@ -1,4 +1,5 @@
 mod bench_smoke;
+mod coverage_reshape_groupby;
 mod frame;
 mod io_paths;
 mod prop_io;
