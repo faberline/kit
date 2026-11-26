@@ -1033,6 +1033,85 @@ def filter_rows():
     return rows
 
 
+def linear_model_rows():
+    """Rows of the scikit::linear_model group (linear_model_reference.tsv).
+
+    Rust (crates/scikit/tests/it/reference_linear_model.rs) rebuilds every input
+    with the integer formulas written here; the formulas must match exactly.
+    """
+    rows = []
+
+    def put(items):
+        rows.extend((key, common.stable_value(value), source) for key, value, source in items)
+
+    def add(key, value, source):
+        rows.append((key, common.stable_value(value), source))
+
+    # Inputs (the same formulas are in reference_linear_model.rs).
+    def noise(i):
+        return (((i * 7919) % 101) - 50.0) / 250.0
+
+    # Case A: 1000 rows, 5 features; 7 prediction rows i in 1000..1007.
+    def xa_row(i):
+        return [((i * 31 + j * 17 + i * j) % 23) / 7.0 for j in range(5)]
+
+    XA = np.array([xa_row(i) for i in range(1000)])
+    E = np.array([noise(i) for i in range(1000)])
+    yA = 1.5 + 2.0 * XA[:, 0] - 1.25 * XA[:, 1] + 0.5 * XA[:, 2] + 3.0 * XA[:, 3] - 0.75 * XA[:, 4] + E
+    XAn = np.array([xa_row(i) for i in range(1000, 1007)])
+
+    # Case B: 1000 rows, 3 features (nearly collinear first two); 7 prediction rows.
+    def xb_row(i):
+        b0 = ((i * 13 + 5) % 29) / 3.0
+        b1 = b0 + (((i * 7 + 3) % 11) - 5.0) * 1e-4
+        b2 = ((i * 5 + 2) % 17) / 4.0
+        return [b0, b1, b2]
+
+    XB = np.array([xb_row(i) for i in range(1000)])
+    yB = 0.5 + 1.0 * XB[:, 0] - 0.5 * XB[:, 1] + 2.0 * XB[:, 2] + E
+    XBn = np.array([xb_row(i) for i in range(1000, 1007)])
+
+    def ols(X, y, Xnew):
+        Xc = X - X.mean(0)
+        yc = y - y.mean()
+        coef = np.linalg.lstsq(Xc, yc, rcond=None)[0]
+        intercept = y.mean() - X.mean(0) @ coef
+        # Cross-check: the plain least squares with a constant column gives the same coef.
+        Xa = np.column_stack([X, np.ones(len(X))])
+        full = np.linalg.lstsq(Xa, y, rcond=None)[0][: X.shape[1]]
+        if not np.allclose(full, coef, rtol=1e-9, atol=0.0):
+            raise AssertionError("OLS coef differs from lstsq on [X, 1]")
+        return coef, intercept, Xnew @ coef + intercept
+
+    def ridge(X, y, Xnew, alpha):
+        Xc = X - X.mean(0)
+        yc = y - y.mean()
+        w = np.linalg.solve(Xc.T @ Xc + alpha * np.eye(X.shape[1]), Xc.T @ yc)
+        intercept = y.mean() - X.mean(0) @ w
+        return w, intercept, Xnew @ w + intercept
+
+    XSRC = "XA[i][j] = ((i*31 + j*17 + i*j) % 23) / 7.0, i in 0..1000, j in 0..5"
+    BSRC = "XB[i] = (b0, b1, b2): b0 = ((i*13+5) % 29) / 3.0, b1 = b0 + (((i*7+3) % 11) - 5.0) * 1e-4, b2 = ((i*5+2) % 17) / 4.0"
+
+    coef, intercept, pred = ols(XA, yA, XAn)
+    put(vec_rows("ols.coef", coef, f"numpy.linalg.lstsq(Xc, yc)[0] with Xc = X - X.mean(0), yc = y - y.mean(); {XSRC}"))
+    add("ols.intercept", float(intercept), "y.mean() - X.mean(0) @ coef, same OLS as ols.coef")
+    put(vec_rows("ols.predict", pred, "Xnew @ coef + intercept, Xnew = XA[i] for i in 1000..1007"))
+
+    for prefix, alpha in [("ridge_a0p1", 0.1), ("ridge_a1", 1.0), ("ridge_a100", 100.0)]:
+        coef, intercept, pred = ridge(XA, yA, XAn, alpha)
+        src = f"numpy.linalg.solve(Xc.T @ Xc + {alpha} * numpy.eye(5), Xc.T @ yc) on centred data; {XSRC}"
+        put(vec_rows(f"{prefix}.coef", coef, src))
+        add(f"{prefix}.intercept", float(intercept), f"y.mean() - X.mean(0) @ w, closed form alpha={alpha}")
+        put(vec_rows(f"{prefix}.predict", pred, f"Xnew @ w + intercept, closed form alpha={alpha}, Xnew = XA[i] for i in 1000..1007"))
+
+    coef, intercept, pred = ridge(XB, yB, XBn, 1e-4)
+    put(vec_rows("ridge_ill.coef", coef, f"numpy.linalg.solve(Xc.T @ Xc + 1e-4 * numpy.eye(3), Xc.T @ yc) on centred data; {BSRC}"))
+    add("ridge_ill.intercept", float(intercept), "y.mean() - X.mean(0) @ w, closed form alpha=1e-4, case B")
+    put(vec_rows("ridge_ill.predict", pred, "Xnew @ w + intercept, closed form alpha=1e-4, case B, Xnew = XB[i] for i in 1000..1007"))
+    return rows
+
+
 common.main(
     {
         FILTER_FIXTURE: filter_rows,
@@ -1042,5 +1121,6 @@ common.main(
         "crates/scikit/tests/fixtures/calc_reference.tsv": calc_rows,
         "crates/scikit/tests/fixtures/ts_reference.tsv": ts_rows,
         "crates/scikit/tests/fixtures/spatial_sparse_reference.tsv": spatial_sparse_rows,
+        "crates/scikit/tests/fixtures/linear_model_reference.tsv": linear_model_rows,
     }
 )
