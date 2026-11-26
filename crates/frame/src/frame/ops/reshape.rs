@@ -58,10 +58,11 @@ pub fn pivot_table(
         let col_val = col_col.iloc(i)?;
         let val = val_col.iloc(i)?;
 
-        if let (Some(&ri), Some(&ci)) = (idx_map.get(idx_val), col_map.get(col_val)) {
-            if let Some(f) = val.as_float() {
-                groups.entry((ri, ci)).or_default().push(f);
-            }
+        // Both maps were built from these same columns, so every lookup succeeds.
+        let ri = idx_map[idx_val];
+        let ci = col_map[col_val];
+        if let Some(f) = val.as_float() {
+            groups.entry((ri, ci)).or_default().push(f);
         }
     }
 
