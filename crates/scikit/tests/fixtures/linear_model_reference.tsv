@@ -1,0 +1,16 @@
+key	value	source
+ols.coef	2.001509819,-1.24989736716,0.50258385227,3.00179071313,-0.752222075336	numpy.linalg.lstsq(Xc, yc)[0] with Xc = X - X.mean(0), yc = y - y.mean(); XA[i][j] = ((i*31 + j*17 + i*j) % 23) / 7.0, i in 0..1000, j in 0..5
+ols.intercept	1.49379097794	y.mean() - X.mean(0) @ coef, same OLS as ols.coef
+ols.predict	10.1764248274,10.8976041998,4.20921258643,15.613586999,2.34880598036,13.7531803929,8.71613572275	Xnew @ coef + intercept, Xnew = XA[i] for i in 1000..1007
+ridge_a0p1.coef	2.00133776258,-1.24985400543,0.502512460286,3.00147410876,-0.75215339622	numpy.linalg.solve(Xc.T @ Xc + 0.1 * numpy.eye(5), Xc.T @ yc) on centred data; XA[i][j] = ((i*31 + j*17 + i*j) % 23) / 7.0, i in 0..1000, j in 0..5
+ridge_a0p1.intercept	1.49449312326	y.mean() - X.mean(0) @ w, closed form alpha=0.1
+ridge_a0p1.predict	10.1762644236,10.897160805,4.20942137763,15.6128049968,2.34924149238,13.7526251116,8.71599805368	Xnew @ w + intercept, closed form alpha=0.1, Xnew = XA[i] for i in 1000..1007
+ridge_a1.coef	1.99979061522,-1.24946327669,0.501870692697,2.99862788452,-0.75153603081	numpy.linalg.solve(Xc.T @ Xc + 1.0 * numpy.eye(5), Xc.T @ yc) on centred data; XA[i][j] = ((i*31 + j*17 + i*j) % 23) / 7.0, i in 0..1000, j in 0..5
+ridge_a1.intercept	1.50080449226	y.mean() - X.mean(0) @ w, closed form alpha=1.0
+ridge_a1.predict	10.1748206073,10.8931750755,4.21129928154,15.6057736802,2.35315729347,13.7476316922,8.71475960283	Xnew @ w + intercept, closed form alpha=1.0, Xnew = XA[i] for i in 1000..1007
+ridge_a100.coef	1.84330433458,-1.20275729739,0.43884320163,2.71708981842,-0.690764140931	numpy.linalg.solve(Xc.T @ Xc + 100.0 * numpy.eye(5), Xc.T @ yc) on centred data; XA[i][j] = ((i*31 + j*17 + i*j) % 23) / 7.0, i in 0..1000, j in 0..5
+ridge_a100.intercept	2.1175861194	y.mean() - X.mean(0) @ w, closed form alpha=100.0
+ridge_a100.predict	10.0159926933,10.5017705324,4.40497194195,14.8992380004,2.7458680249,13.2401340834,8.58524886967	Xnew @ w + intercept, closed form alpha=100.0, Xnew = XA[i] for i in 1000..1007
+ridge_ill.coef	0.443921998313,0.0559986362352,1.99943805527	exact rational closed form (Fraction) of numpy.linalg.solve(Xc.T @ Xc + 1e-4 * I, Xc.T @ yc) on centred data; XB[i] = (b0, b1, b2): b0 = ((i*13+5) % 29) / 3.0, b1 = b0 + (((i*7+3) % 11) - 5.0) * 1e-4, b2 = ((i*5+2) % 17) / 4.0
+ridge_ill.intercept	0.501201528021	exact rational y.mean() - X.mean(0) @ w, closed form alpha=1e-4, case B
+ridge_ill.predict	4.66697353273,9.33257145207,9.16566483596,5.33365102039,5.16668280577,9.83234232362,1.16776237408	exact rational Xnew @ w + intercept, closed form alpha=1e-4, case B, Xnew = XB[i] for i in 1000..1007

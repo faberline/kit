@@ -30,3 +30,6 @@ mod reference_spatial_sparse;
 
 #[cfg(feature = "signal")]
 mod reference_filter_scipy;
+
+#[cfg(feature = "linear_model")]
+mod reference_linear_model;
