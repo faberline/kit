@@ -159,16 +159,16 @@ Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` l
 | frame | frame::frame/dataframe::filter | `M[mask]` with `mask = i % 3 == 0` on 10,000 rows: row count, sums, counts and checksums | 1e-9 rel | `filter_matches_pandas` | covered |
 | frame | frame::frame/dataframe::head | `M.head(5)` and `M.head(20000)` on 10,000 rows: row count, sums, counts and checksums | 1e-9 rel | `head_matches_pandas` | covered |
 | frame | frame::frame/dataframe::insert | `M.insert(4, "e", M["c"] + 1.0)` on 10,000 rows: sums, counts and checksums | 1e-9 rel | `insert_matches_pandas` | covered |
-| frame | frame::frame/dataframe::isna | - | - | - | not covered |
-| frame | frame::frame/dataframe::isna_all | - | - | - | not covered |
-| frame | frame::frame/dataframe::isna_any | - | - | - | not covered |
-| frame | frame::frame/dataframe::melt | - | - | - | not covered |
-| frame | frame::frame/dataframe::pivot | - | - | - | not covered |
+| frame | frame::frame/dataframe::isna | `P.isna()[col]` for `p`, `q` and `r` of the null frame (10,000 rows): null count and position checksum of each column | exact | `isna_matches_pandas` | covered |
+| frame | frame::frame/dataframe::isna_all | `P[["p", "q"]].isna().all(axis=1)` (all-null rows where i % 35 == 17) and `P.isna().all(axis=1)` (none): row count and position checksum | exact | `isna_all_matches_pandas` | covered |
+| frame | frame::frame/dataframe::isna_any | `P.isna().any(axis=1)` on 10,000 rows: row count and position checksum | exact | `isna_any_matches_pandas` | covered |
+| frame | frame::frame/dataframe::melt | `M.melt(id_vars=["k"], value_vars=["a", "b"])` and `M.melt(id_vars=["k"])` on 10,000 rows: row count, sum and count of `value` (nulls skipped), checksum of `k`, row count per variable | 1e-9 rel | `melt_matches_pandas` | covered |
+| frame | frame::frame/dataframe::pivot | `L.pivot(index="g", columns="h", values="v")` on 600 long rows with nulls (100 x 6): row count, column count, checksum of `g`, sum and count per column (nulls skipped) | 1e-9 rel | `pivot_matches_pandas` | covered |
 | frame | frame::frame/dataframe::query | `M.query("k < 10")` on 10,000 rows: row count, sums, counts and checksums | 1e-9 rel | `query_matches_pandas` | covered |
 | frame | frame::frame/dataframe::rename | `M.rename(columns={"a": "alpha"})` on 10,000 rows: sums, counts and checksums | 1e-9 rel | `rename_matches_pandas` | covered |
 | frame | frame::frame/dataframe::reset_index | `S.set_index(pd.Index([10, 20, 30, 40])).reset_index(drop=True).index` on 4 values: the labels 0 to 3 | 1e-9 rel | `reset_index_matches_pandas` | covered |
-| frame | frame::frame/dataframe::sample | - | - | - | not covered |
-| frame | frame::frame/dataframe::sample_seeded | - | - | - | not covered |
+| frame | frame::frame/dataframe::sample | `ID.sample(n=100, random_state=0)`, `ID.sample(n=20000)` and `ID.sample(n=0)` on 10,000 rows: closed-form facts only (row count, distinct ids, sum of all ids); pandas draws other rows than frame does | exact | `sample_matches_pandas_facts` | covered |
+| frame | frame::frame/dataframe::sample_seeded | closed-form facts only: the same seed gives the same rows in the same order, another seed gives other rows, `sample(100)` equals `sample_seeded(100, 42)`; pandas has no seeded draw to compare with | exact | `sample_seeded_matches_pandas_facts` | covered |
 | frame | frame::frame/dataframe::select | `M[["c", "k"]]` on 10,000 rows: row count, sum and count of `c`, checksum of `k` | 1e-9 rel | `select_matches_pandas` | covered |
 | frame | frame::frame/dataframe::set_index | `S.set_index(pd.Index([10, 20, 30, 40])).index` on 4 values: the labels 10 to 40 | 1e-9 rel | `set_index_matches_pandas` | covered |
 | frame | frame::frame/dataframe::sort_values | `M.sort_values("a", ascending)` on 10,000 rows (first and last 5 values of `a`, checksums of `k` and `b`) and `T.sort_values("x")` with a null | 1e-9 rel | `sort_values_matches_pandas` | covered |

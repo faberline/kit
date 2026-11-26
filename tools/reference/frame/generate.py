@@ -883,10 +883,104 @@ def dataframe_ops_rows():
     return rows
 
 
+DATAFRAME_RESHAPE_FIXTURE = "crates/frame/tests/fixtures/dataframe_reshape_reference.tsv"
+
+
+def dataframe_reshape_rows():
+    # Integer formulas, as in crates/frame/tests/it/reference_dataframe_reshape.rs.
+    # M: the main case of dataframe_ops (10,000 rows).
+    M = pd.DataFrame({
+        "k": pd.Series([i % 50 for i in range(N)], dtype="int64"),
+        "a": pd.Series([None if i % 7 == 3 else ((i * 37 + 11) % 101) / 4.0 for i in range(N)],
+                       dtype="float64"),
+        "b": pd.Series([(i * 13 + 5) % 37 for i in range(N)], dtype="int64"),
+        "c": pd.Series([((i * 29 + 7) % 53) / 8.0 for i in range(N)], dtype="float64"),
+    })
+    # P: the null frame of dataframe_stats (p null where i % 7 == 3, q null where i % 5 == 2, r never null).
+    P = pd.DataFrame({
+        "p": pd.Series([None if i % 7 == 3 else ((i * 37 + 11) % 101) / 4.0 for i in range(N)],
+                       dtype="float64"),
+        "q": pd.Series([None if i % 5 == 2 else ((i * 11) % 17) / 2.0 for i in range(N)],
+                       dtype="float64"),
+        "r": pd.Series([i % 9 for i in range(N)], dtype="int64"),
+    })
+    PQ = P[["p", "q"]]
+    # L: a long frame for pivot; every (g, h) pair is unique.
+    L = pd.DataFrame({
+        "g": pd.Series([i // 6 for i in range(600)], dtype="int64"),
+        "h": pd.Series([i % 6 for i in range(600)], dtype="int64"),
+        "v": pd.Series([None if i % 7 == 3 else ((i * 37 + 11) % 101) / 4.0 for i in range(600)],
+                       dtype="float64"),
+    })
+    # ID: a frame for sample, 10,000 rows.
+    ID = pd.DataFrame({
+        "id": pd.Series(list(range(N)), dtype="int64"),
+        "a": pd.Series([None if i % 7 == 3 else ((i * 37 + 11) % 101) / 4.0 for i in range(N)],
+                       dtype="float64"),
+    })
+    rows = []
+
+    def add(key, value, source):
+        rows.append((key, value, source))
+
+    # isna: per column of P, the number of nulls and the position checksum of the null flags.
+    for col in ["p", "q", "r"]:
+        flags = P[col].isna().astype(int).tolist()
+        add(f"dataframe.isna.{col}.count", int(sum(flags)), f"P.isna()[{col!r}].sum()")
+        add(f"dataframe.isna.{col}.pos", int(weighted(flags)), f"P.isna()[{col!r}] weighted")
+
+    # isna_any on P: rows with any null.
+    any_flags = P.isna().any(axis=1).astype(int).tolist()
+    add("dataframe.isna_any.P.count", int(sum(any_flags)), "P.isna().any(axis=1).sum()")
+    add("dataframe.isna_any.P.pos", int(weighted(any_flags)), "P.isna().any(axis=1) weighted")
+
+    # isna_all on PQ: rows where p and q are both null; on P: none (r is never null).
+    all_flags = PQ.isna().all(axis=1).astype(int).tolist()
+    add("dataframe.isna_all.PQ.count", int(sum(all_flags)), 'P[["p", "q"]].isna().all(axis=1).sum()')
+    add("dataframe.isna_all.PQ.pos", int(weighted(all_flags)), 'P[["p", "q"]].isna().all(axis=1) weighted')
+    add("dataframe.isna_all.P.count", int(P.isna().all(axis=1).sum()), "P.isna().all(axis=1).sum()")
+
+    # melt: case A value_vars a, b; case B value_vars left empty (all other columns: a, b, c).
+    def add_melt(prefix, out, names, expr):
+        add(f"{prefix}.nrows", len(out), f"len({expr})")
+        add(f"{prefix}.value.sum", float(out["value"].sum()), f"{expr}['value'].sum()")
+        add(f"{prefix}.value.count", int(out["value"].count()), f"{expr}['value'].count()")
+        add(f"{prefix}.k.wsum", int(weighted(out["k"].tolist())), f"{expr}['k'] weighted")
+        for name in names:
+            add(f"{prefix}.variable.{name}", int((out["variable"] == name).sum()),
+                f"({expr}['variable'] == {name!r}).sum()")
+
+    add_melt("dataframe.melt.A", M.melt(id_vars=["k"], value_vars=["a", "b"]), ["a", "b"],
+             'M.melt(id_vars=["k"], value_vars=["a", "b"])')
+    add_melt("dataframe.melt.B", M.melt(id_vars=["k"]), ["a", "b", "c"],
+             'M.melt(id_vars=["k"])')
+
+    # pivot: the long frame L, index g, columns h, values v.
+    wide = L.pivot(index="g", columns="h", values="v")
+    add("dataframe.pivot.nrows", len(wide), "len(L.pivot(index='g', columns='h', values='v'))")
+    add("dataframe.pivot.ncols", len(wide.columns), "len(W.columns)")
+    add("dataframe.pivot.g.wsum", int(weighted(wide.index.tolist())), "W.index weighted")
+    for h in range(6):
+        add(f"dataframe.pivot.h{h}.sum", float(wide[h].sum()), f"W[{h}].sum()")
+        add(f"dataframe.pivot.h{h}.count", int(wide[h].count()), f"W[{h}].count()")
+
+    # sample: closed-form facts only; pandas draws other rows than frame does.
+    closed = "closed form: pandas sample draws other rows; frame uses its own seeded generator"
+    add("dataframe.sample.n100.nrows", len(ID.sample(n=100, random_state=0)), closed)
+    add("dataframe.sample.n100.unique_ids",
+        int(ID.sample(n=100, random_state=0)["id"].nunique()), closed)
+    add("dataframe.sample.n20000.nrows",
+        len(ID.sample(n=min(20000, len(ID)), random_state=0)), closed)
+    add("dataframe.sample.n20000.id_sum", int(ID["id"].sum()), 'ID["id"].sum() (all rows)')
+    add("dataframe.sample.n0.nrows", len(ID.sample(n=0, random_state=0)), closed)
+    return rows
+
+
 common.main(
     {
         DATAFRAME_STATS_FIXTURE: dataframe_stats_rows,
         DATAFRAME_OPS_FIXTURE: dataframe_ops_rows,
+        DATAFRAME_RESHAPE_FIXTURE: dataframe_reshape_rows,
         "crates/frame/tests/fixtures/index_reference.tsv": index_rows,
         "crates/frame/tests/fixtures/series_reference.tsv": series_rows,
         "crates/frame/tests/fixtures/series_window_reference.tsv": series_window_rows,
