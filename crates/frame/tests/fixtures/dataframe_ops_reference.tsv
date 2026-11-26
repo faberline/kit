@@ -1,0 +1,113 @@
+key	value	source
+dataframe.head.n5.nrows	5	len(M.head(5))
+dataframe.head.n5.a.sum	50.5	M.head(5)['a'].sum()
+dataframe.head.n5.a.count	4	M.head(5)['a'].count()
+dataframe.head.n5.c.sum	14.125	M.head(5)['c'].sum()
+dataframe.head.n5.c.count	5	M.head(5)['c'].count()
+dataframe.head.n5.k.wsum	40	M.head(5)['k'] weighted
+dataframe.head.n5.b.wsum	262	M.head(5)['b'] weighted
+dataframe.head.n20000.nrows	10000	len(M.head(20000))
+dataframe.head.n20000.a.sum	107129.0	M.head(20000)['a'].sum()
+dataframe.head.n20000.a.count	8571	M.head(20000)['a'].count()
+dataframe.head.n20000.c.sum	32498.75	M.head(20000)['c'].sum()
+dataframe.head.n20000.c.count	10000	M.head(20000)['c'].count()
+dataframe.head.n20000.k.wsum	1227205000	M.head(20000)['k'] weighted
+dataframe.head.n20000.b.wsum	900239984	M.head(20000)['b'] weighted
+dataframe.tail.n5.nrows	5	len(M.tail(5))
+dataframe.tail.n5.a.sum	44.75	M.tail(5)['a'].sum()
+dataframe.tail.n5.a.count	4	M.tail(5)['a'].count()
+dataframe.tail.n5.c.sum	12.875	M.tail(5)['c'].sum()
+dataframe.tail.n5.c.count	5	M.tail(5)['c'].count()
+dataframe.tail.n5.k.wsum	715	M.tail(5)['k'] weighted
+dataframe.tail.n5.b.wsum	312	M.tail(5)['b'] weighted
+dataframe.tail.n20000.nrows	10000	len(M.tail(20000))
+dataframe.tail.n20000.a.sum	107129.0	M.tail(20000)['a'].sum()
+dataframe.tail.n20000.a.count	8571	M.tail(20000)['a'].count()
+dataframe.tail.n20000.c.sum	32498.75	M.tail(20000)['c'].sum()
+dataframe.tail.n20000.c.count	10000	M.tail(20000)['c'].count()
+dataframe.tail.n20000.k.wsum	1227205000	M.tail(20000)['k'] weighted
+dataframe.tail.n20000.b.wsum	900239984	M.tail(20000)['b'] weighted
+dataframe.filter.nrows	3334	len(M[mask])
+dataframe.filter.a.sum	35717.25	M[mask]['a'].sum()
+dataframe.filter.a.count	2857	M[mask]['a'].count()
+dataframe.filter.c.sum	10831.625	M[mask]['c'].sum()
+dataframe.filter.c.count	3334	M[mask]['c'].count()
+dataframe.filter.k.wsum	136447420	M[mask]['k'] weighted
+dataframe.filter.b.wsum	100019970	M[mask]['b'] weighted
+dataframe.query.nrows	2000	len(M.query("k < 10"))
+dataframe.query.a.sum	21390.25	M.query("k < 10")['a'].sum()
+dataframe.query.a.count	1713	M.query("k < 10")['a'].count()
+dataframe.query.c.sum	6494.5	M.query("k < 10")['c'].sum()
+dataframe.query.c.count	2000	M.query("k < 10")['c'].count()
+dataframe.query.k.wsum	9021000	M.query("k < 10")['k'] weighted
+dataframe.query.b.wsum	36030665	M.query("k < 10")['b'] weighted
+dataframe.select.nrows	10000	len(M[["c", "k"]])
+dataframe.select.c.sum	32498.75	M[["c", "k"]]['c'].sum()
+dataframe.select.c.count	10000	M[["c", "k"]]['c'].count()
+dataframe.select.k.wsum	1227205000	M[["c", "k"]]['k'] weighted
+dataframe.assign.new.nrows	10000	len(M.assign(d=M["b"] * 2))
+dataframe.assign.new.a.sum	107129.0	M.assign(d=M["b"] * 2)['a'].sum()
+dataframe.assign.new.a.count	8571	M.assign(d=M["b"] * 2)['a'].count()
+dataframe.assign.new.c.sum	32498.75	M.assign(d=M["b"] * 2)['c'].sum()
+dataframe.assign.new.c.count	10000	M.assign(d=M["b"] * 2)['c'].count()
+dataframe.assign.new.k.wsum	1227205000	M.assign(d=M["b"] * 2)['k'] weighted
+dataframe.assign.new.b.wsum	900239984	M.assign(d=M["b"] * 2)['b'] weighted
+dataframe.assign.new.d.wsum	1800479968	M.assign(d=M["b"] * 2)['d'] weighted
+dataframe.assign.replace.nrows	10000	len(M.assign(b=M["b"] * 2))
+dataframe.assign.replace.a.sum	107129.0	M.assign(b=M["b"] * 2)['a'].sum()
+dataframe.assign.replace.a.count	8571	M.assign(b=M["b"] * 2)['a'].count()
+dataframe.assign.replace.c.sum	32498.75	M.assign(b=M["b"] * 2)['c'].sum()
+dataframe.assign.replace.c.count	10000	M.assign(b=M["b"] * 2)['c'].count()
+dataframe.assign.replace.k.wsum	1227205000	M.assign(b=M["b"] * 2)['k'] weighted
+dataframe.assign.replace.b.wsum	1800479968	M.assign(b=M["b"] * 2)['b'] weighted
+dataframe.insert.nrows	10000	len(M.insert(4, "e", M["c"] + 1.0))
+dataframe.insert.a.sum	107129.0	M.insert(4, "e", M["c"] + 1.0)['a'].sum()
+dataframe.insert.a.count	8571	M.insert(4, "e", M["c"] + 1.0)['a'].count()
+dataframe.insert.c.sum	32498.75	M.insert(4, "e", M["c"] + 1.0)['c'].sum()
+dataframe.insert.c.count	10000	M.insert(4, "e", M["c"] + 1.0)['c'].count()
+dataframe.insert.e.sum	42498.75	M.insert(4, "e", M["c"] + 1.0)['e'].sum()
+dataframe.insert.e.count	10000	M.insert(4, "e", M["c"] + 1.0)['e'].count()
+dataframe.insert.k.wsum	1227205000	M.insert(4, "e", M["c"] + 1.0)['k'] weighted
+dataframe.insert.b.wsum	900239984	M.insert(4, "e", M["c"] + 1.0)['b'] weighted
+dataframe.drop.nrows	10000	len(M.drop(columns="c"))
+dataframe.drop.a.sum	107129.0	M.drop(columns="c")['a'].sum()
+dataframe.drop.a.count	8571	M.drop(columns="c")['a'].count()
+dataframe.drop.k.wsum	1227205000	M.drop(columns="c")['k'] weighted
+dataframe.drop.b.wsum	900239984	M.drop(columns="c")['b'] weighted
+dataframe.drop.removed.sum	32498.75	M["c"].sum()
+dataframe.drop.removed.count	10000	M["c"].count()
+dataframe.rename.nrows	10000	len(M.rename(columns={"a": "alpha"}))
+dataframe.rename.alpha.sum	107129.0	M.rename(columns={"a": "alpha"})['alpha'].sum()
+dataframe.rename.alpha.count	8571	M.rename(columns={"a": "alpha"})['alpha'].count()
+dataframe.rename.c.sum	32498.75	M.rename(columns={"a": "alpha"})['c'].sum()
+dataframe.rename.c.count	10000	M.rename(columns={"a": "alpha"})['c'].count()
+dataframe.rename.k.wsum	1227205000	M.rename(columns={"a": "alpha"})['k'] weighted
+dataframe.rename.b.wsum	900239984	M.rename(columns={"a": "alpha"})['b'] weighted
+dataframe.fillna.nrows	10000	len(M.fillna(-1.5))
+dataframe.fillna.a.sum	104985.5	M.fillna(-1.5)['a'].sum()
+dataframe.fillna.a.count	10000	M.fillna(-1.5)['a'].count()
+dataframe.fillna.c.sum	32498.75	M.fillna(-1.5)['c'].sum()
+dataframe.fillna.c.count	10000	M.fillna(-1.5)['c'].count()
+dataframe.fillna.k.wsum	1227205000	M.fillna(-1.5)['k'] weighted
+dataframe.fillna.b.wsum	900239984	M.fillna(-1.5)['b'] weighted
+dataframe.concat.nrows	20000	len(pd.concat([M, M], ignore_index=True))
+dataframe.concat.a.sum	214258.0	pd.concat([M, M], ignore_index=True)['a'].sum()
+dataframe.concat.a.count	17142	pd.concat([M, M], ignore_index=True)['a'].count()
+dataframe.concat.c.sum	64997.5	pd.concat([M, M], ignore_index=True)['c'].sum()
+dataframe.concat.c.count	20000	pd.concat([M, M], ignore_index=True)['c'].count()
+dataframe.concat.k.wsum	4904410000	pd.concat([M, M], ignore_index=True)['k'] weighted
+dataframe.concat.b.wsum	3600589968	pd.concat([M, M], ignore_index=True)['b'] weighted
+dataframe.apply.k.sum	245000.0	M.apply(lambda s: s.sum())['k']
+dataframe.apply.k.count	10000	M.apply(lambda s: s.count())['k']
+dataframe.apply.a.sum	107129.0	M.apply(lambda s: s.sum())['a']
+dataframe.apply.a.count	8571	M.apply(lambda s: s.count())['a']
+dataframe.apply.b.sum	180011.0	M.apply(lambda s: s.sum())['b']
+dataframe.apply.b.count	10000	M.apply(lambda s: s.count())['b']
+dataframe.apply.c.sum	32498.75	M.apply(lambda s: s.sum())['c']
+dataframe.apply.c.count	10000	M.apply(lambda s: s.count())['c']
+dataframe.applymap.small.nrows	4	len(S.map(lambda v: v * 2))
+dataframe.applymap.small.x.sum	18.0	S.map(lambda v: v * 2)['x'].sum()
+dataframe.applymap.small.x.count	3	S.map(lambda v: v * 2)['x'].count()
+dataframe.applymap.small.y.wsum	120	S.map(lambda v: v * 2)['y'] weighted
+dataframe.set_index.small.labels	10,20,30,40	S.set_index(pd.Index([10, 20, 30, 40])).index
+dataframe.reset_index.small.labels	0,1,2,3	S.set_index(pd.Index([10, 20, 30, 40])).reset_index(drop=True).index

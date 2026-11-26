@@ -142,38 +142,38 @@ Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` l
 | arraykit | arraykit::array/window::std | `sliding_window_view(x, w).std(axis=1, ddof=1)` | 1e-9 rel; first w-1 entries: NaN | `rolling_std_matches_numpy` | covered |
 | arraykit | arraykit::array/window::sum | `sliding_window_view(x, w).sum(axis=1)` | 1e-9 rel; first w-1 entries: 0.0 | `rolling_sum_matches_numpy` | covered |
 | arraykit | arraykit::array/window::var | `sliding_window_view(x, w).var(axis=1, ddof=1)` | 1e-9 rel; first w-1 entries: NaN | `rolling_var_matches_numpy` | covered |
-| frame | frame::frame/dataframe::apply | - | - | - | not covered |
-| frame | frame::frame/dataframe::applymap | - | - | - | not covered |
-| frame | frame::frame/dataframe::assign | - | - | - | not covered |
-| frame | frame::frame/dataframe::concat | - | - | - | not covered |
+| frame | frame::frame/dataframe::apply | `M.apply(lambda s: s.sum())` and `M.apply(lambda s: s.count())` for the 4 columns of 10,000 rows (sum and count of each, nulls skipped) | 1e-9 rel | `apply_matches_pandas` | covered |
+| frame | frame::frame/dataframe::applymap | `S.map(lambda v: v * 2)` on 4 values with a null: sum and count of `x`, checksum of `y` | 1e-9 rel | `applymap_matches_pandas` | covered |
+| frame | frame::frame/dataframe::assign | `M.assign(d=M["b"] * 2)` (new column) and `M.assign(b=M["b"] * 2)` (replaced column) on 10,000 rows: row count, sums, counts and checksums | 1e-9 rel | `assign_matches_pandas` | covered |
+| frame | frame::frame/dataframe::concat | `pd.concat([M, M], ignore_index=True)` on 10,000 rows: row count, sums, counts and checksums | 1e-9 rel | `concat_matches_pandas` | covered |
 | frame | frame::frame/dataframe::corr | `pandas.DataFrame.corr(numeric_only=True)` on 10,000 rows with nulls in one column (16 values, row-major, pairwise complete rows) | 1e-9 rel | `corr_matches_pandas` | covered |
 | frame | frame::frame/dataframe::describe | `M[col].describe()` and `M[col].sum()` for 4 columns of 10,000 rows (nulls, ties), and `S['x'].describe()` on 4 values with a null | 1e-9 rel | `describe_matches_pandas` | covered |
-| frame | frame::frame/dataframe::drop | - | - | - | not covered |
+| frame | frame::frame/dataframe::drop | `M.drop(columns="c")` on 10,000 rows (sums, counts and checksums of the rest) and the dropped column `M["c"]` (sum and count) | 1e-9 rel | `drop_matches_pandas` | covered |
 | frame | frame::frame/dataframe::drop_duplicates | `M.drop_duplicates(subset, keep)` for subsets `["k", "b"]` (keep first, last, none), `["a"]` (keep first) and all columns (keep first) on 10,000 rows: row count and checksum of `c` | exact (counts); 1e-9 rel (checksum) | `drop_duplicates_matches_pandas` | covered |
 | frame | frame::frame/dataframe::dropna | `P.dropna()` and `P[["p", "q"]].dropna()` on 10,000 rows: row count and checksum of `r` | exact | `dropna_matches_pandas` | covered |
 | frame | frame::frame/dataframe::dropna_all | `P.dropna(how="all")` and `P[["p", "q"]].dropna(how="all")`: row count and checksum of `r` | exact | `dropna_all_matches_pandas` | covered |
 | frame | frame::frame/dataframe::dropna_subset | `P.dropna(subset=...)` for `["p"]`, `["q"]` and `["p", "q"]`: row count and checksum of `r` | exact | `dropna_subset_matches_pandas` | covered |
 | frame | frame::frame/dataframe::duplicated | `M.duplicated(subset, keep)` for the five cases of `drop_duplicates`: count and position checksum | exact | `duplicated_matches_pandas` | covered |
-| frame | frame::frame/dataframe::fillna | - | - | - | not covered |
+| frame | frame::frame/dataframe::fillna | `M.fillna(-1.5)` on 10,000 rows: sums, counts and checksums | 1e-9 rel | `fillna_matches_pandas` | covered |
 | frame | frame::frame/dataframe::fillna_column | `P["p"].fillna(-1.5)`: sum and count of `p`; count of `q` and checksum of `r` (unchanged columns) | 1e-9 rel | `fillna_column_matches_pandas` | covered |
-| frame | frame::frame/dataframe::filter | - | - | - | not covered |
-| frame | frame::frame/dataframe::head | - | - | - | not covered |
-| frame | frame::frame/dataframe::insert | - | - | - | not covered |
+| frame | frame::frame/dataframe::filter | `M[mask]` with `mask = i % 3 == 0` on 10,000 rows: row count, sums, counts and checksums | 1e-9 rel | `filter_matches_pandas` | covered |
+| frame | frame::frame/dataframe::head | `M.head(5)` and `M.head(20000)` on 10,000 rows: row count, sums, counts and checksums | 1e-9 rel | `head_matches_pandas` | covered |
+| frame | frame::frame/dataframe::insert | `M.insert(4, "e", M["c"] + 1.0)` on 10,000 rows: sums, counts and checksums | 1e-9 rel | `insert_matches_pandas` | covered |
 | frame | frame::frame/dataframe::isna | - | - | - | not covered |
 | frame | frame::frame/dataframe::isna_all | - | - | - | not covered |
 | frame | frame::frame/dataframe::isna_any | - | - | - | not covered |
 | frame | frame::frame/dataframe::melt | - | - | - | not covered |
 | frame | frame::frame/dataframe::pivot | - | - | - | not covered |
-| frame | frame::frame/dataframe::query | - | - | - | not covered |
-| frame | frame::frame/dataframe::rename | - | - | - | not covered |
-| frame | frame::frame/dataframe::reset_index | - | - | - | not covered |
+| frame | frame::frame/dataframe::query | `M.query("k < 10")` on 10,000 rows: row count, sums, counts and checksums | 1e-9 rel | `query_matches_pandas` | covered |
+| frame | frame::frame/dataframe::rename | `M.rename(columns={"a": "alpha"})` on 10,000 rows: sums, counts and checksums | 1e-9 rel | `rename_matches_pandas` | covered |
+| frame | frame::frame/dataframe::reset_index | `S.set_index(pd.Index([10, 20, 30, 40])).reset_index(drop=True).index` on 4 values: the labels 0 to 3 | 1e-9 rel | `reset_index_matches_pandas` | covered |
 | frame | frame::frame/dataframe::sample | - | - | - | not covered |
 | frame | frame::frame/dataframe::sample_seeded | - | - | - | not covered |
-| frame | frame::frame/dataframe::select | - | - | - | not covered |
-| frame | frame::frame/dataframe::set_index | - | - | - | not covered |
+| frame | frame::frame/dataframe::select | `M[["c", "k"]]` on 10,000 rows: row count, sum and count of `c`, checksum of `k` | 1e-9 rel | `select_matches_pandas` | covered |
+| frame | frame::frame/dataframe::set_index | `S.set_index(pd.Index([10, 20, 30, 40])).index` on 4 values: the labels 10 to 40 | 1e-9 rel | `set_index_matches_pandas` | covered |
 | frame | frame::frame/dataframe::sort_values | `M.sort_values("a", ascending)` on 10,000 rows (first and last 5 values of `a`, checksums of `k` and `b`) and `T.sort_values("x")` with a null | 1e-9 rel | `sort_values_matches_pandas` | covered |
 | frame | frame::frame/dataframe::sort_values_by | `M.sort_values(by=["k", "a"], ascending=[True, False])` and `by=["a", "k"]` on 10,000 rows (same checks as `sort_values`) | 1e-9 rel | `sort_values_by_matches_pandas` | covered |
-| frame | frame::frame/dataframe::tail | - | - | - | not covered |
+| frame | frame::frame/dataframe::tail | `M.tail(5)` and `M.tail(20000)` on 10,000 rows: row count, sums, counts and checksums | 1e-9 rel | `tail_matches_pandas` | covered |
 | frame | frame::frame/index::range | `list(pd.RangeIndex(10))`; `len(pd.RangeIndex(10000))`; `sum(pd.RangeIndex(10000))` | 1e-9 rel | `index_range_matches_pandas` | covered |
 | frame | frame::frame/index::reset | `pd.Series(range(6), index=pd.Index(SMALL_INT)).reset_index(drop=True).index`; the same on the 10,000-row `BIG_INT` index (len, sum) | 1e-9 rel | `index_reset_matches_pandas` | covered |
 | frame | frame::frame/index::slice | `pd.Index(SMALL_INT).take(SLICE_POS)`; `pd.RangeIndex(10).take([7, 2, 2, 9])`; `pd.Index(BIG_INT).take(BIG_POS)` (len, sum, first 5, last 5) | 1e-9 rel | `index_slice_matches_pandas` | covered |
