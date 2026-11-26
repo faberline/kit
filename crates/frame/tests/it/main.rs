@@ -3,6 +3,7 @@ mod frame;
 mod io_paths;
 mod prop_io;
 mod reference;
+mod reference_dataframe_ops;
 mod reference_dataframe_stats;
 mod reference_groupby;
 mod reference_index;

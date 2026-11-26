@@ -788,9 +788,105 @@ def dataframe_stats_rows():
     return rows
 
 
+DATAFRAME_OPS_FIXTURE = "crates/frame/tests/fixtures/dataframe_ops_reference.tsv"
+
+
+def dataframe_ops_rows():
+    # Integer formulas, as in crates/frame/tests/it/reference_dataframe_ops.rs.
+    main = pd.DataFrame({
+        "k": pd.Series([i % 50 for i in range(N)], dtype="int64"),
+        "a": pd.Series([None if i % 7 == 3 else ((i * 37 + 11) % 101) / 4.0 for i in range(N)],
+                       dtype="float64"),
+        "b": pd.Series([(i * 13 + 5) % 37 for i in range(N)], dtype="int64"),
+        "c": pd.Series([((i * 29 + 7) % 53) / 8.0 for i in range(N)], dtype="float64"),
+    })
+    small = pd.DataFrame({
+        "x": pd.Series([1.0, None, 3.0, 5.0], dtype="float64"),
+        "y": pd.Series([2, 4, 6, 8], dtype="int64"),
+    })
+    rows = []
+
+    def add(key, value, source):
+        rows.append((key, value, source))
+
+    def add_frame(prefix, frame, floats, ints, expr):
+        """The row count; per float column the sum and count (nulls skipped); per int column the checksum."""
+        add(f"{prefix}.nrows", len(frame), f"len({expr})")
+        for col in floats:
+            add(f"{prefix}.{col}.sum", float(frame[col].sum()), f"{expr}[{col!r}].sum()")
+            add(f"{prefix}.{col}.count", int(frame[col].count()), f"{expr}[{col!r}].count()")
+        for col in ints:
+            add(f"{prefix}.{col}.wsum", int(weighted(frame[col].tolist())), f"{expr}[{col!r}] weighted")
+
+    floats = ["a", "c"]
+    ints = ["k", "b"]
+
+    # head and tail: 5 rows, and 20,000 rows (more than the frame has).
+    add_frame("dataframe.head.n5", main.head(5), floats, ints, "M.head(5)")
+    add_frame("dataframe.head.n20000", main.head(20000), floats, ints, "M.head(20000)")
+    add_frame("dataframe.tail.n5", main.tail(5), floats, ints, "M.tail(5)")
+    add_frame("dataframe.tail.n20000", main.tail(20000), floats, ints, "M.tail(20000)")
+
+    # filter: every third row.
+    mask = [i % 3 == 0 for i in range(N)]
+    add_frame("dataframe.filter", main[mask], floats, ints, "M[mask]")
+
+    # query: the rows with k < 10.
+    add_frame("dataframe.query", main.query("k < 10"), floats, ints, 'M.query("k < 10")')
+
+    # select: two columns, in the order given.
+    add_frame("dataframe.select", main[["c", "k"]], ["c"], ["k"], 'M[["c", "k"]]')
+
+    # assign: a new column d, and an existing column b replaced by b * 2.
+    add_frame("dataframe.assign.new", main.assign(d=main["b"] * 2), floats, ints + ["d"],
+              'M.assign(d=M["b"] * 2)')
+    add_frame("dataframe.assign.replace", main.assign(b=main["b"] * 2), floats, ints,
+              'M.assign(b=M["b"] * 2)')
+
+    # insert: a column e = c + 1.0 at the end.
+    inserted = main.copy()
+    inserted.insert(4, "e", inserted["c"] + 1.0)
+    add_frame("dataframe.insert", inserted, floats + ["e"], ints, 'M.insert(4, "e", M["c"] + 1.0)')
+
+    # drop: column c is removed; its values are the removed series.
+    add_frame("dataframe.drop", main.drop(columns="c"), ["a"], ints, 'M.drop(columns="c")')
+    add("dataframe.drop.removed.sum", float(main["c"].sum()), 'M["c"].sum()')
+    add("dataframe.drop.removed.count", int(main["c"].count()), 'M["c"].count()')
+
+    # rename: a becomes alpha; the data is unchanged.
+    add_frame("dataframe.rename", main.rename(columns={"a": "alpha"}), ["alpha", "c"], ints,
+              'M.rename(columns={"a": "alpha"})')
+
+    # fillna: every null becomes -1.5 (only a has nulls).
+    add_frame("dataframe.fillna", main.fillna(-1.5), floats, ints, "M.fillna(-1.5)")
+
+    # concat: M on top of M, with a new index.
+    add_frame("dataframe.concat", pd.concat([main, main], ignore_index=True), floats, ints,
+              "pd.concat([M, M], ignore_index=True)")
+
+    # apply: the sum and the count of each column, skipping nulls.
+    for col in ["k", "a", "b", "c"]:
+        add(f"dataframe.apply.{col}.sum", float(main[col].sum()), f"M.apply(lambda s: s.sum())[{col!r}]")
+        add(f"dataframe.apply.{col}.count", int(main[col].count()), f"M.apply(lambda s: s.count())[{col!r}]")
+
+    # applymap: each value times 2; a null stays null.
+    add_frame("dataframe.applymap.small", small.map(lambda v: v * 2), ["x"], ["y"],
+              "S.map(lambda v: v * 2)")
+
+    # set_index: the labels 10, 20, 30, 40; reset_index then gives 0 to 3.
+    labelled = small.copy()
+    labelled.index = pd.Index([10, 20, 30, 40])
+    add("dataframe.set_index.small.labels", [int(x) for x in labelled.index],
+        "S.set_index(pd.Index([10, 20, 30, 40])).index")
+    add("dataframe.reset_index.small.labels", [int(x) for x in labelled.reset_index(drop=True).index],
+        "S.set_index(pd.Index([10, 20, 30, 40])).reset_index(drop=True).index")
+    return rows
+
+
 common.main(
     {
         DATAFRAME_STATS_FIXTURE: dataframe_stats_rows,
+        DATAFRAME_OPS_FIXTURE: dataframe_ops_rows,
         "crates/frame/tests/fixtures/index_reference.tsv": index_rows,
         "crates/frame/tests/fixtures/series_reference.tsv": series_rows,
         "crates/frame/tests/fixtures/series_window_reference.tsv": series_window_rows,
