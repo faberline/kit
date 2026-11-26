@@ -516,8 +516,23 @@ impl Series {
             });
         }
 
-        let x = self.to_f64()?;
-        let y = other.to_f64()?;
+        // Pairwise complete observations: a row counts when both values are present,
+        // as in pandas. A value that is not a number is an error.
+        let mut x = Vec::with_capacity(self.len());
+        let mut y = Vec::with_capacity(self.len());
+        for (a, b) in self.values().iter().zip(other.values()) {
+            if a.is_null() || b.is_null() {
+                continue;
+            }
+            x.push(
+                a.as_float()
+                    .ok_or_else(|| FrameError::TypeMismatch("cannot convert to f64".into()))?,
+            );
+            y.push(
+                b.as_float()
+                    .ok_or_else(|| FrameError::TypeMismatch("cannot convert to f64".into()))?,
+            );
+        }
         let n = x.len() as f64;
 
         if n < 2.0 {

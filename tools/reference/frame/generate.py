@@ -1,7 +1,8 @@
 """Reference values for the frame Series methods (docs/reference-coverage.md).
 
-Writes crates/frame/tests/fixtures/series_reference.tsv from pandas. The inputs are
-integer formulas that the Rust tests rebuild exactly; no np.random is used.
+Writes the frame fixtures under crates/frame/tests/fixtures/ from pandas, among them
+dataframe_stats_reference.tsv (the DataFrame statistics, sort and duplicates). The
+inputs are integer formulas that the Rust tests rebuild exactly; no np.random is used.
 
 Run from the repository root:
     .venv-reference/bin/python tools/reference/frame/generate.py
@@ -664,8 +665,132 @@ def index_rows():
     return rows
 
 
+DATAFRAME_STATS_FIXTURE = "crates/frame/tests/fixtures/dataframe_stats_reference.tsv"
+
+
+def weighted(values):
+    """The checksum sum((pos + 1) * value) over a list in its order."""
+    return sum((pos + 1) * value for pos, value in enumerate(values))
+
+
+def dataframe_stats_rows():
+    # Integer formulas, as in crates/frame/tests/it/reference_dataframe_stats.rs.
+    main = pd.DataFrame({
+        "k": pd.Series([i % 50 for i in range(N)], dtype="int64"),
+        "a": pd.Series([None if i % 7 == 3 else ((i * 37 + 11) % 101) / 4.0 for i in range(N)],
+                       dtype="float64"),
+        "b": pd.Series([(i * 13 + 5) % 37 for i in range(N)], dtype="int64"),
+        "c": pd.Series([((i * 29 + 7) % 53) / 8.0 for i in range(N)], dtype="float64"),
+    })
+    null = pd.DataFrame({
+        "p": pd.Series([None if i % 7 == 3 else ((i * 37 + 11) % 101) / 4.0 for i in range(N)],
+                       dtype="float64"),
+        "q": pd.Series([None if i % 5 == 2 else ((i * 11) % 17) / 2.0 for i in range(N)],
+                       dtype="float64"),
+        "r": pd.Series([i % 9 for i in range(N)], dtype="int64"),
+    })
+    small = pd.DataFrame({"x": pd.Series([1.0, None, 3.0, 5.0], dtype="float64")})
+    tiny = pd.DataFrame({"x": pd.Series([3.0, None, 1.0], dtype="float64")})
+    rows = []
+
+    def add(key, value, source):
+        rows.append((key, value, source))
+
+    # describe: the pandas statistics, and the sum (Series.sum skips nulls).
+    stats = ["count", "mean", "std", "min", "25%", "50%", "75%", "max"]
+    for col in ["k", "a", "b", "c"]:
+        desc = main[col].describe()
+        for stat in stats:
+            add(f"dataframe.describe.{col}.{stat}", float(desc[stat]),
+                f"M[{col!r}].describe()[{stat!r}]")
+        add(f"dataframe.describe.{col}.sum", float(main[col].sum()), f"M[{col!r}].sum()")
+    desc = small["x"].describe()
+    for stat in stats:
+        add(f"dataframe.describe.small.{stat}", float(desc[stat]),
+            f"S['x'].describe()[{stat!r}]")
+    add("dataframe.describe.small.sum", float(small["x"].sum()), "S['x'].sum()")
+
+    # sort_values: nulls last in both directions; the checksums show the tie order.
+    add("dataframe.sort_values.small.asc",
+        tiny.sort_values("x", ascending=True, kind="stable", na_position="last")["x"].tolist(),
+        'T.sort_values("x", ascending=True, kind="stable", na_position="last")["x"].tolist()')
+    add("dataframe.sort_values.small.desc",
+        tiny.sort_values("x", ascending=False, kind="stable", na_position="last")["x"].tolist(),
+        'T.sort_values("x", ascending=False, kind="stable", na_position="last")["x"].tolist()')
+    for direction, asc in (("asc", True), ("desc", False)):
+        base = f"dataframe.sort_values.a.{direction}"
+        ordered = main.sort_values("a", ascending=asc, kind="stable", na_position="last")
+        source = f'M.sort_values("a", ascending={asc}, kind="stable", na_position="last")'
+        add(f"{base}.a.first5", ordered["a"].tolist()[:5], source)
+        add(f"{base}.a.last5", ordered["a"].tolist()[-5:], source)
+        add(f"{base}.k.wsum", int(weighted(ordered["k"].tolist())), source)
+        add(f"{base}.b.wsum", int(weighted(ordered["b"].tolist())), source)
+
+    # sort_values_by: several columns, each with its own direction.
+    for name, by, ascending in (
+        ("k_asc_a_desc", ["k", "a"], [True, False]),
+        ("a_desc_k_asc", ["a", "k"], [False, True]),
+    ):
+        base = f"dataframe.sort_values_by.{name}"
+        ordered = main.sort_values(by=by, ascending=ascending, kind="stable", na_position="last")
+        source = f'M.sort_values(by={by!r}, ascending={ascending!r}, kind="stable", na_position="last")'
+        add(f"{base}.a.first5", ordered["a"].tolist()[:5], source)
+        add(f"{base}.a.last5", ordered["a"].tolist()[-5:], source)
+        add(f"{base}.k.wsum", int(weighted(ordered["k"].tolist())), source)
+        add(f"{base}.b.wsum", int(weighted(ordered["b"].tolist())), source)
+
+    # corr: pairwise complete observations, row-major, columns k, a, b, c.
+    corr = main.corr(numeric_only=True)
+    add("dataframe.corr.large", corr.to_numpy().ravel().tolist(),
+        "M.corr(numeric_only=True).to_numpy().ravel()")
+
+    # duplicated and drop_duplicates: the position checksum and the row count.
+    cases = [
+        ("kb_first", ["k", "b"], "first"),
+        ("kb_last", ["k", "b"], "last"),
+        ("kb_none", ["k", "b"], False),
+        ("a_first", ["a"], "first"),
+        ("all_first", None, "first"),
+    ]
+    for name, subset, keep in cases:
+        mask = main.duplicated(subset=subset, keep=keep).tolist()
+        source = f"M.duplicated(subset={subset!r}, keep={keep!r})"
+        add(f"dataframe.duplicated.{name}.count", int(sum(mask)), f"{source}.sum()")
+        add(f"dataframe.duplicated.{name}.wsum",
+            int(sum(pos + 1 for pos, dup in enumerate(mask) if dup)), source)
+        kept = main.drop_duplicates(subset=subset, keep=keep)
+        source = f"M.drop_duplicates(subset={subset!r}, keep={keep!r})"
+        add(f"dataframe.drop_duplicates.{name}.nrows", len(kept), source)
+        add(f"dataframe.drop_duplicates.{name}.c_wsum", weighted(kept["c"].tolist()), source)
+
+    # dropna, dropna_all and dropna_subset on the frame with nulls in p and q.
+    cases = [
+        ("dataframe.dropna", null.dropna(), "P.dropna()"),
+        ("dataframe.dropna_all", null.dropna(how="all"), 'P.dropna(how="all")'),
+        ("dataframe.dropna_subset.p", null.dropna(subset=["p"]), 'P.dropna(subset=["p"])'),
+        ("dataframe.dropna_subset.q", null.dropna(subset=["q"]), 'P.dropna(subset=["q"])'),
+        ("dataframe.dropna_subset.pq", null.dropna(subset=["p", "q"]),
+         'P.dropna(subset=["p", "q"])'),
+    ]
+    for base, kept, source in cases:
+        add(f"{base}.nrows", len(kept), source)
+        add(f"{base}.r_wsum", int(weighted(kept["r"].tolist())), source)
+    pq = null[["p", "q"]]
+    add("dataframe.dropna_all.pq.nrows", len(pq.dropna(how="all")), 'P[["p", "q"]].dropna(how="all")')
+    add("dataframe.dropna.pq.nrows", len(pq.dropna()), 'P[["p", "q"]].dropna()')
+
+    # fillna_column: fill p with -1.5; the other columns stay as they are.
+    filled = null["p"].fillna(-1.5)
+    add("dataframe.fillna_column.p.sum", float(filled.sum()), 'P["p"].fillna(-1.5).sum()')
+    add("dataframe.fillna_column.p.count", int(filled.count()), 'P["p"].fillna(-1.5).count()')
+    add("dataframe.fillna_column.q.count", int(null["q"].count()), 'P["q"].count()')
+    add("dataframe.fillna_column.r.wsum", int(weighted(null["r"].tolist())), 'P["r"] weighted')
+    return rows
+
+
 common.main(
     {
+        DATAFRAME_STATS_FIXTURE: dataframe_stats_rows,
         "crates/frame/tests/fixtures/index_reference.tsv": index_rows,
         "crates/frame/tests/fixtures/series_reference.tsv": series_rows,
         "crates/frame/tests/fixtures/series_window_reference.tsv": series_window_rows,

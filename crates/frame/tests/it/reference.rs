@@ -2,7 +2,7 @@
 //! the expression that made each value is in the comment above it. CI does not run Python.
 
 use frame::frame::io::{read_csv, write_csv};
-use frame::frame::{DataFrame, Series, Value};
+use frame::frame::{Series, Value};
 use std::io::Write;
 use tempfile::NamedTempFile;
 
@@ -16,70 +16,6 @@ fn ints(s: &Series) -> Vec<Option<i64>> {
             other => panic!("expected Int or Null, got {:?}", other),
         })
         .collect()
-}
-
-fn close(a: f64, b: f64) -> bool {
-    (a - b).abs() < 1e-9
-}
-
-// pandas 2.2: pd.Series([1, None, 3, 5]).describe()
-// -> count 3.0, mean 3.0, std 2.0, min 1.0, 25% 2.0, 50% 3.0, 75% 4.0, max 5.0.
-#[test]
-fn describe_skips_nulls() {
-    let df = DataFrame::from_columns(vec![(
-        "x",
-        Series::new(vec![
-            Value::Float(1.0),
-            Value::Null,
-            Value::Float(3.0),
-            Value::Float(5.0),
-        ]),
-    )])
-    .unwrap();
-    let d = df.describe();
-    let x = &d["x"];
-
-    let expected = [
-        ("count", 3.0),
-        ("mean", 3.0),
-        ("std", 2.0),
-        ("min", 1.0),
-        ("25%", 2.0),
-        ("50%", 3.0),
-        ("75%", 4.0),
-        ("max", 5.0),
-    ];
-    for (key, want) in expected {
-        let got = x[key];
-        assert!(
-            close(got, want),
-            "describe {}: got {}, want {}",
-            key,
-            got,
-            want
-        );
-    }
-
-    // pandas 2.2: pd.Series([1, None, 3, 5]).sum() -> 9.0
-    let s = df.get("x").unwrap();
-    assert!(close(s.sum().unwrap(), 9.0));
-}
-
-// pandas 2.2: df.sort_values('x') with x = [3, NaN, 1] -> [1, 3, NaN]
-// ascending=False keeps NaN last -> [3, 1, NaN]
-#[test]
-fn sort_values_nulls_last_ascending() {
-    let df = DataFrame::from_columns(vec![(
-        "x",
-        Series::new(vec![Value::Int(3), Value::Null, Value::Int(1)]),
-    )])
-    .unwrap();
-
-    let asc = df.sort_values("x", true).unwrap();
-    assert_eq!(ints(asc.get("x").unwrap()), vec![Some(1), Some(3), None]);
-
-    let desc = df.sort_values("x", false).unwrap();
-    assert_eq!(ints(desc.get("x").unwrap()), vec![Some(3), Some(1), None]);
 }
 
 // pandas 2.2: pd.read_csv on 'a,b\n"l1\nl2",1\n' -> a = "l1\nl2", b = 1

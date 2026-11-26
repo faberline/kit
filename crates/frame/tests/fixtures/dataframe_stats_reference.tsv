@@ -1,0 +1,101 @@
+key	value	source
+dataframe.describe.k.count	10000.0	M['k'].describe()['count']
+dataframe.describe.k.mean	24.5	M['k'].describe()['mean']
+dataframe.describe.k.std	14.431591287266567	M['k'].describe()['std']
+dataframe.describe.k.min	0.0	M['k'].describe()['min']
+dataframe.describe.k.25%	12.0	M['k'].describe()['25%']
+dataframe.describe.k.50%	24.5	M['k'].describe()['50%']
+dataframe.describe.k.75%	37.0	M['k'].describe()['75%']
+dataframe.describe.k.max	49.0	M['k'].describe()['max']
+dataframe.describe.k.sum	245000.0	M['k'].sum()
+dataframe.describe.a.count	8571.0	M['a'].describe()['count']
+dataframe.describe.a.mean	12.499008283747521	M['a'].describe()['mean']
+dataframe.describe.a.std	7.289169060838208	M['a'].describe()['std']
+dataframe.describe.a.min	0.0	M['a'].describe()['min']
+dataframe.describe.a.25%	6.25	M['a'].describe()['25%']
+dataframe.describe.a.50%	12.5	M['a'].describe()['50%']
+dataframe.describe.a.75%	18.75	M['a'].describe()['75%']
+dataframe.describe.a.max	25.0	M['a'].describe()['max']
+dataframe.describe.a.sum	107129.0	M['a'].sum()
+dataframe.describe.b.count	10000.0	M['b'].describe()['count']
+dataframe.describe.b.mean	18.0011	M['b'].describe()['mean']
+dataframe.describe.b.std	10.677532475248015	M['b'].describe()['std']
+dataframe.describe.b.min	0.0	M['b'].describe()['min']
+dataframe.describe.b.25%	9.0	M['b'].describe()['25%']
+dataframe.describe.b.50%	18.0	M['b'].describe()['50%']
+dataframe.describe.b.75%	27.0	M['b'].describe()['75%']
+dataframe.describe.b.max	36.0	M['b'].describe()['max']
+dataframe.describe.b.sum	180011.0	M['b'].sum()
+dataframe.describe.c.count	10000.0	M['c'].describe()['count']
+dataframe.describe.c.mean	3.249875	M['c'].describe()['mean']
+dataframe.describe.c.std	1.9121797123963662	M['c'].describe()['std']
+dataframe.describe.c.min	0.0	M['c'].describe()['min']
+dataframe.describe.c.25%	1.625	M['c'].describe()['25%']
+dataframe.describe.c.50%	3.25	M['c'].describe()['50%']
+dataframe.describe.c.75%	4.875	M['c'].describe()['75%']
+dataframe.describe.c.max	6.5	M['c'].describe()['max']
+dataframe.describe.c.sum	32498.75	M['c'].sum()
+dataframe.describe.small.count	3.0	S['x'].describe()['count']
+dataframe.describe.small.mean	3.0	S['x'].describe()['mean']
+dataframe.describe.small.std	2.0	S['x'].describe()['std']
+dataframe.describe.small.min	1.0	S['x'].describe()['min']
+dataframe.describe.small.25%	2.0	S['x'].describe()['25%']
+dataframe.describe.small.50%	3.0	S['x'].describe()['50%']
+dataframe.describe.small.75%	4.0	S['x'].describe()['75%']
+dataframe.describe.small.max	5.0	S['x'].describe()['max']
+dataframe.describe.small.sum	9.0	S['x'].sum()
+dataframe.sort_values.small.asc	1.0,3.0,nan	T.sort_values("x", ascending=True, kind="stable", na_position="last")["x"].tolist()
+dataframe.sort_values.small.desc	3.0,1.0,nan	T.sort_values("x", ascending=False, kind="stable", na_position="last")["x"].tolist()
+dataframe.sort_values.a.asc.a.first5	0.0,0.0,0.0,0.0,0.0	M.sort_values("a", ascending=True, kind="stable", na_position="last")
+dataframe.sort_values.a.asc.a.last5	nan,nan,nan,nan,nan	M.sort_values("a", ascending=True, kind="stable", na_position="last")
+dataframe.sort_values.a.asc.k.wsum	1225081476	M.sort_values("a", ascending=True, kind="stable", na_position="last")
+dataframe.sort_values.a.asc.b.wsum	899416594	M.sort_values("a", ascending=True, kind="stable", na_position="last")
+dataframe.sort_values.a.desc.a.first5	25.0,25.0,25.0,25.0,25.0	M.sort_values("a", ascending=False, kind="stable", na_position="last")
+dataframe.sort_values.a.desc.a.last5	nan,nan,nan,nan,nan	M.sort_values("a", ascending=False, kind="stable", na_position="last")
+dataframe.sort_values.a.desc.k.wsum	1224959754	M.sort_values("a", ascending=False, kind="stable", na_position="last")
+dataframe.sort_values.a.desc.b.wsum	900657976	M.sort_values("a", ascending=False, kind="stable", na_position="last")
+dataframe.sort_values_by.k_asc_a_desc.a.first5	25.0,25.0,24.75,24.5,24.5	M.sort_values(by=['k', 'a'], ascending=[True, False], kind="stable", na_position="last")
+dataframe.sort_values_by.k_asc_a_desc.a.last5	nan,nan,nan,nan,nan	M.sort_values(by=['k', 'a'], ascending=[True, False], kind="stable", na_position="last")
+dataframe.sort_values_by.k_asc_a_desc.k.wsum	1641622500	M.sort_values(by=['k', 'a'], ascending=[True, False], kind="stable", na_position="last")
+dataframe.sort_values_by.k_asc_a_desc.b.wsum	900115878	M.sort_values(by=['k', 'a'], ascending=[True, False], kind="stable", na_position="last")
+dataframe.sort_values_by.a_desc_k_asc.a.first5	25.0,25.0,25.0,25.0,25.0	M.sort_values(by=['a', 'k'], ascending=[False, True], kind="stable", na_position="last")
+dataframe.sort_values_by.a_desc_k_asc.a.last5	nan,nan,nan,nan,nan	M.sort_values(by=['a', 'k'], ascending=[False, True], kind="stable", na_position="last")
+dataframe.sort_values_by.a_desc_k_asc.k.wsum	1236439901	M.sort_values(by=['a', 'k'], ascending=[False, True], kind="stable", na_position="last")
+dataframe.sort_values_by.a_desc_k_asc.b.wsum	900748141	M.sort_values(by=['a', 'k'], ascending=[False, True], kind="stable", na_position="last")
+dataframe.corr.large	1.0,0.00019887583614847532,-0.0001275324974496846,-0.00040499348453414195,0.00019887583614847532,1.0,-0.002740964762148248,-0.00031468779359240855,-0.0001275324974496846,-0.002740964762148248,1.0,0.0007708739360778301,-0.00040499348453414195,-0.00031468779359240855,0.0007708739360778301,1.0	M.corr(numeric_only=True).to_numpy().ravel()
+dataframe.duplicated.kb_first.count	8150	M.duplicated(subset=['k', 'b'], keep='first').sum()
+dataframe.duplicated.kb_first.wsum	48292825	M.duplicated(subset=['k', 'b'], keep='first')
+dataframe.drop_duplicates.kb_first.nrows	1850	M.drop_duplicates(subset=['k', 'b'], keep='first')
+dataframe.drop_duplicates.kb_first.c_wsum	5563181.0	M.drop_duplicates(subset=['k', 'b'], keep='first')
+dataframe.duplicated.kb_last.count	8150	M.duplicated(subset=['k', 'b'], keep='last').sum()
+dataframe.duplicated.kb_last.wsum	33215325	M.duplicated(subset=['k', 'b'], keep='last')
+dataframe.drop_duplicates.kb_last.nrows	1850	M.drop_duplicates(subset=['k', 'b'], keep='last')
+dataframe.drop_duplicates.kb_last.c_wsum	5560871.125	M.drop_duplicates(subset=['k', 'b'], keep='last')
+dataframe.duplicated.kb_none.count	10000	M.duplicated(subset=['k', 'b'], keep=False).sum()
+dataframe.duplicated.kb_none.wsum	50005000	M.duplicated(subset=['k', 'b'], keep=False)
+dataframe.drop_duplicates.kb_none.nrows	0	M.drop_duplicates(subset=['k', 'b'], keep=False)
+dataframe.drop_duplicates.kb_none.c_wsum	0	M.drop_duplicates(subset=['k', 'b'], keep=False)
+dataframe.duplicated.a_first.count	9898	M.duplicated(subset=['a'], keep='first').sum()
+dataframe.duplicated.a_first.wsum	49998431	M.duplicated(subset=['a'], keep='first')
+dataframe.drop_duplicates.a_first.nrows	102	M.drop_duplicates(subset=['a'], keep='first')
+dataframe.drop_duplicates.a_first.c_wsum	16345.75	M.drop_duplicates(subset=['a'], keep='first')
+dataframe.duplicated.all_first.count	0	M.duplicated(subset=None, keep='first').sum()
+dataframe.duplicated.all_first.wsum	0	M.duplicated(subset=None, keep='first')
+dataframe.drop_duplicates.all_first.nrows	10000	M.drop_duplicates(subset=None, keep='first')
+dataframe.drop_duplicates.all_first.c_wsum	162496237.625	M.drop_duplicates(subset=None, keep='first')
+dataframe.dropna.nrows	6857	P.dropna()
+dataframe.dropna.r_wsum	94091629	P.dropna()
+dataframe.dropna_all.nrows	10000	P.dropna(how="all")
+dataframe.dropna_all.r_wsum	200046660	P.dropna(how="all")
+dataframe.dropna_subset.p.nrows	8571	P.dropna(subset=["p"])
+dataframe.dropna_subset.p.r_wsum	146992667	P.dropna(subset=["p"])
+dataframe.dropna_subset.q.nrows	8000	P.dropna(subset=["q"])
+dataframe.dropna_subset.q.r_wsum	128034648	P.dropna(subset=["q"])
+dataframe.dropna_subset.pq.nrows	6857	P.dropna(subset=["p", "q"])
+dataframe.dropna_subset.pq.r_wsum	94091629	P.dropna(subset=["p", "q"])
+dataframe.dropna_all.pq.nrows	9714	P[["p", "q"]].dropna(how="all")
+dataframe.dropna.pq.nrows	6857	P[["p", "q"]].dropna()
+dataframe.fillna_column.p.sum	104985.5	P["p"].fillna(-1.5).sum()
+dataframe.fillna_column.p.count	10000	P["p"].fillna(-1.5).count()
+dataframe.fillna_column.q.count	8000	P["q"].count()
+dataframe.fillna_column.r.wsum	200046660	P["r"] weighted

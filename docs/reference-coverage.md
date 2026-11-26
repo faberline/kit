@@ -146,16 +146,16 @@ Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` l
 | frame | frame::frame/dataframe::applymap | - | - | - | not covered |
 | frame | frame::frame/dataframe::assign | - | - | - | not covered |
 | frame | frame::frame/dataframe::concat | - | - | - | not covered |
-| frame | frame::frame/dataframe::corr | - | - | - | not covered |
-| frame | frame::frame/dataframe::describe | - | - | - | not covered |
+| frame | frame::frame/dataframe::corr | `pandas.DataFrame.corr(numeric_only=True)` on 10,000 rows with nulls in one column (16 values, row-major, pairwise complete rows) | 1e-9 rel | `corr_matches_pandas` | covered |
+| frame | frame::frame/dataframe::describe | `M[col].describe()` and `M[col].sum()` for 4 columns of 10,000 rows (nulls, ties), and `S['x'].describe()` on 4 values with a null | 1e-9 rel | `describe_matches_pandas` | covered |
 | frame | frame::frame/dataframe::drop | - | - | - | not covered |
-| frame | frame::frame/dataframe::drop_duplicates | - | - | - | not covered |
-| frame | frame::frame/dataframe::dropna | - | - | - | not covered |
-| frame | frame::frame/dataframe::dropna_all | - | - | - | not covered |
-| frame | frame::frame/dataframe::dropna_subset | - | - | - | not covered |
-| frame | frame::frame/dataframe::duplicated | - | - | - | not covered |
+| frame | frame::frame/dataframe::drop_duplicates | `M.drop_duplicates(subset, keep)` for subsets `["k", "b"]` (keep first, last, none), `["a"]` (keep first) and all columns (keep first) on 10,000 rows: row count and checksum of `c` | exact (counts); 1e-9 rel (checksum) | `drop_duplicates_matches_pandas` | covered |
+| frame | frame::frame/dataframe::dropna | `P.dropna()` and `P[["p", "q"]].dropna()` on 10,000 rows: row count and checksum of `r` | exact | `dropna_matches_pandas` | covered |
+| frame | frame::frame/dataframe::dropna_all | `P.dropna(how="all")` and `P[["p", "q"]].dropna(how="all")`: row count and checksum of `r` | exact | `dropna_all_matches_pandas` | covered |
+| frame | frame::frame/dataframe::dropna_subset | `P.dropna(subset=...)` for `["p"]`, `["q"]` and `["p", "q"]`: row count and checksum of `r` | exact | `dropna_subset_matches_pandas` | covered |
+| frame | frame::frame/dataframe::duplicated | `M.duplicated(subset, keep)` for the five cases of `drop_duplicates`: count and position checksum | exact | `duplicated_matches_pandas` | covered |
 | frame | frame::frame/dataframe::fillna | - | - | - | not covered |
-| frame | frame::frame/dataframe::fillna_column | - | - | - | not covered |
+| frame | frame::frame/dataframe::fillna_column | `P["p"].fillna(-1.5)`: sum and count of `p`; count of `q` and checksum of `r` (unchanged columns) | 1e-9 rel | `fillna_column_matches_pandas` | covered |
 | frame | frame::frame/dataframe::filter | - | - | - | not covered |
 | frame | frame::frame/dataframe::head | - | - | - | not covered |
 | frame | frame::frame/dataframe::insert | - | - | - | not covered |
@@ -171,8 +171,8 @@ Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` l
 | frame | frame::frame/dataframe::sample_seeded | - | - | - | not covered |
 | frame | frame::frame/dataframe::select | - | - | - | not covered |
 | frame | frame::frame/dataframe::set_index | - | - | - | not covered |
-| frame | frame::frame/dataframe::sort_values | - | - | - | not covered |
-| frame | frame::frame/dataframe::sort_values_by | - | - | - | not covered |
+| frame | frame::frame/dataframe::sort_values | `M.sort_values("a", ascending)` on 10,000 rows (first and last 5 values of `a`, checksums of `k` and `b`) and `T.sort_values("x")` with a null | 1e-9 rel | `sort_values_matches_pandas` | covered |
+| frame | frame::frame/dataframe::sort_values_by | `M.sort_values(by=["k", "a"], ascending=[True, False])` and `by=["a", "k"]` on 10,000 rows (same checks as `sort_values`) | 1e-9 rel | `sort_values_by_matches_pandas` | covered |
 | frame | frame::frame/dataframe::tail | - | - | - | not covered |
 | frame | frame::frame/index::range | `list(pd.RangeIndex(10))`; `len(pd.RangeIndex(10000))`; `sum(pd.RangeIndex(10000))` | 1e-9 rel | `index_range_matches_pandas` | covered |
 | frame | frame::frame/index::reset | `pd.Series(range(6), index=pd.Index(SMALL_INT)).reset_index(drop=True).index`; the same on the 10,000-row `BIG_INT` index (len, sum) | 1e-9 rel | `index_reset_matches_pandas` | covered |
