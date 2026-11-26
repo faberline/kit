@@ -302,15 +302,15 @@ Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` l
 | scikit | scikit::interpolate/interp::eval | `scipy.interpolate.CubicSpline(xs, ys, bc_type="natural")(xq)` | 1e-9 rel (abs below 1) | eval_matches_scipy | covered |
 | scikit | scikit::interpolate/interp::interp1d | `scipy.interpolate.interp1d(xs, ys, kind="linear")(xq)`; `CubicSpline(xs, ys, bc_type="natural")(xq)` for cubic (kit spline is natural) | 1e-9 rel (abs below 1) | interp1d_matches_scipy | covered |
 | scikit | scikit::interpolate/interp2d::interp2d | `scipy.interpolate.RegularGridInterpolator((xg, yg), z, method="linear")` on a 6 x 7 grid | 1e-9 rel (abs below 1) | interp2d_matches_scipy | covered |
-| scikit | scikit::linear_model::alpha | - | - | - | not covered |
-| scikit | scikit::linear_model::coef | - | - | - | not covered |
-| scikit | scikit::linear_model::coef | - | - | - | not covered |
-| scikit | scikit::linear_model::fit | - | - | - | not covered |
-| scikit | scikit::linear_model::fit | - | - | - | not covered |
-| scikit | scikit::linear_model::intercept | - | - | - | not covered |
-| scikit | scikit::linear_model::intercept | - | - | - | not covered |
-| scikit | scikit::linear_model::predict | - | - | - | not covered |
-| scikit | scikit::linear_model::predict | - | - | - | not covered |
+| scikit | scikit::linear_model::alpha | `Ridge::alpha` returns the constructor argument; checked with the closed form `numpy.linalg.solve(Xc.T @ Xc + alpha * numpy.eye(5), Xc.T @ yc)`, alpha 0.1 (case A: 1000 x 5 inputs from the integer formulas in the generator) | exact | ridge_alpha_0p1_matches_closed_form | covered |
+| scikit | scikit::linear_model::coef | `LinearRegression`: `numpy.linalg.lstsq(Xc, yc, rcond=None)[0]` on centred data (case A); cross-checked with lstsq on `[X, 1]` | 1e-9 rel (abs below 1e-12) | ols_matches_lstsq | covered |
+| scikit | scikit::linear_model::coef | `Ridge`: `numpy.linalg.solve(Xc.T @ Xc + alpha * numpy.eye(p), Xc.T @ yc)` on centred data, alpha 0.1, 1, 100 (case A) and 1e-4 (case B, condition about 1e8) | 1e-9 rel (abs below 1e-12); case B 1e-6 rel | ridge_alpha_0p1_matches_closed_form, ridge_alpha_1_matches_closed_form, ridge_alpha_100_matches_closed_form, ridge_ill_conditioned_matches_closed_form | covered |
+| scikit | scikit::linear_model::fit | `LinearRegression::fit`: checked through the fitted `coef` and `intercept` (same expressions as the coef row, case A) | 1e-9 rel (abs below 1e-12) | ols_matches_lstsq | covered |
+| scikit | scikit::linear_model::fit | `Ridge::fit`: checked through the fitted `coef` and `intercept` (closed form, alpha 0.1, 1, 100 and case B) | 1e-9 rel (abs below 1e-12); case B 1e-6 rel | ridge_alpha_0p1_matches_closed_form, ridge_alpha_1_matches_closed_form, ridge_alpha_100_matches_closed_form, ridge_ill_conditioned_matches_closed_form | covered |
+| scikit | scikit::linear_model::intercept | `LinearRegression`: `y.mean() - X.mean(0) @ coef` (case A) | 1e-9 rel (abs below 1e-12) | ols_matches_lstsq | covered |
+| scikit | scikit::linear_model::intercept | `Ridge`: `y.mean() - X.mean(0) @ w` with the closed form `w` (alpha 0.1, 1, 100 and case B) | 1e-9 rel (abs below 1e-12); case B 1e-6 rel | ridge_alpha_0p1_matches_closed_form, ridge_alpha_1_matches_closed_form, ridge_alpha_100_matches_closed_form, ridge_ill_conditioned_matches_closed_form | covered |
+| scikit | scikit::linear_model::predict | `LinearRegression`: `Xnew @ coef + intercept`, 7 new rows (case A, i in 1000..1007) | 1e-9 rel (abs below 1e-12) | ols_matches_lstsq | covered |
+| scikit | scikit::linear_model::predict | `Ridge`: `Xnew @ w + intercept` with the closed form `w` (alpha 0.1, 1, 100; case B for 1e-4) | 1e-9 rel (abs below 1e-12); case B 1e-6 rel | ridge_alpha_0p1_matches_closed_form, ridge_alpha_1_matches_closed_form, ridge_alpha_100_matches_closed_form, ridge_ill_conditioned_matches_closed_form | covered |
 | scikit | scikit::optimize/curve_fit::curve_fit | `scipy.optimize.curve_fit(a*exp(-b*x)+c, x, y, p0=[2.0, 1.0, 0.4], xtol=1e-12, ftol=1e-12)[0]`, 40 points | 1e-6 rel (abs below 1) | curve_fit_matches_scipy | covered |
 | scikit | scikit::optimize/linprog::linprog | `scipy.optimize.linprog(c, A_ub, b_ub, bounds=(0, None), method="highs")` for two 2- and 3-variable problems: `.x` and `.fun` | 1e-9 rel (abs below 1) | linprog_matches_scipy | covered |
 | scikit | scikit::optimize/minimize::bfgs | `scipy.optimize.minimize(rosen, [-1.2, 1.0], jac=rosen_der, method='BFGS', options={'gtol': 1e-12})` (`.x`, `.fun`); convex bowl from [0, 0] | 1e-6 rel (abs below 1) | bfgs_matches_scipy | covered |

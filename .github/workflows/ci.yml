@@ -159,6 +159,7 @@ jobs:
       - run: python3 -m venv .venv-reference
       - run: .venv-reference/bin/pip install -r tools/reference/requirements.txt
       - run: REF_VENV=.venv-reference sh tools/reference/run.sh --check
+      - run: sh tools/reference/check_table.sh
 
   gate:
     name: gate

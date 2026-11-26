@@ -1033,6 +1033,132 @@ def filter_rows():
     return rows
 
 
+def exact_ridge_case_b():
+    """Ridge closed form of linear_model_reference case B in exact rational arithmetic.
+
+    Inputs: b0 = k/3, b2 = k/4, b1 = b0 + (m - 5)/10000, noise = (r - 50)/250, so every
+    value is a Fraction. Returns (coef, intercept, predictions) rounded to float.
+    """
+    from fractions import Fraction as Fr
+
+    def noise_fr(i):
+        return Fr((i * 7919) % 101 - 50, 250)
+
+    def row(i):
+        b0 = Fr((i * 13 + 5) % 29, 3)
+        b1 = b0 + Fr(((i * 7 + 3) % 11) - 5, 10000)
+        b2 = Fr((i * 5 + 2) % 17, 4)
+        return [b0, b1, b2]
+
+    X = [row(i) for i in range(1000)]
+    y = [Fr(1, 2) + r[0] - Fr(1, 2) * r[1] + 2 * r[2] + noise_fr(i) for i, r in enumerate(X)]
+    Xn = [row(i) for i in range(1000, 1007)]
+    alpha = Fr(1, 10000)
+    p, n = 3, len(X)
+    mx = [sum(r[j] for r in X) / n for j in range(p)]
+    my = sum(y) / n
+    Xc = [[r[j] - mx[j] for j in range(p)] for r in X]
+    yc = [v - my for v in y]
+    M = [
+        [sum(Xc[i][j] * Xc[i][k] for i in range(n)) + (alpha if j == k else 0) for k in range(p)]
+        + [sum(Xc[i][j] * yc[i] for i in range(n))]
+        for j in range(p)
+    ]
+    for c in range(p):
+        piv = next(r for r in range(c, p) if M[r][c] != 0)
+        M[c], M[piv] = M[piv], M[c]
+        for r in range(p):
+            if r != c and M[r][c] != 0:
+                f = M[r][c] / M[c][c]
+                M[r] = [M[r][k] - f * M[c][k] for k in range(p + 1)]
+    w = [M[j][p] / M[j][j] for j in range(p)]
+    intercept = my - sum(mx[j] * w[j] for j in range(p))
+    pred = [sum(r[j] * w[j] for j in range(p)) + intercept for r in Xn]
+    return [float(v) for v in w], intercept, [float(v) for v in pred]
+
+
+def linear_model_rows():
+    """Rows of the scikit::linear_model group (linear_model_reference.tsv).
+
+    Rust (crates/scikit/tests/it/reference_linear_model.rs) rebuilds every input
+    with the integer formulas written here; the formulas must match exactly.
+    """
+    rows = []
+
+    def put(items):
+        rows.extend((key, common.stable_value(value), source) for key, value, source in items)
+
+    def add(key, value, source):
+        rows.append((key, common.stable_value(value), source))
+
+    # Inputs (the same formulas are in reference_linear_model.rs).
+    def noise(i):
+        return (((i * 7919) % 101) - 50.0) / 250.0
+
+    # Case A: 1000 rows, 5 features; 7 prediction rows i in 1000..1007.
+    def xa_row(i):
+        return [((i * 31 + j * 17 + i * j) % 23) / 7.0 for j in range(5)]
+
+    XA = np.array([xa_row(i) for i in range(1000)])
+    E = np.array([noise(i) for i in range(1000)])
+    yA = 1.5 + 2.0 * XA[:, 0] - 1.25 * XA[:, 1] + 0.5 * XA[:, 2] + 3.0 * XA[:, 3] - 0.75 * XA[:, 4] + E
+    XAn = np.array([xa_row(i) for i in range(1000, 1007)])
+
+    # Case B: 1000 rows, 3 features (nearly collinear first two); 7 prediction rows.
+    def xb_row(i):
+        b0 = ((i * 13 + 5) % 29) / 3.0
+        b1 = b0 + (((i * 7 + 3) % 11) - 5.0) * 1e-4
+        b2 = ((i * 5 + 2) % 17) / 4.0
+        return [b0, b1, b2]
+
+    XB = np.array([xb_row(i) for i in range(1000)])
+    yB = 0.5 + 1.0 * XB[:, 0] - 0.5 * XB[:, 1] + 2.0 * XB[:, 2] + E
+    XBn = np.array([xb_row(i) for i in range(1000, 1007)])
+
+    def ols(X, y, Xnew):
+        Xc = X - X.mean(0)
+        yc = y - y.mean()
+        coef = np.linalg.lstsq(Xc, yc, rcond=None)[0]
+        intercept = y.mean() - X.mean(0) @ coef
+        # Cross-check: the plain least squares with a constant column gives the same coef.
+        Xa = np.column_stack([X, np.ones(len(X))])
+        full = np.linalg.lstsq(Xa, y, rcond=None)[0][: X.shape[1]]
+        if not np.allclose(full, coef, rtol=1e-9, atol=0.0):
+            raise AssertionError("OLS coef differs from lstsq on [X, 1]")
+        return coef, intercept, Xnew @ coef + intercept
+
+    def ridge(X, y, Xnew, alpha):
+        Xc = X - X.mean(0)
+        yc = y - y.mean()
+        w = np.linalg.solve(Xc.T @ Xc + alpha * np.eye(X.shape[1]), Xc.T @ yc)
+        intercept = y.mean() - X.mean(0) @ w
+        return w, intercept, Xnew @ w + intercept
+
+    XSRC = "XA[i][j] = ((i*31 + j*17 + i*j) % 23) / 7.0, i in 0..1000, j in 0..5"
+    BSRC = "XB[i] = (b0, b1, b2): b0 = ((i*13+5) % 29) / 3.0, b1 = b0 + (((i*7+3) % 11) - 5.0) * 1e-4, b2 = ((i*5+2) % 17) / 4.0"
+
+    coef, intercept, pred = ols(XA, yA, XAn)
+    put(vec_rows("ols.coef", coef, f"numpy.linalg.lstsq(Xc, yc)[0] with Xc = X - X.mean(0), yc = y - y.mean(); {XSRC}"))
+    add("ols.intercept", float(intercept), "y.mean() - X.mean(0) @ coef, same OLS as ols.coef")
+    put(vec_rows("ols.predict", pred, "Xnew @ coef + intercept, Xnew = XA[i] for i in 1000..1007"))
+
+    for prefix, alpha in [("ridge_a0p1", 0.1), ("ridge_a1", 1.0), ("ridge_a100", 100.0)]:
+        coef, intercept, pred = ridge(XA, yA, XAn, alpha)
+        src = f"numpy.linalg.solve(Xc.T @ Xc + {alpha} * numpy.eye(5), Xc.T @ yc) on centred data; {XSRC}"
+        put(vec_rows(f"{prefix}.coef", coef, src))
+        add(f"{prefix}.intercept", float(intercept), f"y.mean() - X.mean(0) @ w, closed form alpha={alpha}")
+        put(vec_rows(f"{prefix}.predict", pred, f"Xnew @ w + intercept, closed form alpha={alpha}, Xnew = XA[i] for i in 1000..1007"))
+
+    # Case B has condition number about 1e8, so a float solve differs between BLAS builds
+    # in the 8th digit. Its inputs are exact rationals, so the closed form is computed
+    # with fractions and rounded once: the committed value is then the same on every machine.
+    coef, intercept, pred = exact_ridge_case_b()
+    put(vec_rows("ridge_ill.coef", coef, f"exact rational closed form (Fraction) of numpy.linalg.solve(Xc.T @ Xc + 1e-4 * I, Xc.T @ yc) on centred data; {BSRC}"))
+    add("ridge_ill.intercept", float(intercept), "exact rational y.mean() - X.mean(0) @ w, closed form alpha=1e-4, case B")
+    put(vec_rows("ridge_ill.predict", pred, "exact rational Xnew @ w + intercept, closed form alpha=1e-4, case B, Xnew = XB[i] for i in 1000..1007"))
+    return rows
+
+
 common.main(
     {
         FILTER_FIXTURE: filter_rows,
@@ -1042,5 +1168,6 @@ common.main(
         "crates/scikit/tests/fixtures/calc_reference.tsv": calc_rows,
         "crates/scikit/tests/fixtures/ts_reference.tsv": ts_rows,
         "crates/scikit/tests/fixtures/spatial_sparse_reference.tsv": spatial_sparse_rows,
+        "crates/scikit/tests/fixtures/linear_model_reference.tsv": linear_model_rows,
     }
 )
