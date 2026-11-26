@@ -34,15 +34,12 @@ impl DataFrame {
         }
 
         let first_len = columns[0].1.len();
-        for (name, series) in &columns {
+        for (_, series) in &columns {
             if series.len() != first_len {
                 return Err(FrameError::ShapeMismatch {
                     expected: first_len,
                     actual: series.len(),
                 });
-            }
-            if series.name().is_some() && series.name() != Some(*name) {
-                // Series has a different name, we'll use the provided name
             }
         }
 
@@ -737,10 +734,11 @@ impl DataFrame {
             let col_val = col_col.iloc(i)?;
             let val = val_col.iloc(i)?;
 
-            if let Some(&row_idx) = idx_map.get(idx_val) {
-                if let Some(col_idx) = unique_cols.iter().position(|c| c == col_val) {
-                    result_data[col_idx][row_idx] = val.clone();
-                }
+            if let (Some(&row_idx), Some(col_idx)) = (
+                idx_map.get(idx_val),
+                unique_cols.iter().position(|c| c == col_val),
+            ) {
+                result_data[col_idx][row_idx] = val.clone();
             }
         }
 
