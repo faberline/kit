@@ -1,0 +1,45 @@
+key	value	source
+dataframe.isna.p.count	1429	P.isna()['p'].sum()
+dataframe.isna.p.pos	7147858	P.isna()['p'] weighted
+dataframe.isna.q.count	2000	P.isna()['q'].sum()
+dataframe.isna.q.pos	10001000	P.isna()['q'] weighted
+dataframe.isna.r.count	0	P.isna()['r'].sum()
+dataframe.isna.r.pos	0	P.isna()['r'] weighted
+dataframe.isna_any.P.count	3143	P.isna().any(axis=1).sum()
+dataframe.isna_any.P.pos	15717285	P.isna().any(axis=1) weighted
+dataframe.isna_all.PQ.count	286	P[["p", "q"]].isna().all(axis=1).sum()
+dataframe.isna_all.PQ.pos	1431573	P[["p", "q"]].isna().all(axis=1) weighted
+dataframe.isna_all.P.count	0	P.isna().all(axis=1).sum()
+dataframe.melt.A.nrows	20000	len(M.melt(id_vars=["k"], value_vars=["a", "b"]))
+dataframe.melt.A.value.sum	287140.0	M.melt(id_vars=["k"], value_vars=["a", "b"])['value'].sum()
+dataframe.melt.A.value.count	18571	M.melt(id_vars=["k"], value_vars=["a", "b"])['value'].count()
+dataframe.melt.A.k.wsum	4904410000	M.melt(id_vars=["k"], value_vars=["a", "b"])['k'] weighted
+dataframe.melt.A.variable.a	10000	(M.melt(id_vars=["k"], value_vars=["a", "b"])['variable'] == 'a').sum()
+dataframe.melt.A.variable.b	10000	(M.melt(id_vars=["k"], value_vars=["a", "b"])['variable'] == 'b').sum()
+dataframe.melt.B.nrows	30000	len(M.melt(id_vars=["k"]))
+dataframe.melt.B.value.sum	319638.75	M.melt(id_vars=["k"])['value'].sum()
+dataframe.melt.B.value.count	28571	M.melt(id_vars=["k"])['value'].count()
+dataframe.melt.B.k.wsum	11031615000	M.melt(id_vars=["k"])['k'] weighted
+dataframe.melt.B.variable.a	10000	(M.melt(id_vars=["k"])['variable'] == 'a').sum()
+dataframe.melt.B.variable.b	10000	(M.melt(id_vars=["k"])['variable'] == 'b').sum()
+dataframe.melt.B.variable.c	10000	(M.melt(id_vars=["k"])['variable'] == 'c').sum()
+dataframe.pivot.nrows	100	len(L.pivot(index='g', columns='h', values='v'))
+dataframe.pivot.ncols	6	len(W.columns)
+dataframe.pivot.g.wsum	333300	W.index weighted
+dataframe.pivot.h0.sum	1043.75	W[0].sum()
+dataframe.pivot.h0.count	86	W[0].count()
+dataframe.pivot.h1.sum	1087.5	W[1].sum()
+dataframe.pivot.h1.count	86	W[1].count()
+dataframe.pivot.h2.sum	1080.75	W[2].sum()
+dataframe.pivot.h2.count	86	W[2].count()
+dataframe.pivot.h3.sum	1068.75	W[3].sum()
+dataframe.pivot.h3.count	85	W[3].count()
+dataframe.pivot.h4.sum	1073.0	W[4].sum()
+dataframe.pivot.h4.count	85	W[4].count()
+dataframe.pivot.h5.sum	1070.75	W[5].sum()
+dataframe.pivot.h5.count	86	W[5].count()
+dataframe.sample.n100.nrows	100	closed form: pandas sample draws other rows; frame uses its own seeded generator
+dataframe.sample.n100.unique_ids	100	closed form: pandas sample draws other rows; frame uses its own seeded generator
+dataframe.sample.n20000.nrows	10000	closed form: pandas sample draws other rows; frame uses its own seeded generator
+dataframe.sample.n20000.id_sum	49995000	ID["id"].sum() (all rows)
+dataframe.sample.n0.nrows	0	closed form: pandas sample draws other rows; frame uses its own seeded generator
