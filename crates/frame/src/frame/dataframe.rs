@@ -674,7 +674,11 @@ impl DataFrame {
             .column_names
             .iter()
             .zip(self.columns.iter())
-            .filter(|(_, s)| s.to_f64().is_ok())
+            .filter(|(_, s)| {
+                s.values()
+                    .iter()
+                    .all(|v| v.is_null() || v.as_float().is_some())
+            })
             .collect();
 
         if numeric_cols.is_empty() {
