@@ -1,5 +1,6 @@
 mod bench_smoke;
 mod coverage_dataframe;
+mod coverage_reshape_groupby;
 mod coverage_window;
 mod frame;
 mod io_paths;

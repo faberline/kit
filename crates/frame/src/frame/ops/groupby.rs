@@ -404,8 +404,7 @@ impl<'a> GroupBy<'a> {
                     "first" => first_non_null(series, indices),
                     "last" => last_non_null(series, indices),
                     "std" => std_of(series, indices),
-                    "median" => median_of(series, indices),
-                    _ => unreachable!("validated above"),
+                    _ => median_of(series, indices), // "median"; every other name was validated at the top
                 })
                 .collect();
             result_columns.push((col_name, values));
