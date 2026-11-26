@@ -429,6 +429,31 @@ mod tests {
         );
     }
 
+    /// The stderr end of the read loop must be read while stdout is still
+    /// open. The child closes stderr at once, prints one line to stdout and
+    /// keeps stdout open for 0.3 s. Without this test, the stderr arm and its
+    /// end-of-stream arm (lines 247 to 249) were hit only by chance: `select!`
+    /// picks at random between two ready branches, and no other test writes to
+    /// stderr. The coverage of those lines then changed between runs.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn stderr_end_is_read_while_stdout_is_open() {
+        let mut lines = Vec::new();
+        let exit_code = StreamingBashTool::new()
+            .execute_streaming("exec 2>&-; echo out; sleep 0.3", Some(5000), |output| {
+                lines.push(output);
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(exit_code, 0);
+        assert_eq!(lines.len(), 1, "got {lines:?}");
+        assert!(
+            matches!(&lines[0], StreamOutput::Stdout(line) if line == "out"),
+            "got {lines:?}"
+        );
+    }
+
     #[cfg(unix)]
     #[tokio::test]
     async fn output_cut_inside_a_multibyte_char_does_not_panic() {
