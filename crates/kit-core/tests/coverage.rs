@@ -70,3 +70,26 @@ fn categorize_error_query_is_operation() {
         ErrorCategory::Operation
     );
 }
+
+#[test]
+fn sanitize_error_debug_mode_keeps_message() {
+    assert_eq!(
+        sanitize_error("password=abc at 10.0.0.1", true),
+        "password=abc at 10.0.0.1"
+    );
+}
+
+#[test]
+fn categorize_error_all_categories() {
+    assert_eq!(categorize_error("network down"), ErrorCategory::Connection);
+    assert_eq!(
+        categorize_error("unauthorized"),
+        ErrorCategory::Authentication
+    );
+    assert_eq!(
+        categorize_error("request timed out"),
+        ErrorCategory::Timeout
+    );
+    assert_eq!(categorize_error("invalid input"), ErrorCategory::Validation);
+    assert_eq!(categorize_error("something else"), ErrorCategory::Unknown);
+}
