@@ -222,8 +222,18 @@ mod tests {
     fn test_sanitize_internal_ip() {
         let error = "Cannot connect to 192.168.1.100:8080";
         let sanitized = sanitize_error(error, false);
-        assert!(sanitized.contains("[INTERNAL_IP]") || sanitized.contains("[IP_REDACTED]"));
+        assert!(sanitized.contains("[INTERNAL_IP]"));
         assert!(!sanitized.contains("192.168.1.100"));
+    }
+
+    #[test]
+    fn test_sanitize_error_message_matches_production_mode() {
+        let error = "login failed: bad password";
+        assert_eq!(sanitize_error_message(error), sanitize_error(error, false));
+        assert_eq!(
+            sanitize_error_message(error),
+            "login failed: bad [PASSWORD_REDACTED]"
+        );
     }
 
     #[test]
