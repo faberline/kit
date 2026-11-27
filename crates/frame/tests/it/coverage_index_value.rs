@@ -270,3 +270,33 @@ fn from_impls_and_display() {
     assert_eq!(Value::Float(2.5).to_string(), "2.5");
     assert_eq!(Value::from("hi").to_string(), "hi");
 }
+
+#[test]
+fn multi_index_accessors_and_group_map() {
+    let d = MultiIndex::default();
+    assert_eq!(d.nlevels(), 0);
+    assert_eq!(d.len(), 0);
+    assert!(d.is_empty());
+    assert_eq!(
+        format!("{:?}", d),
+        "MultiIndex { names: [], levels: [], length: 0 }"
+    );
+
+    let m = mi();
+    assert_eq!(m.nlevels(), 2);
+    assert_eq!(m.len(), 3);
+    assert!(!m.is_empty());
+    assert_eq!(m.names(), &["a".to_string(), "b".to_string()]);
+    assert_eq!(m.get_level_index("b").unwrap(), 1);
+    assert_eq!(
+        m.get_level_index("zz").unwrap_err().to_string(),
+        "label not found in index: zz"
+    );
+    assert_eq!(m.clone().len(), 3);
+
+    let g = m.to_group_map();
+    assert_eq!(g.len(), 3);
+    assert_eq!(g[&vec![Value::Int(1), Value::from("x")]], vec![0]);
+    assert_eq!(g[&vec![Value::Int(1), Value::from("y")]], vec![1]);
+    assert_eq!(g[&vec![Value::Int(2), Value::from("x")]], vec![2]);
+}
