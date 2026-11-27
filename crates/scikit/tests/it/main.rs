@@ -1,5 +1,7 @@
 #[cfg(all(feature = "fft", feature = "stats"))]
 mod bench_smoke;
+#[cfg(feature = "stats")]
+mod coverage_stats_basic;
 #[cfg(feature = "fft")]
 mod fft;
 #[cfg(all(
