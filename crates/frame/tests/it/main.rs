@@ -4,6 +4,7 @@ mod coverage_index_value;
 mod coverage_io_rest;
 mod coverage_reshape_groupby;
 mod coverage_window;
+mod csv_short_row;
 mod frame;
 mod io_paths;
 mod prop_io;

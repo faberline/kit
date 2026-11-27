@@ -38,6 +38,10 @@ impl Default for CsvOptions {
 /// removed. Blank lines are skipped, except in a file with exactly one column,
 /// where a blank line inside the data is a null row. Blank lines at the end of
 /// the file are always dropped.
+///
+/// A data row with fewer fields than the header is an error:
+/// `FrameError::ShapeMismatch`. The reader does not pad it with null. A data
+/// row with more fields than the header drops the extra fields.
 pub fn read_csv<P: AsRef<Path>>(path: P) -> Result<DataFrame> {
     read_csv_with_options(path, CsvOptions::default())
 }
@@ -48,6 +52,10 @@ pub fn read_csv<P: AsRef<Path>>(path: P) -> Result<DataFrame> {
 /// removed. Blank lines are skipped, except in a file with exactly one column,
 /// where a blank line inside the data is a null row. Blank lines at the end of
 /// the file are always dropped.
+///
+/// A data row with fewer fields than the header is an error:
+/// `FrameError::ShapeMismatch`. The reader does not pad it with null. A data
+/// row with more fields than the header drops the extra fields.
 pub fn read_csv_with_options<P: AsRef<Path>>(path: P, options: CsvOptions) -> Result<DataFrame> {
     let text = std::fs::read_to_string(path).map_err(|e| FrameError::IoError(e.to_string()))?;
     let text = text.strip_prefix('\u{FEFF}').unwrap_or(&text);
