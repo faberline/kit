@@ -431,4 +431,39 @@ mod tests {
         assert!(mi.is_empty());
         assert_eq!(mi.nlevels(), 0);
     }
+
+    #[test]
+    fn test_get_level_values_out_of_bounds() {
+        let mi = create_test_multi_index();
+        let err = mi.get_level_values(5).unwrap_err();
+        assert!(matches!(
+            err,
+            FrameError::IndexOutOfBounds {
+                index: 5,
+                length: 2
+            }
+        ));
+    }
+
+    #[test]
+    fn test_get_level_index_unknown_name() {
+        let mi = create_test_multi_index();
+        let err = mi.get_level_index("zz").unwrap_err();
+        assert!(matches!(err, FrameError::LabelNotFound(ref n) if n == "zz"));
+        let err = mi.get_level_values_by_name("zz").unwrap_err();
+        assert!(matches!(err, FrameError::LabelNotFound(ref n) if n == "zz"));
+    }
+
+    #[test]
+    fn test_get_tuple_out_of_bounds() {
+        let mi = create_test_multi_index();
+        let err = mi.get_tuple(4).unwrap_err();
+        assert!(matches!(
+            err,
+            FrameError::IndexOutOfBounds {
+                index: 4,
+                length: 4
+            }
+        ));
+    }
 }
