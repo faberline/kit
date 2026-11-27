@@ -145,21 +145,13 @@ fn write_column_data<W: Write>(
         }
         TYPE_STRING => {
             for v in values {
-                let s = match v {
-                    Value::String(s) => s.as_str(),
-                    Value::Null => "",
-                    other => {
-                        // Inline the string representation
-                        let owned = other.to_string();
-                        let bytes = owned.as_bytes();
-                        writer
-                            .write_all(&(bytes.len() as u32).to_le_bytes())
-                            .map_err(io_err)?;
-                        writer.write_all(bytes).map_err(io_err)?;
-                        continue;
-                    }
+                // A string column holds only strings and nulls (`Series` converts a
+                // mixed column to strings), so `to_string` gives the same bytes as before.
+                let owned = match v {
+                    Value::Null => String::new(),
+                    other => other.to_string(),
                 };
-                let bytes = s.as_bytes();
+                let bytes = owned.as_bytes();
                 writer
                     .write_all(&(bytes.len() as u32).to_le_bytes())
                     .map_err(io_err)?;

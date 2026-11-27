@@ -173,12 +173,9 @@ impl Series {
                         // Extrapolate forward (use last value)
                         *slot = Value::Float(v);
                     }
-                    (None, Some(_)) => {
+                    (None, _) => {
                         // A leading null has no earlier value: it stays null, as in pandas
                         // (linear interpolation, limit_direction "forward").
-                    }
-                    (None, None) => {
-                        // No valid values
                     }
                 }
             }
