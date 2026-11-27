@@ -1,5 +1,6 @@
-//! Short-Time Fourier Transform (STFT).
+//! Short-Time Fourier Transform (STFT), as `scipy.signal.stft`.
 
+use super::windows::{blackman, hamming, hann};
 use crate::fft::{fft, Complex};
 
 /// Result of the Short-Time Fourier Transform.
@@ -7,17 +8,84 @@ use crate::fft::{fft, Complex};
 pub struct StftResult {
     /// Frequency bins (Hz). Length = window_size / 2 + 1.
     pub frequencies: Vec<f64>,
-    /// Time centers of each frame (seconds).
+    /// Time centers of each frame (seconds), as SciPy gives them. With a
+    /// boundary extension the times are measured from the start of the signal.
     pub times: Vec<f64>,
     /// Spectrogram: `spectrogram[t][f]` is the complex value for time frame `t`
     /// and frequency bin `f`. Outer length = `times.len()`, inner = `frequencies.len()`.
     pub spectrogram: Vec<Vec<Complex>>,
 }
 
-/// Compute the Short-Time Fourier Transform.
+/// The window of an STFT. Each one is periodic, as SciPy's `get_window` with
+/// `fftbins=True` builds it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StftWindow {
+    /// Periodic Hann window.
+    Hann,
+    /// Periodic Hamming window.
+    Hamming,
+    /// Periodic Blackman window.
+    Blackman,
+}
+
+/// The scaling of the spectrum of an STFT.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StftScaling {
+    /// Each bin is divided by the sum of the window (SciPy `scaling='spectrum'`).
+    Spectrum,
+    /// Each bin is divided by `sqrt(fs * sum(window^2))` (SciPy `scaling='psd'`).
+    Density,
+}
+
+/// The options of [`stft_with`]. [`StftOptions::new`] gives the defaults of
+/// `scipy.signal.stft`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct StftOptions {
+    /// Samples per segment (`nperseg`).
+    pub nperseg: usize,
+    /// Overlap in samples. `None` means `nperseg / 2`.
+    pub noverlap: Option<usize>,
+    /// The window.
+    pub window: StftWindow,
+    /// Extend the signal with `nperseg / 2` zeros at both ends (SciPy `boundary='zeros'`).
+    pub boundary: bool,
+    /// Extend the end with zeros so that the last segment is complete (SciPy `padded=True`).
+    pub padded: bool,
+    /// The scaling of the spectrum.
+    pub scaling: StftScaling,
+}
+
+impl StftOptions {
+    /// Options with the SciPy defaults for segments of `nperseg` samples:
+    /// `noverlap = nperseg / 2`, a Hann window, `boundary` and `padded` on,
+    /// and spectrum scaling.
+    pub fn new(nperseg: usize) -> Self {
+        Self {
+            nperseg,
+            noverlap: None,
+            window: StftWindow::Hann,
+            boundary: true,
+            padded: true,
+            scaling: StftScaling::Spectrum,
+        }
+    }
+}
+
+/// The settings of one computation. `nstep` is the hop between segments.
+struct Plan {
+    nperseg: usize,
+    nstep: usize,
+    window: StftWindow,
+    boundary: bool,
+    padded: bool,
+    scaling: StftScaling,
+}
+
+/// Compute the Short-Time Fourier Transform with a Hann window, without a
+/// boundary extension and without padding.
 ///
-/// Segments the signal into overlapping windows, applies a Hann window, and
-/// computes the FFT of each segment.
+/// The result equals `scipy.signal.stft(x, fs, window='hann', nperseg=window_size,
+/// noverlap=window_size - hop_size, boundary=None, padded=False)`.
 ///
 /// # Arguments
 ///
@@ -42,41 +110,131 @@ pub struct StftResult {
 /// assert_eq!(result.frequencies.len(), 33); // 64/2 + 1
 /// ```
 pub fn stft(x: &[f64], window_size: usize, hop_size: usize, fs: f64) -> StftResult {
-    assert!(window_size >= 2, "window_size must be >= 2");
-    assert!(hop_size >= 1, "hop_size must be >= 1");
+    let plan = Plan {
+        nperseg: window_size,
+        nstep: hop_size,
+        window: StftWindow::Hann,
+        boundary: false,
+        padded: false,
+        scaling: StftScaling::Spectrum,
+    };
+    stft_core(x, fs, &plan)
+}
+
+/// Compute the Short-Time Fourier Transform with the options of SciPy's
+/// `scipy.signal.stft`: window, overlap, boundary extension, padding and scaling.
+///
+/// Build the options with [`StftOptions::new`] and change the fields that differ.
+///
+/// # Panics
+///
+/// Panics if `nperseg < 2`, if `noverlap` is not less than `nperseg`, or if `x` is
+/// shorter than `nperseg`.
+///
+/// # Example
+///
+/// ```
+/// use scikit::signal::{stft_with, StftOptions, StftWindow};
+///
+/// let x: Vec<f64> = (0..256).map(|i| (i as f64 * 0.3).sin()).collect();
+/// let options = StftOptions { window: StftWindow::Hamming, ..StftOptions::new(64) };
+/// let result = stft_with(&x, 100.0, &options);
+/// assert_eq!(result.frequencies.len(), 33); // 64/2 + 1
+/// ```
+pub fn stft_with(x: &[f64], fs: f64, options: &StftOptions) -> StftResult {
+    let nperseg = options.nperseg;
+    assert!(nperseg >= 2, "nperseg must be >= 2");
+    let noverlap = options.noverlap.unwrap_or(nperseg / 2);
     assert!(
-        x.len() >= window_size,
-        "signal length ({}) must be >= window_size ({window_size})",
+        noverlap < nperseg,
+        "noverlap ({noverlap}) must be less than nperseg ({nperseg})"
+    );
+    let plan = Plan {
+        nperseg,
+        nstep: nperseg - noverlap,
+        window: options.window,
+        boundary: options.boundary,
+        padded: options.padded,
+        scaling: options.scaling,
+    };
+    stft_core(x, fs, &plan)
+}
+
+/// The periodic window of length `n`: the symmetric window of length `n + 1`
+/// without its last sample, as SciPy's `get_window` with `fftbins=True` builds it.
+fn periodic_window(kind: StftWindow, n: usize) -> Vec<f64> {
+    let mut w = match kind {
+        StftWindow::Hann => hann(n + 1),
+        StftWindow::Hamming => hamming(n + 1),
+        StftWindow::Blackman => blackman(n + 1),
+    };
+    w.truncate(n);
+    w
+}
+
+fn stft_core(x: &[f64], fs: f64, plan: &Plan) -> StftResult {
+    let nperseg = plan.nperseg;
+    let nstep = plan.nstep;
+    assert!(nperseg >= 2, "window_size must be >= 2");
+    assert!(nstep >= 1, "hop_size must be >= 1");
+    assert!(
+        x.len() >= nperseg,
+        "signal length ({}) must be >= window_size ({nperseg})",
         x.len()
     );
 
-    let n_freqs = window_size / 2 + 1;
-    let window = hann_window(window_size);
+    let win = periodic_window(plan.window, nperseg);
+    let scale = match plan.scaling {
+        StftScaling::Spectrum => 1.0 / win.iter().sum::<f64>(),
+        StftScaling::Density => 1.0 / (fs * win.iter().map(|w| w * w).sum::<f64>()).sqrt(),
+    };
 
+    // The boundary adds nperseg / 2 zeros at both ends; the padding then
+    // completes the last segment, as SciPy's `_spectral_helper` does.
+    let mut data: Vec<f64> = if plan.boundary {
+        let half = nperseg / 2;
+        let mut extended = vec![0.0; half];
+        extended.extend_from_slice(x);
+        extended.resize(extended.len() + half, 0.0);
+        extended
+    } else {
+        x.to_vec()
+    };
+    if plan.padded {
+        let nadd = (nstep - (data.len() - nperseg) % nstep) % nstep % nperseg;
+        data.resize(data.len() + nadd, 0.0);
+    }
+
+    let n_freqs = nperseg / 2 + 1;
     let frequencies: Vec<f64> = (0..n_freqs)
-        .map(|i| i as f64 * fs / window_size as f64)
+        .map(|i| i as f64 * fs / nperseg as f64)
         .collect();
+
+    // SciPy measures the frame centers in the extended data, then moves them
+    // back by nperseg / 2 samples when the boundary was added.
+    let half = nperseg as f64 / 2.0;
+    let shift = if plan.boundary { half / fs } else { 0.0 };
 
     let mut times = Vec::new();
     let mut spectrogram = Vec::new();
 
     let mut start = 0;
-    while start + window_size <= x.len() {
-        // Center time of the window
-        let t = (start as f64 + (window_size - 1) as f64 / 2.0) / fs;
-        times.push(t);
+    while start + nperseg <= data.len() {
+        times.push((half + start as f64) / fs - shift);
 
-        // Apply window and convert to Complex
-        let windowed: Vec<Complex> = (0..window_size)
-            .map(|i| Complex::new(x[start + i] * window[i], 0.0))
+        let windowed: Vec<Complex> = (0..nperseg)
+            .map(|i| Complex::new(data[start + i] * win[i], 0.0))
             .collect();
-
         let spectrum = fft(&windowed);
 
-        // Keep only positive frequencies (first n_freqs bins)
-        spectrogram.push(spectrum[..n_freqs].to_vec());
+        // Keep only the non-negative frequencies and scale each bin.
+        let row: Vec<Complex> = spectrum[..n_freqs]
+            .iter()
+            .map(|c| Complex::new(c.re * scale, c.im * scale))
+            .collect();
+        spectrogram.push(row);
 
-        start += hop_size;
+        start += nstep;
     }
 
     StftResult {
@@ -84,14 +242,6 @@ pub fn stft(x: &[f64], window_size: usize, hop_size: usize, fs: f64) -> StftResu
         times,
         spectrogram,
     }
-}
-
-/// Generate a Hann window of size `n`.
-fn hann_window(n: usize) -> Vec<f64> {
-    use std::f64::consts::PI;
-    (0..n)
-        .map(|i| 0.5 * (1.0 - (2.0 * PI * i as f64 / (n - 1) as f64).cos()))
-        .collect()
 }
 
 #[cfg(test)]
