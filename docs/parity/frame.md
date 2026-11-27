@@ -298,7 +298,7 @@ A pandas name of `none` means a kit helper with no pandas name; its state is `ha
 
 | Function | pandas name | State | Evidence |
 |---|---|---|---|
-| read_csv | pd.read_csv | partial | crates/frame/src/frame/io/csv.rs; no dtype, index_col or na_values argument |
+| read_csv | pd.read_csv | partial | crates/frame/src/frame/io/csv.rs; no dtype, index_col or na_values argument; a row shorter than the header is ShapeMismatch, not null padding |
 | read_csv_with_options | pd.read_csv | partial | crates/frame/src/frame/io/csv.rs; options are delimiter, header and quote only |
 | write_csv | DataFrame.to_csv(index=False) | partial | crates/frame/src/frame/io/csv.rs; no index column is written |
 | write_csv_with_options | DataFrame.to_csv | partial | crates/frame/src/frame/io/csv.rs; options are delimiter, header and quote only; no index |
