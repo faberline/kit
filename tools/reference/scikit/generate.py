@@ -461,23 +461,45 @@ def fft_signal_rows():
         add(f"peaks_{name}_height", d[peaks], psrc + " x[peaks]")
         add(f"peaks_{name}_prominence", props["prominences"], psrc + " prominences")
 
-    x256 = sample(256)
-    stft_src = (
-        "numpy.fft.rfft(x[s:s+w] * scipy.signal.windows.hann(w, sym=True)) "
-        "(kit stft: symmetric Hann, no scaling, no padding)"
-    )
-    for w, h, fs in ((64, 32, 100.0), (100, 25, 1000.0)):
-        prefix = f"stft_w{w}_h{h}"
-        starts = list(range(0, 256 - w + 1, h))
-        win = sg.windows.hann(w, sym=True)
-        zs = [np.fft.rfft(x256[s : s + w] * win) for s in starts]
-        add(f"{prefix}_n_frames", float(len(starts)), stft_src)
-        add(f"{prefix}_freqs", np.fft.rfftfreq(w, 1.0 / fs), stft_src)
-        add(f"{prefix}_times", [(s + (w - 1) / 2) / fs for s in starts], stft_src)
-        add_complex(f"{prefix}_frame0", zs[0], stft_src)
-        add_complex(f"{prefix}_last", zs[-1], stft_src)
-        add_complex(f"{prefix}_all", np.concatenate(zs), stft_src)
 
+    return rows
+
+
+STFT_FIXTURE = "crates/scikit/tests/fixtures/stft_scipy_reference.tsv"
+
+# (case name, signal, fs, keyword arguments of scipy.signal.stft). The default
+# window is 'hann' (periodic), boundary 'zeros' and padded True, as in SciPy.
+STFT_CASES = [
+    ("default", "sample(256)", 100.0, {"nperseg": 64, "noverlap": 32}),
+    ("nobound", "sample(256)", 100.0, {"nperseg": 64, "noverlap": 32, "boundary": None, "padded": False}),
+    ("density", "sample(256)", 100.0, {"nperseg": 64, "noverlap": 32, "boundary": None, "padded": False, "scaling": "psd"}),
+    ("hamming_odd", "sample(250)", 100.0, {"window": "hamming", "nperseg": 33, "noverlap": 16}),
+    ("blackman_pad", "sample(256)", 100.0, {"window": "blackman", "nperseg": 40, "noverlap": 10, "boundary": None, "padded": True}),
+    ("nobound_w100", "sample(256)", 1000.0, {"nperseg": 100, "noverlap": 75, "boundary": None, "padded": False}),
+]
+
+
+def stft_rows():
+    """Rows of the scikit::signal::stft group (stft_scipy_reference.tsv).
+
+    For each case in STFT_CASES: the frame count, the bin count, the times,
+    the frequencies, and the real and imaginary parts of the spectrum. The
+    spectrum is flattened frame first, then frequency bin, as kit returns it.
+    """
+    rows = []
+    signals = {"sample(256)": sample(256), "sample(250)": sample(250)}
+    for name, signal_expr, fs, kwargs in STFT_CASES:
+        x = signals[signal_expr]
+        f, t, z = sg.stft(x, fs=fs, **kwargs)
+        opts = ", ".join(f"{k}={v!r}" for k, v in kwargs.items())
+        src = f"scipy.signal.stft({signal_expr}, fs={fs!r}, {opts})"
+        prefix = f"stft.{name}"
+        rows.append((f"{prefix}.n_frames", float(len(t)), src + " len(times)"))
+        rows.append((f"{prefix}.n_freqs", float(len(f)), src + " len(freqs)"))
+        rows.append((f"{prefix}.times", np.asarray(t, dtype=float).tolist(), src + " times"))
+        rows.append((f"{prefix}.freqs", np.asarray(f, dtype=float).tolist(), src + " freqs"))
+        rows.append((f"{prefix}.re", np.real(z.T).ravel().tolist(), src + " Zxx.T.real.ravel()"))
+        rows.append((f"{prefix}.im", np.imag(z.T).ravel().tolist(), src + " Zxx.T.imag.ravel()"))
     return rows
 
 
@@ -1169,5 +1191,6 @@ common.main(
         "crates/scikit/tests/fixtures/ts_reference.tsv": ts_rows,
         "crates/scikit/tests/fixtures/spatial_sparse_reference.tsv": spatial_sparse_rows,
         "crates/scikit/tests/fixtures/linear_model_reference.tsv": linear_model_rows,
+        STFT_FIXTURE: stft_rows,
     }
 )

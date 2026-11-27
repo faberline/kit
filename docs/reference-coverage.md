@@ -1,6 +1,6 @@
 # Reference coverage
 
-Numeric rows: 413
+Numeric rows: 415
 Not numeric rows: 198
 
 Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` lists. A numeric function needs a reference value from a Python library (numpy, scipy, pandas or statsmodels, pinned in `tools/reference/requirements.txt`), a tolerance and a test. Status `not covered` means that no reference test exists yet. `-` means not written yet. `tools/reference/check_table.sh` checks this file.
@@ -328,7 +328,9 @@ Each row is one `pub fn` or `pub const fn` that `tools/reference/inventory.sh` l
 | scikit | scikit::signal/filtfilt::filtfilt | scipy.signal.filtfilt(b, a, sample(64)), defaults, 5 filters | 1e-9 rel; exact zeros 1e-12 abs | filtfilt_matches_scipy_default | covered |
 | scikit | scikit::signal/filtfilt::filtfilt_with | scipy.signal.filtfilt(b, a, sample(64), padtype=..., padlen=...), odd/even/constant/None and padlen 10 and 30 | 1e-9 rel; exact zeros 1e-12 abs | filtfilt_matches_scipy_padtypes, filtfilt_none_ignores_padlen, filtfilt_rejects_short_signal, filtfilt_empty_input_is_empty | covered |
 | scikit | scikit::signal/peaks::find_peaks | scipy.signal.find_peaks(sample(40), options), 4 option sets | 1e-9 rel; exact zeros 1e-12 abs | find_peaks_matches_scipy | covered |
-| scikit | scikit::signal/stft::stft | numpy.fft.rfft of x[s:s+w] * scipy.signal.windows.hann(w, sym=True), 2 configs | 1e-9 rel; exact zeros 1e-12 abs | stft_matches_numpy_hann | covered |
+| scikit | scikit::signal/stft::stft | scipy.signal.stft(x, fs, nperseg=64, noverlap=32, boundary=None, padded=False), and nperseg=100, noverlap=75, fs=1000 | 1e-9 rel; exact zeros 1e-12 abs | stft_matches_scipy_nobound, stft_matches_scipy_nobound_w100_fs1000 | covered |
+| scikit | scikit::signal/stft::new | scipy.signal.stft defaults: StftOptions::new(64) (hann, noverlap nperseg/2, boundary zeros, padded, spectrum) | 1e-9 rel; exact zeros 1e-12 abs | stft_with_matches_scipy_default, stft_with_default_options_equal_scipy_defaults | covered |
+| scikit | scikit::signal/stft::stft_with | scipy.signal.stft(x, fs, window, nperseg, noverlap, boundary, padded, scaling), 4 cases and a noverlap panic | 1e-9 rel; exact zeros 1e-12 abs | stft_with_matches_scipy_default, stft_with_matches_scipy_density, stft_with_matches_scipy_hamming_odd, stft_with_matches_scipy_blackman_pad, stft_with_rejects_noverlap_not_below_nperseg | covered |
 | scikit | scikit::signal/windows::blackman | scipy.signal.windows.blackman(n, sym=True), n in 9, 64 | 1e-9 rel; exact zeros 1e-12 abs | blackman_matches_scipy | covered |
 | scikit | scikit::signal/windows::hamming | scipy.signal.windows.hamming(n, sym=True), n in 9, 64 | 1e-9 rel; exact zeros 1e-12 abs | hamming_matches_scipy | covered |
 | scikit | scikit::signal/windows::hann | scipy.signal.windows.hann(n, sym=True), n in 9, 64 | 1e-9 rel; exact zeros 1e-12 abs | hann_matches_scipy | covered |
