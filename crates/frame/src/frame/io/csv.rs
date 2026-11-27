@@ -91,12 +91,6 @@ pub fn read_csv_with_options<P: AsRef<Path>>(path: P, options: CsvOptions) -> Re
                 columns[i].push(parse_value(&field));
             }
         }
-
-        // Pad missing columns with null
-        let skip_count = column_names.len().min(num_cols);
-        for col in columns.iter_mut().skip(skip_count) {
-            col.push(Value::Null);
-        }
     }
 
     // Build DataFrame
