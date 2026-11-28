@@ -70,7 +70,10 @@ fn lower_incomplete_gamma_not_converged_is_nan() {
 }
 
 #[test]
-fn incomplete_beta_extreme_parameters_hit_cf_guards() {
-    let v = incomplete_beta(1e-300, 1e30, 1e-30);
-    assert!(v.is_finite() && (0.0..=1.0).contains(&v) && v < 1e-12);
+fn incomplete_beta_tiny_x_huge_b_is_one() {
+    // a = 5, b = 1e30, x = 1e-20: b * x = 1e10, far above a, so the true value is 1
+    // (1 - I = I_{1-x}(b, a) < exp(-1e10)). Reaches the three `1e-30` guards that
+    // `incomplete_beta` can reach: the first `d` guard, and the `d` and `c` guards
+    // of the second half of the loop in `beta_cf`.
+    close(incomplete_beta(5.0, 1e30, 1e-20), 1.0, 1e-12);
 }
