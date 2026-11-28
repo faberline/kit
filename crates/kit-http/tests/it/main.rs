@@ -1,6 +1,10 @@
 mod app_host_protocol_test;
 mod client_http2_test;
 mod client_retry_test;
+mod coverage_client_client;
+mod coverage_client_config;
+mod coverage_client_middleware;
+mod coverage_client_request;
 mod health_test;
 mod http_exception_test;
 mod request_response_test;
