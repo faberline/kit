@@ -676,7 +676,41 @@ pub fn lower_incomplete_gamma(s: f64, x: f64) -> f64 {
     x.powf(s) * (-x).exp() * sum
 }
 
+/// ln Γ(a + b) − ln Γ(b).
+///
+/// For `b >= 1e3` it uses the Stirling series in `b + a`, so the two large
+/// terms do not cancel in f64.
+fn ln_gamma_ratio(a: f64, b: f64) -> f64 {
+    if b >= 1.0e3 {
+        let z1 = b + a;
+        return a * b.ln() + (z1 - 0.5) * (a / b).ln_1p() - a + 1.0 / (12.0 * z1)
+            - 1.0 / (12.0 * b)
+            - 1.0 / (360.0 * z1.powi(3))
+            + 1.0 / (360.0 * b.powi(3));
+    }
+    ln_gamma(a + b) - ln_gamma(b)
+}
+
+/// Power series of I_x(a, b), used for a huge `b` with `x * (a + b) <= 500`.
+fn beta_series(a: f64, b: f64, x: f64) -> f64 {
+    let ln_pre = ln_gamma_ratio(a, b) - ln_gamma(a + 1.0) + a * x.ln() + (-x).ln_1p() * b;
+    let mut term = 1.0;
+    let mut sum = 1.0;
+    for n in 0..200_000 {
+        let n = n as f64;
+        term *= (a + b + n) / (a + 1.0 + n) * x;
+        sum += term;
+        if term < 1e-17 * sum {
+            break;
+        }
+    }
+    ln_pre.exp() * sum
+}
+
 /// Regularized incomplete beta function I_x(a, b).
+///
+/// For a huge `b` (at least 1e3, above `a`) with `x * (a + b) <= 500`, it
+/// uses a power series instead of the continued fraction.
 pub fn incomplete_beta(a: f64, b: f64, x: f64) -> f64 {
     if x <= 0.0 {
         return 0.0;
@@ -684,9 +718,12 @@ pub fn incomplete_beta(a: f64, b: f64, x: f64) -> f64 {
     if x >= 1.0 {
         return 1.0;
     }
+    if b >= 1.0e3 && b > a && x * (a + b) <= 500.0 {
+        return beta_series(a, b, x);
+    }
 
     // Use continued fraction expansion
-    let bt = (ln_gamma(a + b) - ln_gamma(a) - ln_gamma(b) + a * x.ln() + b * (1.0 - x).ln()).exp();
+    let bt = (ln_gamma(a + b) - ln_gamma(a) - ln_gamma(b) + a * x.ln() + b * (-x).ln_1p()).exp();
 
     if x < (a + 1.0) / (a + b + 2.0) {
         bt * beta_cf(a, b, x) / a

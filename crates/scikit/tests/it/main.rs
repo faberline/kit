@@ -19,6 +19,8 @@ mod reference_ts;
 mod stats;
 
 #[cfg(feature = "stats")]
+mod reference_incomplete_beta_extreme;
+#[cfg(feature = "stats")]
 mod reference_stats;
 #[cfg(feature = "stats")]
 mod reference_stats_grid;
