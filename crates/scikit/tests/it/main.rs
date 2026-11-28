@@ -2,6 +2,8 @@
 mod bench_smoke;
 #[cfg(feature = "stats")]
 mod coverage_stats_basic;
+#[cfg(feature = "stats")]
+mod coverage_stats_distributions;
 #[cfg(feature = "fft")]
 mod fft;
 #[cfg(all(

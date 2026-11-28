@@ -686,11 +686,7 @@ pub fn incomplete_beta(a: f64, b: f64, x: f64) -> f64 {
     }
 
     // Use continued fraction expansion
-    let bt = if x == 0.0 || x == 1.0 {
-        0.0
-    } else {
-        (ln_gamma(a + b) - ln_gamma(a) - ln_gamma(b) + a * x.ln() + b * (1.0 - x).ln()).exp()
-    };
+    let bt = (ln_gamma(a + b) - ln_gamma(a) - ln_gamma(b) + a * x.ln() + b * (1.0 - x).ln()).exp();
 
     if x < (a + 1.0) / (a + b + 2.0) {
         bt * beta_cf(a, b, x) / a
@@ -718,13 +714,7 @@ fn beta_cf(a: f64, b: f64, x: f64) -> f64 {
 
         let aa = m * (b - m) * x / ((qam + m2) * (a + m2));
         d = 1.0 + aa * d;
-        if d.abs() < 1e-30 {
-            d = 1e-30;
-        }
         c = 1.0 + aa / c;
-        if c.abs() < 1e-30 {
-            c = 1e-30;
-        }
         d = 1.0 / d;
         h *= d * c;
 
